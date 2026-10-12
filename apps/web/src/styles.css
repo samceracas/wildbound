@@ -1,0 +1,4 @@
+html, body, #root { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
+.app { position: relative; height: 100vh; }
+.map { position: absolute; inset: 0; }
+.status { position: absolute; z-index: 1; top: 10px; left: 10px; background: rgba(0, 0, 0, 0.75); color: #fff; padding: 6px 12px; border-radius: 6px; font-size: 13px; }

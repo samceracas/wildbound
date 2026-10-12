@@ -1,0 +1,32 @@
+[
+  {
+    "id": "kawi",
+    "name": "Kawi",
+    "description": "Quick canopy dweller that patrols woodland edges.",
+    "habitatAffinity": ["canopy", "woodland-edge", "forest-edge"]
+  },
+  {
+    "id": "mimu",
+    "name": "Mimu",
+    "description": "Shy forager hidden in leaf litter and moss on the forest floor.",
+    "habitatAffinity": ["forest-floor", "leaf-litter", "moss"]
+  },
+  {
+    "id": "lumae",
+    "name": "Lumae",
+    "description": "Sun-loving Wildkin drawn to flowering clearings.",
+    "habitatAffinity": ["clearing", "flowering", "sunny"]
+  },
+  {
+    "id": "kantar",
+    "name": "Kantar",
+    "description": "Sturdy climber found on rocks, fallen branches and sheltered surfaces.",
+    "habitatAffinity": ["rocky", "fallen-branches", "sheltered"]
+  },
+  {
+    "id": "riverkin",
+    "name": "Riverkin",
+    "description": "Freshwater Wildkin of creeks and shallow pools.",
+    "habitatAffinity": ["freshwater", "creek", "riparian"]
+  }
+]

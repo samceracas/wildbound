@@ -1,0 +1,436 @@
+{
+  "regions": [
+    {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "slug": "mabunyi-nature-reserve",
+      "name": "Mabunyi Nature Reserve",
+      "description": "Opening field research area. Placeholder boundary over an NCR urban park; redraw it on the real geography in the editor.",
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [
+                121.0405,
+                14.6485
+              ],
+              [
+                121.0458,
+                14.6483
+              ],
+              [
+                121.0462,
+                14.653
+              ],
+              [
+                121.041,
+                14.6533
+              ],
+              [
+                121.04,
+                14.651
+              ],
+              [
+                121.0405,
+                14.6485
+              ]
+            ]
+          ]
+        ]
+      },
+      "biomeTags": [
+        "tropical-forest",
+        "urban-park"
+      ],
+      "unlockCondition": null,
+      "storyStateRequirements": [],
+      "active": true
+    }
+  ],
+  "habitats": [
+    {
+      "id": "20000000-0000-4000-8000-000000000001",
+      "regionId": "10000000-0000-4000-8000-000000000001",
+      "slug": "forest-edge",
+      "name": "Forest Edge",
+      "description": "Shaded woodland margin along the Zigzag Forest Trail.",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.0408,
+              14.649
+            ],
+            [
+              121.0428,
+              14.649
+            ],
+            [
+              121.0428,
+              14.6525
+            ],
+            [
+              121.041,
+              14.6527
+            ],
+            [
+              121.0404,
+              14.651
+            ],
+            [
+              121.0408,
+              14.649
+            ]
+          ]
+        ]
+      },
+      "habitatTags": [
+        "forest-edge",
+        "canopy",
+        "forest-floor",
+        "leaf-litter"
+      ],
+      "conditionRules": {
+        "timeOfDay": [],
+        "weather": []
+      }
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000002",
+      "regionId": "10000000-0000-4000-8000-000000000001",
+      "slug": "sunbreak-clearing",
+      "name": "Sunbreak Clearing",
+      "description": "Open flowering clearing that catches the morning sun.",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.0432,
+              14.6508
+            ],
+            [
+              121.0455,
+              14.6507
+            ],
+            [
+              121.0457,
+              14.6527
+            ],
+            [
+              121.0433,
+              14.6527
+            ],
+            [
+              121.0432,
+              14.6508
+            ]
+          ]
+        ]
+      },
+      "habitatTags": [
+        "clearing",
+        "flowering",
+        "sunny"
+      ],
+      "conditionRules": {
+        "timeOfDay": [],
+        "weather": []
+      }
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000003",
+      "regionId": "10000000-0000-4000-8000-000000000001",
+      "slug": "silayan-creekside",
+      "name": "Silayan Creekside",
+      "description": "Riparian strip along Silayan Creek and the Creek Trail.",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              121.043,
+              14.6488
+            ],
+            [
+              121.0456,
+              14.6487
+            ],
+            [
+              121.0456,
+              14.6502
+            ],
+            [
+              121.043,
+              14.6503
+            ],
+            [
+              121.043,
+              14.6488
+            ]
+          ]
+        ]
+      },
+      "habitatTags": [
+        "freshwater",
+        "creek",
+        "riparian",
+        "rocky"
+      ],
+      "conditionRules": {
+        "timeOfDay": [],
+        "weather": []
+      }
+    }
+  ],
+  "pois": [
+    {
+      "id": "30000000-0000-4000-8000-000000000001",
+      "regionId": "10000000-0000-4000-8000-000000000001",
+      "slug": "east-research-gate",
+      "name": "East Research Gate",
+      "description": "Field team entrance to the reserve.",
+      "type": "gate",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          121.0456,
+          14.6505
+        ]
+      },
+      "interactionId": "research-gate-checkin",
+      "unlockCondition": null
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000002",
+      "regionId": "10000000-0000-4000-8000-000000000001",
+      "slug": "zigzag-forest-trail",
+      "name": "Zigzag Forest Trail",
+      "description": "Switchback trail through the Forest Edge.",
+      "type": "trail",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          121.0418,
+          14.6512
+        ]
+      },
+      "interactionId": null,
+      "unlockCondition": null
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000003",
+      "regionId": "10000000-0000-4000-8000-000000000001",
+      "slug": "sunbreak",
+      "name": "Sunbreak",
+      "description": "Bright opening in the canopy.",
+      "type": "clearing",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          121.0444,
+          14.6518
+        ]
+      },
+      "interactionId": null,
+      "unlockCondition": null
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000004",
+      "regionId": "10000000-0000-4000-8000-000000000001",
+      "slug": "root-hollow",
+      "name": "Root Hollow",
+      "description": "Hollow under a tangle of buttress roots.",
+      "type": "hollow",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          121.0414,
+          14.6497
+        ]
+      },
+      "interactionId": null,
+      "unlockCondition": null
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000005",
+      "regionId": "10000000-0000-4000-8000-000000000001",
+      "slug": "fern-hollow",
+      "name": "Fern Hollow",
+      "description": "Damp fern-filled dip.",
+      "type": "hollow",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          121.0422,
+          14.6521
+        ]
+      },
+      "interactionId": null,
+      "unlockCondition": null
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000006",
+      "regionId": "10000000-0000-4000-8000-000000000001",
+      "slug": "creek-trail",
+      "name": "Creek Trail",
+      "description": "Path following Silayan Creek.",
+      "type": "trail",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          121.0438,
+          14.65
+        ]
+      },
+      "interactionId": null,
+      "unlockCondition": null
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000007",
+      "regionId": "10000000-0000-4000-8000-000000000001",
+      "slug": "silayan-creek",
+      "name": "Silayan Creek",
+      "description": "Slow freshwater creek.",
+      "type": "water",
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          121.0447,
+          14.6494
+        ]
+      },
+      "interactionId": null,
+      "unlockCondition": null
+    }
+  ],
+  "encounterTables": [
+    {
+      "id": "40000000-0000-4000-8000-000000000001",
+      "name": "Forest Edge Encounters",
+      "regionId": "10000000-0000-4000-8000-000000000001",
+      "habitatId": "20000000-0000-4000-8000-000000000001",
+      "conditionRules": {
+        "timeOfDay": [],
+        "weather": []
+      },
+      "active": true,
+      "entries": [
+        {
+          "id": "50000000-0000-4000-8000-000000000001",
+          "creatureId": "kawi",
+          "weight": 40,
+          "conditions": {
+            "timeOfDay": [],
+            "weather": []
+          }
+        },
+        {
+          "id": "50000000-0000-4000-8000-000000000002",
+          "creatureId": "mimu",
+          "weight": 35,
+          "conditions": {
+            "timeOfDay": [],
+            "weather": []
+          }
+        },
+        {
+          "id": "50000000-0000-4000-8000-000000000003",
+          "creatureId": "kantar",
+          "weight": 25,
+          "conditions": {
+            "timeOfDay": [],
+            "weather": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "40000000-0000-4000-8000-000000000002",
+      "name": "Sunbreak Clearing Encounters",
+      "regionId": "10000000-0000-4000-8000-000000000001",
+      "habitatId": "20000000-0000-4000-8000-000000000002",
+      "conditionRules": {
+        "timeOfDay": [],
+        "weather": []
+      },
+      "active": true,
+      "entries": [
+        {
+          "id": "50000000-0000-4000-8000-000000000004",
+          "creatureId": "lumae",
+          "weight": 60,
+          "conditions": {
+            "timeOfDay": [
+              "dawn",
+              "day"
+            ],
+            "weather": []
+          }
+        },
+        {
+          "id": "50000000-0000-4000-8000-000000000005",
+          "creatureId": "kawi",
+          "weight": 25,
+          "conditions": {
+            "timeOfDay": [],
+            "weather": []
+          }
+        },
+        {
+          "id": "50000000-0000-4000-8000-000000000006",
+          "creatureId": "kantar",
+          "weight": 15,
+          "conditions": {
+            "timeOfDay": [],
+            "weather": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "40000000-0000-4000-8000-000000000003",
+      "name": "Silayan Creekside Encounters",
+      "regionId": "10000000-0000-4000-8000-000000000001",
+      "habitatId": "20000000-0000-4000-8000-000000000003",
+      "conditionRules": {
+        "timeOfDay": [],
+        "weather": []
+      },
+      "active": true,
+      "entries": [
+        {
+          "id": "50000000-0000-4000-8000-000000000007",
+          "creatureId": "riverkin",
+          "weight": 60,
+          "conditions": {
+            "timeOfDay": [],
+            "weather": []
+          }
+        },
+        {
+          "id": "50000000-0000-4000-8000-000000000008",
+          "creatureId": "kantar",
+          "weight": 25,
+          "conditions": {
+            "timeOfDay": [],
+            "weather": []
+          }
+        },
+        {
+          "id": "50000000-0000-4000-8000-000000000009",
+          "creatureId": "mimu",
+          "weight": 15,
+          "conditions": {
+            "timeOfDay": [],
+            "weather": [
+              "rain",
+              "cloudy"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
