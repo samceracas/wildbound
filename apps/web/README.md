@@ -9,17 +9,23 @@ Later this app will host the Phaser 3 field, which draws a stylized top-down 2D 
 ```
 apps/web/
   index.html          Vite entry
-  vite.config.ts      Port 5174; reads VITE_* from the repo-root .env
-  tsconfig.json       Extends the shared strict base config
+  vite.config.ts      Port 5174, Tailwind plugin, "@" alias, reads VITE_* from the repo-root .env
+  tsconfig.json       Extends the shared strict base config, adds the "@/*" path
+  components.json     shadcn CLI config (new-york style, neutral base, lucide icons)
   src/
-    main.tsx          React root, loads maplibre-gl.css and styles.css
-    App.tsx           Fetches the published world and shows a one-line summary above the map
+    main.tsx          React root, QueryClientProvider and devtools
+    App.tsx           Published-world summary card (shadcn) over the map
     MapView.tsx       The MapLibre setup: OSM raster basemap, zoom controls, scale bar
     api.ts            Typed, Zod-validated helpers for the API (fetchPublishedWorld, resolveCoordinate)
-    styles.css        Full-screen map and the status label
+    queries.ts        TanStack Query hooks and query keys (usePublishedWorld, useWorldContext)
+    styles.css        Tailwind import and the shadcn theme tokens (light and dark)
+    lib/
+      utils.ts        cn(): class merging helper used by every shadcn component
+      query-client.ts The shared QueryClient and its defaults
+    components/ui/    shadcn components (button, card, badge so far)
 ```
 
-When it is running you should see an OpenStreetMap basemap centered on Metro Manila and a label such as `Published v1: 1 region(s), 3 habitat(s), 7 POI(s)`. That label proves the full pipeline works: editor, publish, API, this app.
+When it is running you should see an OpenStreetMap basemap centered on Metro Manila and a card with badges such as `v1`, `1 regions`, `3 habitats`, `7 POIs`. That summary proves the full pipeline works: editor, publish, API, this app.
 
 ## Tech stack
 
@@ -31,8 +37,24 @@ When it is running you should see an OpenStreetMap basemap centered on Metro Man
 | `@wildbound/shared` | Zod schemas and types for the API responses (workspace package) |
 | `zod` | Needed by the shared schemas |
 | `typescript` | Type checking (`pnpm typecheck`) |
+| `tailwindcss` 4, `@tailwindcss/vite` | Styling. No `tailwind.config`; the theme lives in `src/styles.css` |
+| shadcn (`radix-ui`, `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react`, `tw-animate-css`) | Component library. Components are copied into `src/components/ui` and are yours to edit |
+| `@tanstack/react-query` 5 (+ devtools) | Server state: fetching, caching, loading and error states |
 
-No state library, router or UI kit on purpose. Add what you need as you learn.
+No router or client state library yet. Add them when a real need shows up.
+
+### Adding shadcn components
+
+```bash
+cd apps/web
+pnpm dlx shadcn@latest add dialog select tabs
+```
+
+`components.json` already points the CLI at `src/styles.css` and the `@/components/ui` alias.
+
+### Adding data fetching
+
+Put the raw call in `src/api.ts` (Zod-parsed), then wrap it in a hook in `src/queries.ts` with a key from `queryKeys`. Components use the hook and never call `fetch` directly.
 
 ## Run it
 
@@ -67,7 +89,7 @@ The shapes are defined once in `packages/shared`, so TypeScript and Zod agree wi
 
 ## Learning path (suggested exercises)
 
-Each step is small and builds on the last. Do them in `MapView.tsx` unless noted.
+Each step is small and builds on the last. Do them in `MapView.tsx` unless noted. UI pieces can use the shadcn components.
 
 1. **Understand the setup.** Read `MapView.tsx`. Why is the map created in `useEffect` with a ref? What happens in StrictMode, and why does cleanup call `map.remove()`?
 2. **Change the view.** Edit `center` and `zoom`. Add `maxBounds`. Try `pitch` and `bearing`.
@@ -76,7 +98,7 @@ Each step is small and builds on the last. Do them in `MapView.tsx` unless noted
 5. **Draw the published world.** Pass the fetched `world` into `MapView` as a prop. Build GeoJSON `FeatureCollection`s from `regions` and `habitats` and add one source and layer per kind. Update with `source.setData(...)` when the prop changes instead of recreating the map.
 6. **Style by data.** Use data-driven expressions, for example `["get", "name"]` or `["case", ...]`, to color habitats differently.
 7. **Add markers or a circle layer for POIs.** Compare `maplibregl.Marker` (DOM, easy, fine for tens) with a `circle` layer (GPU, scales to thousands).
-8. **Use the resolver.** On click, call `resolveCoordinate({ lat, lng })` and render the region, habitat, Wildkin and nearby POIs in a panel. Handle the "outside every region" case, which is a normal empty response.
+8. **Use the resolver.** On click, pass `{ lat, lng }` to the `useWorldContext` hook and render the region, habitat, Wildkin and nearby POIs in a panel. Handle the "outside every region" case, which is a normal empty response.
 9. **Simulate conditions.** Add selects for time of day and weather and watch `availableWildkin` change without any code changes to the API.
 10. **Fit the view to the data.** Compute the bounds of the published world and call `map.fitBounds`.
 11. **Simulate a player.** Add a draggable marker that re-resolves on `dragend`. This is the shape the future live-GPS adapter will take.

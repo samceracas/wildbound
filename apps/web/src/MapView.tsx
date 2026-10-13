@@ -41,5 +41,5 @@ export function MapView() {
     return () => map.remove();
   }, []);
 
-  return <div ref={container} className="map" />;
+  return <div ref={container} className="absolute inset-0" />;
 }
