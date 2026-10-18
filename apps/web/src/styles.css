@@ -1,53 +1,75 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
-
-/* shadcn theme tokens (new-york, neutral). Edit these to retheme every component. */
+/*
+ * Theme: the Stitch "Field Registry" design system (patches/0.1.0/mockups/DESIGN.md).
+ * A deep-forest shell around warm paper. Light only, by design.
+ * shadcn components read the semantic variables; game UI also uses the named
+ * palette (bg-deep-forest, text-ink, bg-paper, ...).
+ */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-}
+  --radius: 0.625rem; /* 10px: buttons and inputs */
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  /* named palette */
+  --deep-forest: #183f36;
+  --forest-slate: #315e4d;
+  --primary-forest: #1f6b57;
+  --moss: #6f8f5f;
+  --leaf: #8ea96f;
+  --field-gold: #d5a84c;
+  --warm-paper: #f6f0e3;
+  --paper: #fffdf7;
+  --muted-paper: #e8e1d2;
+  --ink: #24302d;
+  --ink-muted: #64706a;
+  --sky: #8eb9cf;
+  --water: #4d93a6;
+  --terracotta: #c96a5b;
+  --success: #4f8a68;
+  --locked: #7c827e;
+
+  /* shadcn semantic tokens */
+  --background: var(--warm-paper);
+  --foreground: var(--ink);
+  --card: var(--paper);
+  --card-foreground: var(--ink);
+  --popover: var(--paper);
+  --popover-foreground: var(--ink);
+  --primary: var(--primary-forest);
+  --primary-foreground: var(--paper);
+  --secondary: var(--deep-forest);
+  --secondary-foreground: var(--paper);
+  --muted: var(--muted-paper);
+  --muted-foreground: var(--ink-muted);
+  --accent: var(--warm-paper);
+  --accent-foreground: var(--primary-forest);
+  --destructive: var(--terracotta);
+  --border: var(--muted-paper);
+  --input: var(--muted-paper);
+  --ring: var(--primary-forest);
 }
 
 @theme inline {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Noto Serif", ui-serif, Georgia, serif;
+
+  --color-deep-forest: var(--deep-forest);
+  --color-forest-slate: var(--forest-slate);
+  --color-primary-forest: var(--primary-forest);
+  --color-moss: var(--moss);
+  --color-leaf: var(--leaf);
+  --color-field-gold: var(--field-gold);
+  --color-warm-paper: var(--warm-paper);
+  --color-paper: var(--paper);
+  --color-muted-paper: var(--muted-paper);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-sky: var(--sky);
+  --color-water: var(--water);
+  --color-terracotta: var(--terracotta);
+  --color-success: var(--success);
+  --color-locked: var(--locked);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -66,10 +88,14 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  /* Detached dialogs/tooltips only: a hairline index-card shadow, never glow. */
+  --shadow-card: 0 2px 4px rgba(24, 63, 54, 0.06), 0 8px 16px rgba(24, 63, 54, 0.08);
 }
 
 @layer base {
@@ -82,6 +108,32 @@
     @apply h-full m-0;
   }
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply bg-deep-forest text-foreground font-sans antialiased;
+  }
+}
+
+@layer components {
+  /* Typography scale from DESIGN.md */
+  .text-display {
+    @apply font-serif text-[40px] leading-[42px] tracking-[-0.02em];
+  }
+  .text-headline-lg {
+    @apply font-serif text-[32px] leading-9 tracking-[-0.015em];
+  }
+  .text-headline-md {
+    @apply font-sans text-2xl leading-[29px] font-bold tracking-[-0.01em];
+  }
+  .text-label-lg {
+    @apply text-sm leading-[17px] font-bold tracking-[0.01em];
+  }
+  .text-label-md {
+    @apply text-xs leading-[14px] font-bold tracking-[0.04em] uppercase;
+  }
+  .pixelated {
+    image-rendering: pixelated;
+  }
+  /* Unknown Registry entries: the species' shape only. */
+  .silhouette {
+    filter: brightness(0) opacity(0.55);
   }
 }
