@@ -8,7 +8,7 @@ The WILDBOUND **Map Editor**: an internal developer tool for authoring the world
 - Place and move **points of interest**.
 - Author **encounter tables**: pick Wildkin, set weights, and add time-of-day and weather conditions.
 - **Save draft**, **Validate**, and **Publish**.
-- **Test mode**: drop a simulated player and see the exact context the API resolves, for the draft or the published world, under any time of day and weather.
+- **Test mode**: drop a simulated player and see the exact context the API resolves (`/api/editor/resolve`, token required), for the draft or the published world, under any time of day and weather. Players cannot do this: the game only resolves their server-tracked position.
 
 ## Tech
 

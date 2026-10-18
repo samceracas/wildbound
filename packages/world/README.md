@@ -11,6 +11,10 @@ Pure WILDBOUND domain logic. No database, no React, no network: the same functio
 | `geometry.ts` | Turf-based helpers: self-intersection check, area, fraction outside a region, overlap, point-in-area, bounds, centroid |
 | `validation.ts` | `checkIntegrity` (blocks saving), `validateWorld` (blocks publishing, plus warnings), `schemaIssues` |
 | `context.ts` | `assembleWorldContext`: turns spatial lookup results plus environment into the `WorldContext` clients receive |
+| `movement.ts` | `distanceMeters` (haversine), `checkMovement` (the anti-teleport plausibility check), `canAct` |
+| `spawning.ts` | `applySpawnModifiers` (**exercise**), `randomPointNear`, `planSpawns` |
+| `weather.ts` | `weatherFromWmoCode`: Open-Meteo WMO code → WILDBOUND weather (**exercise**) |
+| `capture.ts` | `captureChance` (observing first helps), `FLEE_CHANCE_ON_FAIL` |
 
 ## Why it is separate
 
@@ -27,6 +31,7 @@ Rules worth knowing:
 
 ```bash
 pnpm test:unit
+pnpm test:exercises   # spawning.exercise.test.ts and weather.exercise.test.ts: fail until you implement them
 ```
 
 Shared fixtures live in `src/__fixtures__/world.ts` (also used by the API and database integration tests).

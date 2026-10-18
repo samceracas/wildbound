@@ -2,7 +2,7 @@
 
 A location-aware 2D creature-collecting and field-research game. Where you are in the real world decides which part of the fictional WILDBOUND world you are exploring, which habitat you are standing in, and which Wildkin can appear.
 
-This repository holds the **first milestone**: a developer-facing **Map Editor** and the **world-resolution backend** behind it. Phaser gameplay, battles, accounts and live GPS come later.
+This repository holds **v0.1.0**: a developer-facing **Map Editor**, the **API** behind it, and the first playable **web game** (username login, live location, radar with spawning Wildkin, Observe, Registry, Satchel and Party). Parts of v0.1.0 are deliberately left as **fill-in-the-blank exercises**: see [Exercises](#exercises-fill-in-the-blanks).
 
 ```
 Real location (lat/lng)
@@ -17,6 +17,9 @@ WILDBOUND region  ->  Habitat  ->  Conditions (time, weather)  ->  Encounter tab
 - [Why a map editor first](#why-a-map-editor-first)
 - [Three separate representations of the world](#three-separate-representations-of-the-world)
 - [Tech stack](#tech-stack)
+- [The game (apps/web)](#the-game-appsweb)
+- [Location security (anti-teleport)](#location-security-anti-teleport)
+- [Exercises (fill in the blanks)](#exercises-fill-in-the-blanks)
 - [Repository layout](#repository-layout)
 - [Quick start](#quick-start)
 - [Typical workflow](#typical-workflow)
@@ -78,23 +81,30 @@ PostGIS says *where* something is. WILDBOUND rules say *what it means*. Phaser w
 
 ## Tech stack
 
+The app stack is standardized on React, Node.js + Express, Prisma, PostgreSQL, Tailwind CSS, TanStack Query, Zod and react-hook-form. Location features keep their specialised tools (PostGIS, MapLibre, Turf).
+
 | Area | Choice | Notes |
 |---|---|---|
 | Language | TypeScript 5.9 | Strict mode, `noUncheckedIndexedAccess` |
 | Runtime | Node.js 22+ | Uses the built-in `process.loadEnvFile` |
 | Monorepo | pnpm 10 workspaces | `apps/*` and `packages/*` |
-| Frontend | React 19 + Vite 7 | Editor and web app |
+| Frontend | React 19 + Vite 7 | Editor and web game |
+| Routing (web) | React Router 7 | `/` login → `/location` → `/play/*` |
+| Styling (web) | Tailwind CSS 4 + shadcn/ui | Theme from the Stitch "Field Registry" design system |
+| Server state (web) | TanStack Query 5 | All API calls go through query/mutation hooks |
+| Forms (web) | react-hook-form + Zod resolver | The same Zod schemas the API validates with |
 | Map | MapLibre GL JS 5 | Open-source WebGL maps, no API key needed |
 | Editor state | Zustand 5 | Undo/redo history, selection, preview |
 | Client geometry | Turf.js 7 | Convenience only; PostGIS is authoritative |
-| Backend | Fastify 5 | Plain REST + JSON |
+| Backend | Express 5 | Plain REST + JSON, cookie sessions for players |
 | Database | PostgreSQL 16 + PostGIS 3.4 | Geometry as SRID 4326 (WGS84 lon/lat) |
-| DB access | Drizzle ORM 0.45 + `pg` | SQL migrations committed to the repo |
+| DB access | Prisma 7 (`@prisma/adapter-pg`) | Prisma schema + migrations; PostGIS queries via `$queryRaw` |
 | Validation and contracts | Zod 4 | One schema set shared by editor, API and web |
-| Tests | Vitest 3 | Unit tests plus integration tests against real PostGIS |
+| Weather | Open-Meteo | Free, key-free; fetched by the server for the player's position |
+| Art | PixelLab (generated offline) | Wildkin icons/sprites and the player head in `apps/web/public` |
+| Tests | Vitest 3 + supertest | Unit, exercises, and integration tests against real PostGIS |
 | Local DB | Docker Compose (`postgis/postgis:16-3.4`) | Also creates a separate test database |
 | Geographic interchange | GeoJSON (RFC 7946) | `[lng, lat]` order everywhere |
-| Basemaps | OpenFreeMap, OpenStreetMap raster, Esri satellite | Key-free; geographic truth only |
 | Future game renderer | Phaser 3 | Not started |
 
 ## Repository layout
@@ -102,17 +112,18 @@ PostGIS says *where* something is. WILDBOUND rules say *what it means*. Phaser w
 ```
 wildbound/
   apps/
-    api/        Fastify API: authoring, publish, public published world, coordinate resolve
+    api/        Express API: editor authoring/publish/preview, player auth, game (position, spawns, registry…)
     editor/     React + MapLibre Map Editor (developer tool)
-    web/        React + MapLibre player web app. Bootstrapped for learning; Phaser comes later
+    web/        React game: login, location gate, radar, Registry, Satchel, Party
   packages/
     shared/     Zod schemas and TypeScript types: the data contract used everywhere
-    world/      Pure domain logic: validation, conditions, encounter weighting, context assembly
-    db/         Drizzle schema, SQL migrations, PostGIS queries, seed data, test helpers
+    world/      Pure domain logic: validation, conditions, encounters, movement checks, spawning, weather
+    db/         Prisma schema + migrations, PostGIS queries, seed data, test helpers
     game/       (later) battle and game systems
     assets/     (later) tile, creature and effect asset metadata
-  docker/       Postgres init scripts (creates the test database)
-  IMPLEMENTATION.md   The original technical design document for this milestone
+  patches/0.1.0/  v0.1.0 instructions, Stitch design tokens, handover notes, exercises
+  documents/      Game canon: Wildkin Bible, First Field Survey, Biology & Ecology reference
+  docker/         Postgres init scripts (creates the test database)
 ```
 
 Dependency direction (arrows mean "depends on"):
@@ -125,7 +136,7 @@ packages/db ---> packages/world, packages/shared
 packages/world ---> packages/shared
 ```
 
-`packages/world` and `packages/shared` have no database or React dependencies, so the same rules can run in the API, the editor, tests and later in the game client.
+`packages/world` and `packages/shared` have no database or React dependencies, so the same rules run in the API, the editor and tests.
 
 Each app and package has its own README with details.
 
@@ -134,24 +145,26 @@ Each app and package has its own README with details.
 Requirements: Node 22+, pnpm (`corepack enable`), Docker Desktop (for PostGIS).
 
 ```bash
-pnpm install
+pnpm install                    # also generates the Prisma client
 cp .env.example .env            # Windows: copy .env.example .env
 pnpm db:up                      # PostGIS 16 on localhost:5432
-pnpm db:migrate                 # create tables
-pnpm db:seed                    # 5 Wildkin + sample Mabunyi draft
-pnpm db:seed --publish          # optional: also publish it so apps/web has data
+pnpm db:migrate                 # apply Prisma migrations
+pnpm db:seed --publish          # 5 Wildkin + sample Mabunyi world, published so the game has data
 pnpm dev                        # API on :4000 and editor on :5173
-pnpm dev:web                    # player web app on :5174 (separate terminal)
+pnpm dev:web                    # the game on :5174 (separate terminal)
 ```
 
 | URL | What |
 |---|---|
 | http://localhost:5173 | Map Editor |
-| http://localhost:5174 | Player web app (learning space) |
+| http://localhost:5174 | The game (open on your phone via your LAN IP + HTTPS, or use browser devtools "Sensors" to fake a location) |
 | http://localhost:4000/api/health | API health check |
-| http://localhost:4000/api/world/published | Public published world |
 
 If the Docker volume was created before `docker/initdb` existed, create the test database once: `docker exec -it wildbound-db createdb -U postgres wildbound_test`.
+
+**Upgrading from the Drizzle version?** Just run `pnpm db:migrate`. A database created by the old Drizzle migrations is detected and baselined (its world tables match the first Prisma migration), so your authored draft is kept. Then `pnpm db:seed` refreshes the Wildkin with their new Registry fields.
+
+**Testing the game on a desktop.** Browsers only allow geolocation on `https://` or `localhost`. In Chrome devtools open *More tools → Sensors* and pick a location inside the Mabunyi region (e.g. `14.6518, 121.0444`). Move it in small steps: big jumps are rejected by the server (that is the anti-teleport check working).
 
 ### Environment variables (`.env`)
 
@@ -160,11 +173,13 @@ If the Docker volume was created before `docker/initdb` existed, create the test
 | `DATABASE_URL` | Dev database connection string |
 | `DATABASE_URL_TEST` | Separate database used by integration tests (must differ from `DATABASE_URL`) |
 | `API_PORT`, `API_HOST` | API bind address (default `4000`, `127.0.0.1`) |
-| `EDITOR_TOKEN` | Bearer token required by every `/api/editor/*` route and by draft resolution |
-| `CORS_ORIGINS` | Comma-separated browser origins allowed to call the API (editor and web) |
-| `WORLD_TIMEZONE` | Time zone used to derive time of day when a request does not pass one (default `Asia/Manila`) |
-| `VITE_API_URL` | API base URL for the browser apps |
-| `VITE_EDITOR_TOKEN` | Token the editor sends. Only the editor reads it; the web app never does |
+| `EDITOR_TOKEN` | Bearer token required by every `/api/editor/*` route |
+| `CORS_ORIGINS` | Comma-separated browser origins allowed to call the API (the editor; the game goes through the Vite proxy) |
+| `WORLD_TIMEZONE` | Fallback time zone when neither the weather service nor the browser supplies one (default `Asia/Manila`) |
+| `WEATHER_API_URL` | Open-Meteo forecast endpoint (default `https://api.open-meteo.com/v1/forecast`). `off` = always clear (offline dev) |
+| `SECURE_COOKIES` | `true` to mark the session cookie `Secure` (behind HTTPS) |
+| `VITE_API_URL` | API base URL for the editor |
+| `VITE_EDITOR_TOKEN` | Token the editor sends. Only the editor reads it; the web game never does |
 
 The editor token is a single shared secret meant for local development. Replace it with real accounts before exposing the editor anywhere public.
 
@@ -184,7 +199,9 @@ Editor controls: drag white handles to reshape, drag midpoints to add a vertex, 
 
 ## Data model
 
-All geometry is WGS84 longitude/latitude (SRID 4326), GeoJSON `[lng, lat]`. Distances use PostGIS `::geography`, so they are meters.
+All geometry is WGS84 longitude/latitude (SRID 4326), GeoJSON `[lng, lat]`. Distances use PostGIS `::geography`, so they are meters. The Prisma schema is `packages/db/prisma/schema.prisma`.
+
+World (authored in the editor, draft + published):
 
 | Entity | Key fields |
 |---|---|
@@ -193,11 +210,60 @@ All geometry is WGS84 longitude/latitude (SRID 4326), GeoJSON `[lng, lat]`. Dist
 | `PointOfInterest` | regionId, slug (unique per region), type, Point, interactionId, unlockCondition |
 | `EncounterTable` | regionId, habitatId (null means region-wide), conditionRules, active, entries |
 | `EncounterEntry` | creatureId, weight (1 to 1000), conditions |
-| `CreatureDefinition` | id (slug), name, description, habitatAffinity |
+| `Creature` | id (slug), registryNumber, name, description, habitatAffinity, habitatSummary, rarity, activityPattern, spawnModifiers, skills |
+
+Players:
+
+| Entity | Key fields |
+|---|---|
+| `Player` | username (lowercased, unique), displayName |
+| `PlayerSession` | sha256 of the session token, expiresAt |
+| `PlayerPosition` | the server's view of where the player is: lat, lng, accuracy, recordedAt, strikes, lockedUntil, timeZone |
+| `Spawn` | one Wildkin placed near one player: creature, lat/lng, environment at spawn time, status, expiresAt |
+| `RegistryEntry` | per player and species: first observed/captured, counts |
+| `InventoryItem` | per player and item id (items are defined in code: `ITEMS` in `@wildbound/shared`) |
+| `CapturedWildkin` | one captured individual, optional nickname, party slot 0–5 or storage |
 
 `conditionRules` is `{ timeOfDay: ("dawn"|"day"|"dusk"|"night")[], weather: ("clear"|"cloudy"|"rain"|"storm"|"fog")[] }`. An empty list means "any"; a non-empty list must contain the current value.
 
-Unlock conditions and story requirements are stored and returned, but not evaluated yet because there is no player state.
+`spawnModifiers` (per species) multiply encounter weights by weather and time of day, e.g. Kawi `{ weather: { rain: 0.5, storm: 0 }, timeOfDay: { night: 0.1 } }`. Values come from the activity patterns proposed in the Wildkin Bible.
+
+## The game (apps/web)
+
+1. **Login** (`/`): pick a researcher name. That name is the save slot; using it again resumes your progress. There is no password yet.
+2. **Location** (`/location`): the game cannot be entered without location sharing. Once the first GPS fix arrives you move on automatically.
+3. **Radar** (`/play`): your position is a PixelLab player head; nearby Wildkin are face icons. Tap one for **Observe** or **Capture** (both need you within 60 m).
+   - *Observe* unlocks the Registry basics: name, registry number, description, habitat.
+   - *Capture* (exercise) also unlocks rarity, activity pattern and skills, and adds the Wildkin to your Party.
+4. **Registry**: a Pokédex-style grid. Unknown species are silhouettes with only their number.
+5. **Satchel** (inventory) and **Party** (6 slots plus storage).
+
+If location sharing is turned off (or the signal is lost) mid-game, the game is covered by a "Survey paused" overlay until it comes back.
+
+**Time and weather.** The status bar shows the device's local time, the time-of-day band and live weather. Both feed spawning: encounter-table conditions decide *whether* a species can appear, and per-species `spawnModifiers` decide *how often* (the modifiers are one of the exercises).
+
+**Spawning.** Each `GET /api/game/state` (polled every 10 s on the radar) expires old spawns, drops ones you walked far away from, and tops you up to 6 spawns (at most 2 new per tick) within 120 m, chosen by weight from the published encounter tables at your server-side position.
+
+## Location security (anti-teleport)
+
+Previously anyone could call the public resolver with any coordinate and "be" anywhere. Now:
+
+- **No public coordinate lookup.** Resolving arbitrary coordinates and reading the whole world are editor-only (`/api/editor/*`, bearer token).
+- **The server tracks where each player is.** Clients only *report* GPS fixes (`POST /api/game/position`). `checkMovement` in `@wildbound/world` accepts a fix only if the distance from the last accepted one is at most `40 m/s × elapsed + both accuracies + 25 m`, using the server's clock. Fixes worse than 100 m accuracy are ignored.
+- **Strikes and lockout.** Each implausible jump is rejected and counts as a strike; 3 in a row lock the player for 2 minutes. An accepted move resets the count.
+- **Server-authoritative actions.** Spawns are created by the server around the tracked position and belong to one player. Observe/capture check ownership, status, expiry and distance from the *tracked* position, never coordinates sent with the request.
+- **Stale positions don't count.** A position older than 2 minutes cannot be used to act; the web client re-sends its last fix every 30 s while still.
+
+All limits live in `GAME_RULES` (`packages/shared/src/game.ts`). Browsers cannot prove a fix is genuine (GPS spoofing apps exist), so this is plausibility checking, not proof.
+
+## Exercises (fill in the blanks)
+
+v0.1.0 is a working skeleton with deliberate gaps, marked `TODO(you)` in the code. Each has instructions and hints right where it lives. The full list, in a suggested order, is in [`patches/0.1.0/EXERCISES.md`](patches/0.1.0/EXERCISES.md).
+
+```bash
+pnpm test:exercises    # tests for the pure-logic exercises; they fail until you implement them
+grep -rn "TODO(you)" apps packages --include=*.ts --include=*.tsx
+```
 
 ## Draft vs published
 
@@ -205,33 +271,44 @@ Every world table has a composite primary key `(id, stage)` where stage is `draf
 
 - The editor only ever writes `draft`. Saving replaces the whole draft in one transaction.
 - **Publish** validates the saved draft and, if valid, copies it to `published` atomically and records a row in `publications` (version number plus counts).
-- The resolver and `GET /api/world/published` read `published`. Draft edits never leak to players.
-- Editors can preview the draft with `stage=draft` on the resolve endpoint (needs the token).
+- The game and `GET /api/editor/published` read `published`. Draft edits never leak to players.
+- Editors can preview the draft with `stage=draft` on `/api/editor/resolve`.
 - Full version history is deferred. Only the latest published version is kept.
 
 ## API
 
-Editor routes need `Authorization: Bearer $EDITOR_TOKEN`. Public routes need nothing.
+Editor routes need `Authorization: Bearer $EDITOR_TOKEN`. Game routes need the `wb_session` cookie from `POST /api/auth/login`.
 
 | Method | Path | Access | Notes |
 |---|---|---|---|
 | GET | `/api/health` | public | |
-| GET | `/api/creatures` | public | Wildkin list |
-| GET | `/api/world/published` | public | The whole published world (active regions only) plus creatures and version |
-| GET | `/api/world/resolve?lat&lng[&radius&timeOfDay&weather&stage]` | public for `published`; `stage=draft` needs token | Coordinate to world context |
+| POST | `/api/auth/login` | public | `{ username }`. Creates or resumes the player, sets the session cookie |
+| POST | `/api/auth/logout` | session | |
+| GET | `/api/auth/me` | session | 401 without a session |
+| POST | `/api/game/position` | session | `{ lat, lng, accuracy }` → verdict `first-fix`/`accepted`/`too-fast`/`low-accuracy`/`locked` |
+| GET | `/api/game/state` | session | Environment (local time + live weather), region/habitat, nearby spawns |
+| POST | `/api/game/spawns/:id/observe` | session | Unlocks the species' basic Registry entry |
+| POST | `/api/game/spawns/:id/capture` | session | **Exercise** (501 until implemented) |
+| GET | `/api/game/registry` | session | Every species, fields unlocked by progress |
+| GET | `/api/game/inventory` | session | |
+| GET | `/api/game/party` | session | 6 slots + storage |
+| PUT | `/api/game/party` | session | **Exercise** (501) |
+| PATCH | `/api/game/wildkin/:id` | session | **Exercise** (501): nickname |
 | GET | `/api/editor/world` | editor | Draft + creatures + status |
-| GET | `/api/editor/published` | editor | Published world with status |
+| GET | `/api/editor/published` | editor | The published world (active regions only) |
+| GET | `/api/editor/resolve?lat&lng[&radius&timeOfDay&weather&stage]` | editor | Coordinate → world context (draft or published) |
 | PUT | `/api/editor/draft` | editor | Save the whole draft. 400 on malformed or structurally broken documents |
 | POST | `/api/editor/validate` | editor | Validate a posted document without saving |
 | POST | `/api/editor/publish` | editor | 409 with issues if validation fails |
 
-Example:
+The old public `GET /api/world/resolve`, `GET /api/world/published` and `GET /api/creatures` are gone: they let anyone look up any coordinate or read the whole world. See [Location security](#location-security-anti-teleport).
+
+Example (editor preview):
 
 ```bash
-curl "http://localhost:4000/api/world/resolve?lat=14.6518&lng=121.0444&timeOfDay=day&weather=clear"
+curl -H "Authorization: Bearer dev-editor-token" \
+  "http://localhost:4000/api/editor/resolve?lat=14.6518&lng=121.0444&timeOfDay=day&weather=clear"
 ```
-
-returns region, habitat, environment tags, nearby POIs, encounter tables with per-entry probabilities, and a merged `availableWildkin` list. A coordinate outside every region returns a normal, empty context (HTTP 200), never an error.
 
 ## How a coordinate is resolved
 
@@ -242,7 +319,7 @@ PostGIS does the spatial lookups; `@wildbound/world` applies the game rules.
 3. **Nearby POIs.** POIs of that region within `radius` meters (default 300, max 5000), nearest first, up to 25.
 4. **Encounter tables.** Active tables for the habitat, then region-wide ones. A habitat table applies only if the habitat's own condition rules and the table's rules both pass. An entry is available only if its own conditions also pass.
 5. **Available Wildkin.** Weights of available entries across applicable tables are summed per creature and normalized.
-6. **Environment.** `timeOfDay` defaults to the current hour in `WORLD_TIMEZONE` (dawn 05:00 to 07:00, day 07:00 to 17:00, dusk 17:00 to 19:00, night 19:00 to 05:00). `weather` defaults to `clear`. Both can be passed explicitly so development never depends on the real clock or GPS.
+6. **Environment.** For the game, the server derives both from the player's tracked position: live weather from Open-Meteo, and the time of day in the location's own time zone (dawn 05:00 to 07:00, day 07:00 to 17:00, dusk 17:00 to 19:00, night 19:00 to 05:00). The editor preview can pass `timeOfDay`/`weather` explicitly (defaults: current hour in `WORLD_TIMEZONE`, clear).
 7. No region means an empty context.
 
 ## Validation
@@ -261,14 +338,15 @@ The database enforces the same invariants as a backstop: `ST_IsValid` checks, co
 ## Testing
 
 ```bash
-pnpm test              # everything (integration tests need the database running)
+pnpm test              # unit + integration (integration needs the database running)
 pnpm test:unit         # no database needed
 pnpm test:integration  # API and PostGIS tests against DATABASE_URL_TEST
+pnpm test:exercises    # the fill-in-the-blank exercises (fail until implemented)
 pnpm typecheck         # all packages
 ```
 
-- **Unit:** schemas, conditions and time of day, encounter weighting and seeded rolls, validation rules, context assembly, geometry helpers, editor edit operations.
-- **Integration (real PostGIS):** point-in-polygon, habitat selection, nearby POIs, draft/published isolation, publish gating, auth, payload validation and the full authoring-to-resolve workflow through the HTTP API.
+- **Unit:** schemas, conditions and time of day, encounter weighting, movement checks, spawn planning, validation rules, context assembly, geometry helpers, editor edit operations.
+- **Integration (real PostGIS, Express via supertest):** point-in-polygon, habitat selection, nearby POIs, draft/published isolation, publish gating, editor auth, payload validation, the authoring-to-resolve workflow, and the game: login, teleport rejection and lockout, spawn ownership, range checks, Registry unlocking.
 
 Integration tests run against `wildbound_test`, never your dev data.
 
@@ -278,14 +356,16 @@ Integration tests run against `wildbound_test`, never your dev data.
 |---|---|
 | `pnpm dev` | API and editor together |
 | `pnpm dev:api` / `pnpm dev:editor` | One at a time |
-| `pnpm dev:web` | Player web app |
-| `pnpm build` | Production build of the editor and web app |
+| `pnpm dev:web` | The game |
+| `pnpm build` | Production build of the editor and web game |
 | `pnpm db:up` / `pnpm db:down` | Start or stop the PostGIS container |
-| `pnpm db:migrate` | Apply migrations |
-| `pnpm db:seed` | Seed Wildkin and the sample draft (skips if the draft has content) |
+| `pnpm db:migrate` | Apply Prisma migrations (baselines an old Drizzle database first) |
+| `pnpm db:seed` | Seed Wildkin and the sample draft (skips the draft if it has content) |
 | `pnpm db:seed --force` | Replace the draft with the sample world |
 | `pnpm db:seed --publish` | Seed and publish |
 | `pnpm db:reset` | Drop all WILDBOUND tables and re-run migrations |
+| `pnpm --filter @wildbound/db migrate:new` | After editing `schema.prisma`: create a new migration (review the SQL) |
+| `pnpm --filter @wildbound/db studio` | Prisma Studio |
 
 ## Sample world: Mabunyi Nature Reserve
 
@@ -295,24 +375,24 @@ The boundary is a **placeholder** near Ninoy Aquino Parks and Wildlife Center in
 
 ## Scope and roadmap
 
-Done in this milestone: the Map Editor, the PostGIS-backed resolver, draft/publish, the public published-world endpoint, automated tests, and a bootstrapped player web app.
+Done in v0.1.0: the Map Editor, the PostGIS-backed resolver, draft/publish, Express + Prisma API, username sessions, live location with server-side movement checks, live weather and local time, server-authoritative spawns, Observe, the Registry, Satchel and Party views, PixelLab placeholder art, and automated tests.
 
-Deliberately out of scope for now: Phaser field exploration and movement, live browser geolocation and GPS smoothing, spawn and despawn timing, observation and battle, Registry progression, accounts and assignments, AI-generated map or tiles, offline/PWA, social features.
+Left as exercises: capture, party editing, renaming, the weather-code mapping, species spawn modifiers, and the capture-only Registry section.
 
-Next steps, in order:
+Not in v0.1.0: the editor's move to Tailwind/TanStack Query/react-hook-form (planned, see `patches/0.1.0/HANDOVER-pass-1.md`), Phaser field exploration, battles, passwords/real accounts, offline/PWA, social features.
 
-1. Use `apps/web` to render the published world and call the resolver from map clicks.
-2. Add a Phaser field to `apps/web` that consumes the same `WorldContext`.
-3. Add live geolocation as an adapter (simulated coordinates stay the default for development).
-4. Wildkin encounters, observation, and the Registry.
-
-AI-assisted tools may help produce art and tiles later, but they are never a runtime dependency and never the source of geographic truth.
+AI-assisted tools produce art (PixelLab) but are never a runtime dependency and never the source of geographic truth. Generated art is placeholder until approved against the Wildkin Bible.
 
 ## Troubleshooting
 
 - **Editor shows a token prompt.** `VITE_EDITOR_TOKEN` must equal `EDITOR_TOKEN`. Restart Vite after editing `.env`.
-- **"Cannot reach the API".** Run `pnpm dev:api` and check `VITE_API_URL`.
+- **"Cannot reach the API".** Run `pnpm dev:api` and check `VITE_API_URL` (editor) or the Vite proxy target (game, `API_PROXY_TARGET`).
 - **Integration tests fail to connect.** Run `pnpm db:up` and make sure `wildbound_test` exists (see Quick start).
 - **Base map is blank.** The tile servers need internet access. Try the OSM or Satellite option in the editor.
-- **CORS errors in the browser.** Add your origin to `CORS_ORIGINS` and restart the API.
-- **`apps/web` says nothing is published.** Publish from the editor or run `pnpm db:seed --publish`.
+- **CORS errors in the editor.** Add your origin to `CORS_ORIGINS` and restart the API.
+- **The game says "No surveyed habitat here".** Your (real or simulated) location is outside every published region. Publish from the editor or run `pnpm db:seed --publish`, and set a location inside the region.
+- **The game stays on "Share your location".** Geolocation needs `https://` or `localhost`. On a phone, serve the game over HTTPS (e.g. a tunnel) or use desktop devtools Sensors.
+- **"That GPS jump looked impossible".** You moved the simulated location too far at once. Move in small steps or wait; after 3 jumps you are locked for 2 minutes.
+- **Weather always "Clear".** Either `WEATHER_API_URL=off`, Open-Meteo is unreachable, or you have not done the weather exercise yet.
+- **`Cannot find module './generated/prisma/client.ts'`.** Run `pnpm install` (or `pnpm --filter @wildbound/db generate`).
+

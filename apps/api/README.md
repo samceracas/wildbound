@@ -1,75 +1,77 @@
 # @wildbound/api
 
-Fastify REST API. It authors and publishes the world (editor only) and serves the published world and coordinate resolution (public).
+Express 5 REST API. It authors and publishes the world (editor only), and runs the player game: username sessions, position reports, spawns, Observe/Capture, Registry, inventory and party.
 
 ## Responsibilities
 
 - Persist the editable **draft** world and **publish** it atomically.
-- Validate every editor payload server-side. The server is authoritative.
-- Resolve a coordinate to WILDBOUND context using PostGIS, then the rules in `@wildbound/world`.
-- Serve the published world to clients such as `apps/web`.
-- Protect editor routes with a bearer token.
+- Validate every payload server-side with the shared Zod schemas. The server is authoritative.
+- Resolve a coordinate to WILDBOUND context (PostGIS, then the rules in `@wildbound/world`). Only the editor can do this for arbitrary coordinates.
+- Track each player's position and reject implausible movement (anti-teleport).
+- Place spawns around a player's **server-side** position using live weather and local time.
 
 ## Tech
 
-Node 22, TypeScript, Fastify 5, `@fastify/cors`, Zod 4 (via `@wildbound/shared`), Drizzle + `pg` (via `@wildbound/db`), run in development with `tsx watch`.
+Node 22, TypeScript, Express 5, `cors`, `cookie-parser`, Zod 4 (via `@wildbound/shared`), Prisma 7 (via `@wildbound/db`), Open-Meteo for weather, `tsx watch` in development, Vitest + supertest for tests.
 
 ## Layout
 
 ```
 src/
-  server.ts          Process entry: config, database, listen, graceful shutdown
-  app.ts             buildApp(deps): registers CORS, error handler and routes (also used by tests)
+  server.ts          Process entry: config, database, weather provider, listen, graceful shutdown
+  app.ts             createApp(deps): middleware, routers, 404 and error handler (also used by tests)
   config.ts          Environment configuration
-  auth.ts            Bearer token check (timing-safe)
-  errors.ts          Maps Zod and Postgres errors to 400/409 responses
-  resolve.ts         Coordinate -> WorldContext (PostGIS lookups + rules)
+  http.ts            HttpError, parseOr400 (Zod → 400), notImplemented (501 for the exercises)
+  errors.ts          Error middleware: HttpError, Prisma/Postgres constraint errors → 400/409, else 500
+  auth.ts            Editor bearer token; player sessions (httpOnly cookie, sha256-hashed token in the DB)
+  resolve.ts         Coordinate → WorldContext (PostGIS lookups + rules)
+  weather.ts         WeatherProvider: OpenMeteoWeather (cached, falls back to clear) and StaticWeather
+  game/
+    service.ts       reportPosition, environmentAt, gameState (spawn lifecycle), loadActionableSpawn
+    views.ts         registryView: what a player may see about a species
   routes/
-    public.ts        health, creatures, published world, resolve
-    editor.ts        world, published, draft, validate, publish
+    auth.ts          login, logout, me
+    game.ts          position, state, observe, capture*, registry, inventory, party, party update*, rename*
+    editor.ts        world, published, resolve, draft, validate, publish
 test/
-  world.test.ts      Integration tests against a real PostGIS test database
+  world.test.ts      Editor/authoring integration tests
+  game.test.ts       Player/game integration tests (login, anti-teleport, spawns, Registry)
+  helpers.ts         testConfig()
 ```
+`*` = exercise: answers 501 until you implement the `TODO(you)`.
 
-`buildApp` takes its database and config as arguments, which is how the integration tests run the real API in-process with `app.inject`, without opening a port.
+`createApp` takes its database, config, weather provider, clock and RNG as arguments. That is how tests drive the real app in-process with supertest, with a fixed clock and seeded randomness.
 
 ## Endpoints
 
-| Method | Path | Access |
-|---|---|---|
-| GET | `/api/health` | public |
-| GET | `/api/creatures` | public |
-| GET | `/api/world/published` | public |
-| GET | `/api/world/resolve?lat&lng[&radius&timeOfDay&weather&stage]` | public (`stage=draft` needs the token) |
-| GET | `/api/editor/world` | editor |
-| GET | `/api/editor/published` | editor |
-| PUT | `/api/editor/draft` | editor |
-| POST | `/api/editor/validate` | editor |
-| POST | `/api/editor/publish` | editor |
-
-Details and examples are in the [root README](../../README.md#api).
+See the [root README](../../README.md#api) for the full table.
 
 ### Status codes
 
 | Code | Meaning |
 |---|---|
-| 200 | Success. Resolving a coordinate outside every region is also 200 with an empty context |
+| 200 / 204 | Success. Resolving a coordinate outside every region is also 200 with an empty context |
 | 400 | Malformed query or body, integrity errors, invalid geometry. The body lists `issues` |
-| 401 | Missing or wrong editor token |
-| 409 | Publish blocked by validation errors, or a database uniqueness conflict |
+| 401 | Missing/wrong editor token, or no player session |
+| 404 | Unknown route, or a spawn that is not yours |
+| 409 | Publish blocked; uniqueness conflict; out of range; location unavailable/locked |
+| 410 | The spawn expired or was already taken |
+| 501 | An exercise endpoint you have not implemented yet |
 | 500 | Unexpected error (details are logged, not returned) |
 
 Error body shape: `{ "error": string, "message": string, "issues"?: ValidationIssue[] }`.
 
-## Configuration
+## Express notes
 
-See [Environment variables](../../README.md#environment-variables-env). The API needs `DATABASE_URL` and `EDITOR_TOKEN`.
+- Express 5 forwards rejected promises from async handlers to the error middleware, so handlers just `throw new HttpError(...)`.
+- `res.locals.player` is typed via declaration merging in `auth.ts` and set by `requirePlayer`.
+- The game sets a first-party `wb_session` cookie. The web app calls the API through the Vite proxy (same origin), so no CORS or third-party cookie issues.
 
 ## Run and test
 
 ```bash
 pnpm dev:api                                 # watch mode on :4000
-pnpm --filter @wildbound/api start           # without watch
+WEATHER_API_URL=off pnpm dev:api             # offline: always clear weather
 pnpm --filter @wildbound/api typecheck
 pnpm test:integration                        # needs the database (pnpm db:up)
 ```
@@ -77,5 +79,4 @@ pnpm test:integration                        # needs the database (pnpm db:up)
 ## Notes
 
 - Saving a draft replaces the whole draft document in one transaction, serialized with publishing by a Postgres advisory lock.
-- Editor auth is one shared token, fine for local development. Swap `requireEditor` in `auth.ts` for real authentication before any public deployment.
-- Draft resolution (`stage=draft`) is editor-only so unpublished content cannot leak.
+- Editor auth is one shared token; player auth is username-only. Both are fine for local development, not for a public deployment.
