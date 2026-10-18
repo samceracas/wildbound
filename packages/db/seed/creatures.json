@@ -1,32 +1,92 @@
 [
   {
     "id": "kawi",
+    "registryNumber": 1,
     "name": "Kawi",
-    "description": "Quick canopy dweller that patrols woodland edges.",
-    "habitatAffinity": ["canopy", "woodland-edge", "forest-edge"]
+    "description": "A curious, compact canopy bird with dark-edged wings, a rust-colored breast and long expressive tail feathers that flick when it is curious. Often heard before it is seen.",
+    "habitatAffinity": ["canopy", "woodland-edge", "forest-edge"],
+    "habitatSummary": "Forest canopy and bright woodland edges.",
+    "rarity": "common",
+    "activityPattern": "diurnal",
+    "spawnModifiers": {
+      "timeOfDay": { "dawn": 1.3, "day": 1.5, "dusk": 1, "night": 0.1 },
+      "weather": { "clear": 1.2, "cloudy": 1, "rain": 0.5, "storm": 0, "fog": 0.7 }
+    },
+    "skills": [
+      { "name": "Branch Hop", "description": "Darts to a new perch, briefly raising its Speed.", "canon": "proposed" },
+      { "name": "Curious Tilt", "description": "Studies the opponent, revealing its next move.", "canon": "proposed" }
+    ]
   },
   {
     "id": "mimu",
+    "registryNumber": 2,
     "name": "Mimu",
-    "description": "Shy forager hidden in leaf litter and moss on the forest floor.",
-    "habitatAffinity": ["forest-floor", "leaf-litter", "moss"]
+    "description": "A cautious, elongated forest mouse whose muted green-brown coloration blends into leaf litter and moss. It pauses often, listening before crossing open patches.",
+    "habitatAffinity": ["forest-floor", "leaf-litter", "moss"],
+    "habitatSummary": "Leaf litter, moss, roots and sheltered undergrowth.",
+    "rarity": "common",
+    "activityPattern": "crepuscular",
+    "spawnModifiers": {
+      "timeOfDay": { "dawn": 2, "day": 0.5, "dusk": 2, "night": 1 },
+      "weather": { "clear": 1, "cloudy": 1.2, "rain": 0.8, "storm": 0.2, "fog": 1.3 }
+    },
+    "skills": [
+      { "name": "Leaf Litter Hide", "description": "Vanishes into cover, raising its Defense.", "canon": "proposed" },
+      { "name": "Seed Cache", "description": "Eats a stored seed to restore a little HP.", "canon": "proposed" }
+    ]
   },
   {
     "id": "lumae",
+    "registryNumber": 3,
     "name": "Lumae",
-    "description": "Sun-loving Wildkin drawn to flowering clearings.",
-    "habitatAffinity": ["clearing", "flowering", "sunny"]
+    "description": "A small four-legged Wildkin with a leaf-like body and a flower-like growth along its back that opens and closes as it moves. Its presence is a sign of a healthy clearing.",
+    "habitatAffinity": ["clearing", "flowering", "sunny"],
+    "habitatSummary": "Sunny clearings with healthy flowering plants.",
+    "rarity": "TBD",
+    "activityPattern": "diurnal",
+    "spawnModifiers": {
+      "timeOfDay": { "dawn": 0.8, "day": 1.6, "dusk": 0.6, "night": 0 },
+      "weather": { "clear": 1.5, "cloudy": 0.8, "rain": 0.3, "storm": 0, "fog": 0.5 }
+    },
+    "skills": [
+      { "name": "Bloom", "description": "Opens its dorsal flower, healing itself over time.", "canon": "proposed" },
+      { "name": "Petal Veil", "description": "Shields itself with a ring of petals.", "canon": "proposed" }
+    ]
   },
   {
     "id": "kantar",
+    "registryNumber": 4,
     "name": "Kantar",
-    "description": "Sturdy climber found on rocks, fallen branches and sheltered surfaces.",
-    "habitatAffinity": ["rocky", "fallen-branches", "sheltered"]
+    "description": "A segmented, many-legged Wildkin with dark armored plates and pale markings along its sides. It hides beneath stones by day and slips away when surprised.",
+    "habitatAffinity": ["rocky", "fallen-branches", "sheltered"],
+    "habitatSummary": "Under rocks, fallen branches and damp forest floor.",
+    "rarity": "common",
+    "activityPattern": "sheltering_by_day",
+    "spawnModifiers": {
+      "timeOfDay": { "dawn": 0.8, "day": 0.3, "dusk": 1.5, "night": 2 },
+      "weather": { "clear": 0.8, "cloudy": 1, "rain": 1.4, "storm": 0.6, "fog": 1.2 }
+    },
+    "skills": [
+      { "name": "Plate Curl", "description": "Curls its armored segments, sharply raising Defense.", "canon": "proposed" },
+      { "name": "Quick Retreat", "description": "Slips under cover and re-emerges with a counter.", "canon": "proposed" }
+    ]
   },
   {
     "id": "riverkin",
+    "registryNumber": 5,
     "name": "Riverkin",
-    "description": "Freshwater Wildkin of creeks and shallow pools.",
-    "habitatAffinity": ["freshwater", "creek", "riparian"]
+    "description": "A compact freshwater Wildkin with a thick body, short legs, a subtly shimmering surface and a powerful swimming tail. Its survival depends on continuous freshwater habitat.",
+    "habitatAffinity": ["freshwater", "creek", "riparian"],
+    "habitatSummary": "Flowing water, shaded banks and deeper pools.",
+    "rarity": "TBD",
+    "activityPattern": "crepuscular",
+    "spawnModifiers": {
+      "timeOfDay": { "dawn": 1.8, "day": 0.8, "dusk": 1.8, "night": 0.6 },
+      "weather": { "clear": 0.9, "cloudy": 1.1, "rain": 1.5, "storm": 1.2, "fog": 1.2 }
+    },
+    "skills": [
+      { "name": "Tail Surge", "description": "A powerful tail-driven lunge.", "canon": "proposed" },
+      { "name": "Cool Shade", "description": "Rests in shade, cleansing one ailment.", "canon": "proposed" }
+    ]
   }
 ]

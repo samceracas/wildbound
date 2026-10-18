@@ -2,11 +2,23 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
+    // Integration suites share one test database; with `projects`, the per-project
+    // fileParallelism flag is not enough, so files never run concurrently.
+    fileParallelism: false,
     projects: [
       {
         test: {
           name: "unit",
-          include: ["packages/*/src/**/*.test.ts", "apps/editor/src/**/*.test.ts"],
+          include: ["packages/*/src/**/*.test.ts", "apps/*/src/**/*.test.ts"],
+          // Exercises are the "fill in the blanks" tasks; they fail until implemented.
+          exclude: ["**/*.exercise.test.ts", "**/node_modules/**"],
+          environment: "node",
+        },
+      },
+      {
+        test: {
+          name: "exercises",
+          include: ["packages/*/src/**/*.exercise.test.ts", "apps/*/src/**/*.exercise.test.ts"],
           environment: "node",
         },
       },
@@ -15,8 +27,6 @@ export default defineConfig({
           name: "integration",
           include: ["apps/api/test/**/*.test.ts", "packages/db/test/**/*.test.ts"],
           environment: "node",
-          // All integration suites share one test database.
-          fileParallelism: false,
           testTimeout: 20000,
           hookTimeout: 30000,
         },

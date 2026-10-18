@@ -1,153 +1,193 @@
-import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import type {
+  ConditionRules,
   CreatureDefinition,
   EncounterTable,
+  PoiType,
   PublicationStage,
+  UnlockCondition,
   ValidationReport,
   WorldDocument,
   WorldStatus,
 } from "@wildbound/shared";
-import { EMPTY_CONDITIONS, NEARBY_POI_LIMIT } from "@wildbound/shared";
+import { CreatureDefinitionSchema, EMPTY_CONDITIONS, NEARBY_POI_LIMIT } from "@wildbound/shared";
 import type { Database } from "./client.ts";
-import {
-  creatures,
-  encounterEntries,
-  encounterTables,
-  habitats,
-  pointsOfInterest,
-  publications,
-  regions,
-  worldMeta,
-} from "./schema.ts";
+import { Prisma } from "./generated/prisma/client.ts";
 
-type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
-export type Executor = Database | Tx;
+/** Either the client or the `tx` handed to an interactive transaction. */
+export type Executor = Database | Prisma.TransactionClient;
 
 /** Serializes draft saves and publishes so they never interleave. */
 const WORLD_LOCK_KEY = 0x57_42_4e_44; // "WBND"
 
+/** Big worlds take a moment to copy; the 5s Prisma default is too tight. */
+const WORLD_TX = { timeout: 60_000, maxWait: 10_000 } as const;
+
 const geomFromGeoJson = (geometry: object) =>
-  sql`ST_SetSRID(ST_GeomFromGeoJSON(${JSON.stringify(geometry)}), 4326)`;
+  Prisma.sql`ST_SetSRID(ST_GeomFromGeoJSON(${JSON.stringify(geometry)}), 4326)`;
+/** null stays SQL NULL (not the JSON literal `null`). */
+const json = (value: unknown) => (value === null ? Prisma.sql`NULL` : Prisma.sql`${JSON.stringify(value)}::jsonb`);
+const textArray = (value: readonly string[]) => Prisma.sql`${value}::text[]`;
+const stageSql = (stage: PublicationStage) => Prisma.sql`${stage}::publication_stage`;
 
 const parseGeo = <T>(value: string): T => JSON.parse(value) as T;
 
 // ------------------------------------------------------------------ creatures
 
 export async function listCreatures(db: Executor): Promise<CreatureDefinition[]> {
-  const rows = await db.select().from(creatures).orderBy(asc(creatures.name));
-  return rows.map((r) => ({ id: r.id, name: r.name, description: r.description, habitatAffinity: r.habitatAffinity }));
+  const rows = await db.creature.findMany({ orderBy: [{ registryNumber: "asc" }] });
+  // Json columns come back as `unknown`; the schema restores their shape and defaults.
+  return rows.map((r) =>
+    CreatureDefinitionSchema.parse({
+      id: r.id,
+      registryNumber: r.registryNumber,
+      name: r.name,
+      description: r.description,
+      habitatAffinity: r.habitatAffinity,
+      habitatSummary: r.habitatSummary,
+      rarity: r.rarity,
+      activityPattern: r.activityPattern,
+      spawnModifiers: r.spawnModifiers,
+      skills: r.skills,
+    }),
+  );
 }
 
 export async function upsertCreatures(db: Executor, list: CreatureDefinition[]): Promise<void> {
-  if (list.length === 0) return;
-  await db
-    .insert(creatures)
-    .values(list.map((c) => ({ id: c.id, name: c.name, description: c.description, habitatAffinity: c.habitatAffinity })))
-    .onConflictDoUpdate({
-      target: creatures.id,
-      set: {
-        name: sql`excluded.name`,
-        description: sql`excluded.description`,
-        habitatAffinity: sql`excluded.habitat_affinity`,
-      },
-    });
+  for (const c of list) {
+    const data = {
+      registryNumber: c.registryNumber,
+      name: c.name,
+      description: c.description,
+      habitatAffinity: c.habitatAffinity,
+      habitatSummary: c.habitatSummary,
+      rarity: c.rarity,
+      activityPattern: c.activityPattern,
+      spawnModifiers: c.spawnModifiers,
+      skills: c.skills,
+    };
+    await db.creature.upsert({ where: { id: c.id }, create: { id: c.id, ...data }, update: data });
+  }
 }
 
 // ------------------------------------------------------------------ load
 
+interface RegionRow {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  geometry: string;
+  biome_tags: string[];
+  unlock_condition: UnlockCondition;
+  story_state_requirements: string[];
+  active: boolean;
+}
+interface HabitatRow {
+  id: string;
+  region_id: string;
+  slug: string;
+  name: string;
+  description: string;
+  geometry: string;
+  habitat_tags: string[];
+  condition_rules: ConditionRules;
+}
+interface PoiRow {
+  id: string;
+  region_id: string;
+  slug: string;
+  name: string;
+  description: string;
+  type: string;
+  location: string;
+  interaction_id: string | null;
+  unlock_condition: UnlockCondition;
+}
+
+type TableWithEntries = Prisma.EncounterTableGetPayload<{ include: { entries: true } }>;
+
 export async function loadWorld(db: Executor, stage: PublicationStage): Promise<WorldDocument> {
-  const [regionRows, habitatRows, poiRows, tableRows, entryRows] = await Promise.all([
-    db
-      .select({
-        id: regions.id,
-        slug: regions.slug,
-        name: regions.name,
-        description: regions.description,
-        geometry: sql<string>`ST_AsGeoJSON(${regions.geom})`,
-        biomeTags: regions.biomeTags,
-        unlockCondition: regions.unlockCondition,
-        storyStateRequirements: regions.storyStateRequirements,
-        active: regions.active,
-      })
-      .from(regions)
-      .where(eq(regions.stage, stage))
-      .orderBy(asc(regions.name), asc(regions.id)),
-    db
-      .select({
-        id: habitats.id,
-        regionId: habitats.regionId,
-        slug: habitats.slug,
-        name: habitats.name,
-        description: habitats.description,
-        geometry: sql<string>`ST_AsGeoJSON(${habitats.geom})`,
-        habitatTags: habitats.habitatTags,
-        conditionRules: habitats.conditionRules,
-      })
-      .from(habitats)
-      .where(eq(habitats.stage, stage))
-      .orderBy(asc(habitats.name), asc(habitats.id)),
-    db
-      .select({
-        id: pointsOfInterest.id,
-        regionId: pointsOfInterest.regionId,
-        slug: pointsOfInterest.slug,
-        name: pointsOfInterest.name,
-        description: pointsOfInterest.description,
-        type: pointsOfInterest.type,
-        location: sql<string>`ST_AsGeoJSON(${pointsOfInterest.geom})`,
-        interactionId: pointsOfInterest.interactionId,
-        unlockCondition: pointsOfInterest.unlockCondition,
-      })
-      .from(pointsOfInterest)
-      .where(eq(pointsOfInterest.stage, stage))
-      .orderBy(asc(pointsOfInterest.name), asc(pointsOfInterest.id)),
-    db
-      .select()
-      .from(encounterTables)
-      .where(eq(encounterTables.stage, stage))
-      .orderBy(asc(encounterTables.name), asc(encounterTables.id)),
-    db
-      .select()
-      .from(encounterEntries)
-      .where(eq(encounterEntries.stage, stage))
-      .orderBy(asc(encounterEntries.position), asc(encounterEntries.id)),
+  // Geometry columns are invisible to the Prisma client, so the spatial tables are read with raw SQL.
+  const [regionRows, habitatRows, poiRows, tableRows] = await Promise.all([
+    db.$queryRaw<RegionRow[]>`
+      SELECT id, slug, name, description, ST_AsGeoJSON(geom) AS geometry, biome_tags, unlock_condition,
+             story_state_requirements, active
+      FROM world_regions WHERE stage = ${stageSql(stage)} ORDER BY name, id`,
+    db.$queryRaw<HabitatRow[]>`
+      SELECT id, region_id, slug, name, description, ST_AsGeoJSON(geom) AS geometry, habitat_tags, condition_rules
+      FROM habitats WHERE stage = ${stageSql(stage)} ORDER BY name, id`,
+    db.$queryRaw<PoiRow[]>`
+      SELECT id, region_id, slug, name, description, type, ST_AsGeoJSON(geom) AS location, interaction_id, unlock_condition
+      FROM points_of_interest WHERE stage = ${stageSql(stage)} ORDER BY name, id`,
+    // No geometry here, so the regular Prisma API works.
+    db.encounterTable.findMany({
+      where: { stage },
+      include: { entries: { orderBy: [{ position: "asc" }, { id: "asc" }] } },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+    }),
   ]);
 
   return {
-    regions: regionRows.map((r) => ({ ...r, geometry: parseGeo(r.geometry), unlockCondition: r.unlockCondition ?? null })),
-    habitats: habitatRows.map((h) => ({ ...h, geometry: parseGeo(h.geometry) })),
-    pois: poiRows.map((p) => ({
-      ...p,
-      type: p.type as WorldDocument["pois"][number]["type"],
-      location: parseGeo(p.location),
-      unlockCondition: p.unlockCondition ?? null,
+    regions: regionRows.map((r) => ({
+      id: r.id,
+      slug: r.slug,
+      name: r.name,
+      description: r.description,
+      geometry: parseGeo(r.geometry),
+      biomeTags: r.biome_tags,
+      unlockCondition: r.unlock_condition ?? null,
+      storyStateRequirements: r.story_state_requirements,
+      active: r.active,
     })),
-    encounterTables: tableRows.map((t) => toEncounterTable(t, entryRows)),
+    habitats: habitatRows.map((h) => ({
+      id: h.id,
+      regionId: h.region_id,
+      slug: h.slug,
+      name: h.name,
+      description: h.description,
+      geometry: parseGeo(h.geometry),
+      habitatTags: h.habitat_tags,
+      conditionRules: h.condition_rules,
+    })),
+    pois: poiRows.map((p) => ({
+      id: p.id,
+      regionId: p.region_id,
+      slug: p.slug,
+      name: p.name,
+      description: p.description,
+      type: p.type as PoiType,
+      location: parseGeo(p.location),
+      interactionId: p.interaction_id,
+      unlockCondition: p.unlock_condition ?? null,
+    })),
+    encounterTables: tableRows.map(toEncounterTable),
   };
 }
 
-function toEncounterTable(
-  t: typeof encounterTables.$inferSelect,
-  entries: (typeof encounterEntries.$inferSelect)[],
-): EncounterTable {
+function toEncounterTable(t: TableWithEntries): EncounterTable {
   return {
     id: t.id,
     name: t.name,
     regionId: t.regionId,
     habitatId: t.habitatId,
-    conditionRules: t.conditionRules ?? EMPTY_CONDITIONS,
+    conditionRules: (t.conditionRules as ConditionRules | null) ?? EMPTY_CONDITIONS,
     active: t.active,
-    entries: entries
-      .filter((e) => e.tableId === t.id)
-      .map((e) => ({ id: e.id, creatureId: e.creatureId, weight: e.weight, conditions: e.conditions })),
+    entries: t.entries.map((e) => ({
+      id: e.id,
+      creatureId: e.creatureId,
+      weight: e.weight,
+      conditions: e.conditions as ConditionRules,
+    })),
   };
 }
 
 // ------------------------------------------------------------------ status
 
 export async function getWorldStatus(db: Executor): Promise<WorldStatus> {
-  const [meta] = await db.select().from(worldMeta).where(eq(worldMeta.id, 1));
-  const [latest] = await db.select().from(publications).orderBy(desc(publications.version)).limit(1);
+  const [meta, latest] = await Promise.all([
+    db.worldMeta.findUnique({ where: { id: 1 } }),
+    db.publication.findFirst({ orderBy: { version: "desc" } }),
+  ]);
   const draftUpdatedAt = meta?.draftUpdatedAt ?? null;
   const lastPublishedAt = latest?.publishedAt ?? null;
   return {
@@ -166,70 +206,43 @@ export async function getWorldStatus(db: Executor): Promise<WorldStatus> {
  * (invalid geometry, broken references, duplicate slugs).
  */
 export async function saveDraft(db: Database, doc: WorldDocument): Promise<void> {
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(${WORLD_LOCK_KEY})`);
+  await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(${WORLD_LOCK_KEY}::bigint)::text`;
     // Cascades to habitats, POIs, encounter tables and entries of the draft stage only.
-    await tx.delete(regions).where(eq(regions.stage, "draft"));
+    await tx.worldRegion.deleteMany({ where: { stage: "draft" } });
 
-    if (doc.regions.length) {
-      await tx.insert(regions).values(
-        doc.regions.map((r) => ({
-          id: r.id,
-          stage: "draft" as const,
-          slug: r.slug,
-          name: r.name,
-          description: r.description,
-          geom: sql`ST_Multi(${geomFromGeoJson(r.geometry)})`,
-          biomeTags: r.biomeTags,
-          unlockCondition: r.unlockCondition,
-          storyStateRequirements: r.storyStateRequirements,
-          active: r.active,
-        })),
-      );
+    for (const r of doc.regions) {
+      await tx.$executeRaw`
+        INSERT INTO world_regions (id, stage, slug, name, description, geom, biome_tags, unlock_condition, story_state_requirements, active)
+        VALUES (${r.id}::uuid, 'draft', ${r.slug}, ${r.name}, ${r.description}, ST_Multi(${geomFromGeoJson(r.geometry)}),
+                ${textArray(r.biomeTags)}, ${json(r.unlockCondition)}, ${textArray(r.storyStateRequirements)}, ${r.active})`;
     }
-    if (doc.habitats.length) {
-      await tx.insert(habitats).values(
-        doc.habitats.map((h) => ({
-          id: h.id,
-          stage: "draft" as const,
-          regionId: h.regionId,
-          slug: h.slug,
-          name: h.name,
-          description: h.description,
-          geom: geomFromGeoJson(h.geometry),
-          habitatTags: h.habitatTags,
-          conditionRules: h.conditionRules,
-        })),
-      );
+    for (const h of doc.habitats) {
+      await tx.$executeRaw`
+        INSERT INTO habitats (id, stage, region_id, slug, name, description, geom, habitat_tags, condition_rules)
+        VALUES (${h.id}::uuid, 'draft', ${h.regionId}::uuid, ${h.slug}, ${h.name}, ${h.description},
+                ${geomFromGeoJson(h.geometry)}, ${textArray(h.habitatTags)}, ${json(h.conditionRules)})`;
     }
-    if (doc.pois.length) {
-      await tx.insert(pointsOfInterest).values(
-        doc.pois.map((p) => ({
-          id: p.id,
-          stage: "draft" as const,
-          regionId: p.regionId,
-          slug: p.slug,
-          name: p.name,
-          description: p.description,
-          type: p.type,
-          geom: geomFromGeoJson(p.location),
-          interactionId: p.interactionId,
-          unlockCondition: p.unlockCondition,
-        })),
-      );
+    for (const p of doc.pois) {
+      await tx.$executeRaw`
+        INSERT INTO points_of_interest (id, stage, region_id, slug, name, description, type, geom, interaction_id, unlock_condition)
+        VALUES (${p.id}::uuid, 'draft', ${p.regionId}::uuid, ${p.slug}, ${p.name}, ${p.description}, ${p.type},
+                ${geomFromGeoJson(p.location)}, ${p.interactionId}, ${json(p.unlockCondition)})`;
     }
+
+    // Encounter tables have no geometry: plain Prisma batch inserts.
     if (doc.encounterTables.length) {
-      await tx.insert(encounterTables).values(
-        doc.encounterTables.map((t) => ({
+      await tx.encounterTable.createMany({
+        data: doc.encounterTables.map((t) => ({
           id: t.id,
-          stage: "draft" as const,
+          stage: "draft",
           regionId: t.regionId,
           habitatId: t.habitatId,
           name: t.name,
           conditionRules: t.conditionRules,
           active: t.active,
         })),
-      );
+      });
       const entries = doc.encounterTables.flatMap((t) =>
         t.entries.map((e, position) => ({
           id: e.id,
@@ -241,14 +254,13 @@ export async function saveDraft(db: Database, doc: WorldDocument): Promise<void>
           position,
         })),
       );
-      if (entries.length) await tx.insert(encounterEntries).values(entries);
+      if (entries.length) await tx.encounterEntry.createMany({ data: entries });
     }
 
-    await tx
-      .insert(worldMeta)
-      .values({ id: 1, draftUpdatedAt: sql`clock_timestamp()` })
-      .onConflictDoUpdate({ target: worldMeta.id, set: { draftUpdatedAt: sql`clock_timestamp()` } });
-  });
+    await tx.$executeRaw`
+      INSERT INTO world_meta (id, draft_updated_at) VALUES (1, clock_timestamp())
+      ON CONFLICT (id) DO UPDATE SET draft_updated_at = clock_timestamp()`;
+  }, WORLD_TX);
 }
 
 // ------------------------------------------------------------------ publish
@@ -265,33 +277,33 @@ export async function publishDraft(
   db: Database,
   validate: (doc: WorldDocument) => ValidationReport,
 ): Promise<PublishResult> {
-  return db.transaction(async (tx) => {
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(${WORLD_LOCK_KEY})`);
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(${WORLD_LOCK_KEY}::bigint)::text`;
     const draft = await loadWorld(tx, "draft");
     const report = validate(draft);
     if (!report.ok) return { ok: false as const, report };
 
-    await tx.delete(regions).where(eq(regions.stage, "published"));
-    await tx.execute(sql`
+    await tx.worldRegion.deleteMany({ where: { stage: "published" } });
+    await tx.$executeRaw`
       INSERT INTO world_regions (id, stage, slug, name, description, geom, biome_tags, unlock_condition, story_state_requirements, active)
       SELECT id, 'published', slug, name, description, geom, biome_tags, unlock_condition, story_state_requirements, active
-      FROM world_regions WHERE stage = 'draft'`);
-    await tx.execute(sql`
+      FROM world_regions WHERE stage = 'draft'`;
+    await tx.$executeRaw`
       INSERT INTO habitats (id, stage, region_id, slug, name, description, geom, habitat_tags, condition_rules)
       SELECT id, 'published', region_id, slug, name, description, geom, habitat_tags, condition_rules
-      FROM habitats WHERE stage = 'draft'`);
-    await tx.execute(sql`
+      FROM habitats WHERE stage = 'draft'`;
+    await tx.$executeRaw`
       INSERT INTO points_of_interest (id, stage, region_id, slug, name, description, type, geom, interaction_id, unlock_condition)
       SELECT id, 'published', region_id, slug, name, description, type, geom, interaction_id, unlock_condition
-      FROM points_of_interest WHERE stage = 'draft'`);
-    await tx.execute(sql`
+      FROM points_of_interest WHERE stage = 'draft'`;
+    await tx.$executeRaw`
       INSERT INTO encounter_tables (id, stage, region_id, habitat_id, name, condition_rules, active)
       SELECT id, 'published', region_id, habitat_id, name, condition_rules, active
-      FROM encounter_tables WHERE stage = 'draft'`);
-    await tx.execute(sql`
+      FROM encounter_tables WHERE stage = 'draft'`;
+    await tx.$executeRaw`
       INSERT INTO encounter_entries (id, stage, table_id, creature_id, weight, conditions, position)
       SELECT id, 'published', table_id, creature_id, weight, conditions, position
-      FROM encounter_entries WHERE stage = 'draft'`);
+      FROM encounter_entries WHERE stage = 'draft'`;
 
     const summary = {
       regions: draft.regions.length,
@@ -299,12 +311,12 @@ export async function publishDraft(
       pois: draft.pois.length,
       encounterTables: draft.encounterTables.length,
     };
-    const [row] = await tx
-      .insert(publications)
-      .values({ summary, publishedAt: sql`clock_timestamp()` })
-      .returning();
-    return { ok: true as const, version: row!.version, publishedAt: row!.publishedAt.toISOString(), report };
-  });
+    // clock_timestamp() (not now()) so publishedAt is later than a draft saved earlier in the same test transaction.
+    const [row] = await tx.$queryRaw<{ version: number; published_at: Date }[]>`
+      INSERT INTO publications (summary, published_at) VALUES (${json(summary)}, clock_timestamp())
+      RETURNING version, published_at`;
+    return { ok: true as const, version: row!.version, publishedAt: row!.published_at.toISOString(), report };
+  }, WORLD_TX);
 }
 
 // ------------------------------------------------------------------ spatial resolution
@@ -324,106 +336,83 @@ export interface SpatialQuery {
  * - tables: active region-wide tables plus the resolved habitat's tables.
  */
 export async function findSpatialContext(db: Executor, q: SpatialQuery) {
-  const point = sql`ST_SetSRID(ST_MakePoint(${q.lng}, ${q.lat}), 4326)`;
+  const point = Prisma.sql`ST_SetSRID(ST_MakePoint(${q.lng}::float8, ${q.lat}::float8), 4326)`;
+  const stage = stageSql(q.stage);
 
-  const [region] = await db
-    .select({
-      id: regions.id,
-      slug: regions.slug,
-      name: regions.name,
-      description: regions.description,
-      biomeTags: regions.biomeTags,
-      unlockCondition: regions.unlockCondition,
-      storyStateRequirements: regions.storyStateRequirements,
-      active: regions.active,
-    })
-    .from(regions)
-    .where(and(eq(regions.stage, q.stage), eq(regions.active, true), sql`ST_Covers(${regions.geom}, ${point})`))
-    .orderBy(sql`ST_Area(${regions.geom}::geography) ASC`, asc(regions.id))
-    .limit(1);
+  const [region] = await db.$queryRaw<Omit<RegionRow, "geometry">[]>`
+    SELECT id, slug, name, description, biome_tags, unlock_condition, story_state_requirements, active
+    FROM world_regions
+    WHERE stage = ${stage} AND active AND ST_Covers(geom, ${point})
+    ORDER BY ST_Area(geom::geography) ASC, id ASC
+    LIMIT 1`;
 
-  const [version] =
-    q.stage === "published"
-      ? await db.select({ version: publications.version }).from(publications).orderBy(desc(publications.version)).limit(1)
-      : [];
+  const latest =
+    q.stage === "published" ? await db.publication.findFirst({ orderBy: { version: "desc" }, select: { version: true } }) : null;
+  const version = latest?.version ?? null;
 
-  if (!region) {
-    return { region: null, habitat: null, pois: [], tables: [], version: version?.version ?? null };
-  }
+  if (!region) return { region: null, habitat: null, pois: [], tables: [], version };
 
-  const [habitat] = await db
-    .select({
-      id: habitats.id,
-      regionId: habitats.regionId,
-      slug: habitats.slug,
-      name: habitats.name,
-      description: habitats.description,
-      habitatTags: habitats.habitatTags,
-      conditionRules: habitats.conditionRules,
-    })
-    .from(habitats)
-    .where(and(eq(habitats.stage, q.stage), eq(habitats.regionId, region.id), sql`ST_Covers(${habitats.geom}, ${point})`))
-    .orderBy(sql`ST_Area(${habitats.geom}::geography) ASC`, asc(habitats.id))
-    .limit(1);
+  const [habitat] = await db.$queryRaw<Omit<HabitatRow, "geometry">[]>`
+    SELECT id, region_id, slug, name, description, habitat_tags, condition_rules
+    FROM habitats
+    WHERE stage = ${stage} AND region_id = ${region.id}::uuid AND ST_Covers(geom, ${point})
+    ORDER BY ST_Area(geom::geography) ASC, id ASC
+    LIMIT 1`;
 
-  const distance = sql<number>`ST_Distance(${pointsOfInterest.geom}::geography, ${point}::geography)`;
-  const pois = await db
-    .select({
-      id: pointsOfInterest.id,
-      slug: pointsOfInterest.slug,
-      name: pointsOfInterest.name,
-      description: pointsOfInterest.description,
-      type: pointsOfInterest.type,
-      lat: sql<number>`ST_Y(${pointsOfInterest.geom})`,
-      lng: sql<number>`ST_X(${pointsOfInterest.geom})`,
-      distanceMeters: distance,
-      interactionId: pointsOfInterest.interactionId,
-      unlockCondition: pointsOfInterest.unlockCondition,
-    })
-    .from(pointsOfInterest)
-    .where(
-      and(
-        eq(pointsOfInterest.stage, q.stage),
-        eq(pointsOfInterest.regionId, region.id),
-        sql`ST_DWithin(${pointsOfInterest.geom}::geography, ${point}::geography, ${q.radiusMeters})`,
-      ),
-    )
-    .orderBy(distance, asc(pointsOfInterest.id))
-    .limit(NEARBY_POI_LIMIT);
+  const pois = await db.$queryRaw<(Omit<PoiRow, "location" | "region_id"> & { lat: number; lng: number; distance_meters: number })[]>`
+    SELECT id, slug, name, description, type, ST_Y(geom) AS lat, ST_X(geom) AS lng,
+           ST_Distance(geom::geography, ${point}::geography) AS distance_meters, interaction_id, unlock_condition
+    FROM points_of_interest
+    WHERE stage = ${stage} AND region_id = ${region.id}::uuid
+      AND ST_DWithin(geom::geography, ${point}::geography, ${q.radiusMeters}::float8)
+    ORDER BY distance_meters ASC, id ASC
+    LIMIT ${NEARBY_POI_LIMIT}`;
 
-  const tableRows = await db
-    .select()
-    .from(encounterTables)
-    .where(
-      and(
-        eq(encounterTables.stage, q.stage),
-        eq(encounterTables.regionId, region.id),
-        eq(encounterTables.active, true),
-        habitat
-          ? or(isNull(encounterTables.habitatId), eq(encounterTables.habitatId, habitat.id))
-          : isNull(encounterTables.habitatId),
-      ),
-    );
-  const entryRows = tableRows.length
-    ? await db
-        .select()
-        .from(encounterEntries)
-        .where(and(eq(encounterEntries.stage, q.stage), inArray(encounterEntries.tableId, tableRows.map((t) => t.id))))
-        .orderBy(asc(encounterEntries.position), asc(encounterEntries.id))
-    : [];
+  const tables = await db.encounterTable.findMany({
+    where: {
+      stage: q.stage,
+      regionId: region.id,
+      active: true,
+      OR: habitat ? [{ habitatId: null }, { habitatId: habitat.id }] : [{ habitatId: null }],
+    },
+    include: { entries: { orderBy: [{ position: "asc" }, { id: "asc" }] } },
+  });
 
   return {
-    region: { ...region, unlockCondition: region.unlockCondition ?? null },
-    habitat: habitat ?? null,
+    region: {
+      id: region.id,
+      slug: region.slug,
+      name: region.name,
+      description: region.description,
+      biomeTags: region.biome_tags,
+      unlockCondition: region.unlock_condition ?? null,
+      storyStateRequirements: region.story_state_requirements,
+      active: region.active,
+    },
+    habitat: habitat
+      ? {
+          id: habitat.id,
+          regionId: habitat.region_id,
+          slug: habitat.slug,
+          name: habitat.name,
+          description: habitat.description,
+          habitatTags: habitat.habitat_tags,
+          conditionRules: habitat.condition_rules,
+        }
+      : null,
     pois: pois.map((p) => ({
-      ...p,
+      id: p.id,
+      slug: p.slug,
+      name: p.name,
+      description: p.description,
+      type: p.type as PoiType,
       lat: Number(p.lat),
       lng: Number(p.lng),
-      distanceMeters: Number(p.distanceMeters),
-      type: p.type as WorldDocument["pois"][number]["type"],
-      unlockCondition: p.unlockCondition ?? null,
+      distanceMeters: Number(p.distance_meters),
+      interactionId: p.interaction_id,
+      unlockCondition: p.unlock_condition ?? null,
     })),
-    tables: tableRows.map((t) => toEncounterTable(t, entryRows)),
-    version: version?.version ?? null,
+    tables: tables.map(toEncounterTable),
+    version,
   };
 }

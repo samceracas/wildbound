@@ -1,10 +1,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import type { FastifyInstance } from "fastify";
+import request from "supertest";
+import type { Express } from "express";
 import type { DbHandle } from "@wildbound/db";
 import { openTestDb, resetTestData } from "@wildbound/db/testing";
 import { EditorWorldResponseSchema, PublishedWorldResponseSchema, WorldContextSchema, type WorldDocument } from "@wildbound/shared";
-import { buildApp } from "../src/app.ts";
-import type { ApiConfig } from "../src/config.ts";
+import { createApp } from "../src/app.ts";
+import { StaticWeather } from "../src/weather.ts";
+import { testConfig } from "./helpers.ts";
 // Shared fixture: region square at (121, 14.65); forest west, creek east.
 import { IDS, sampleWorld, square } from "../../../packages/world/src/__fixtures__/world.ts";
 
@@ -18,23 +20,24 @@ const OPEN_GROUND = { lat: 14.654, lng: 121.0 }; // in region, outside both habi
 const OUTSIDE = { lat: 14.7, lng: 121.1 };
 
 let handle: DbHandle;
-let app: FastifyInstance;
+let express: Express;
+
+/** Small adapter so the assertions read like the original Fastify `app.inject` tests. */
+const app = {
+  async inject(opts: { method: string; url: string; headers?: Record<string, string>; payload?: object }) {
+    let req = request(express)[opts.method.toLowerCase() as "get" | "put" | "post"](opts.url);
+    for (const [k, v] of Object.entries(opts.headers ?? {})) req = req.set(k, v);
+    const res = opts.payload === undefined ? await req : await req.send(opts.payload);
+    return { statusCode: res.status, body: res.text, json: () => res.body };
+  },
+};
 
 beforeAll(async () => {
   handle = await openTestDb();
-  const config: ApiConfig = {
-    databaseUrl: "",
-    port: 0,
-    host: "127.0.0.1",
-    editorToken: TOKEN,
-    corsOrigins: [],
-    worldTimeZone: "Asia/Manila",
-  };
-  app = await buildApp({ db: handle.db, config });
+  express = createApp({ db: handle.db, config: testConfig({ editorToken: TOKEN }), weather: new StaticWeather() });
 });
 
 afterAll(async () => {
-  await app?.close();
   await handle?.close();
 });
 
@@ -44,9 +47,9 @@ beforeEach(async () => {
 
 const saveDraft = (doc: unknown) => app.inject({ method: "PUT", url: "/api/editor/draft", headers: auth, payload: doc as object });
 const publish = () => app.inject({ method: "POST", url: "/api/editor/publish", headers: auth });
-async function resolve(c: { lat: number; lng: number }, extra: Record<string, string> = {}, headers: Record<string, string> = {}) {
+async function resolve(c: { lat: number; lng: number }, extra: Record<string, string> = {}) {
   const query = new URLSearchParams({ lat: String(c.lat), lng: String(c.lng), timeOfDay: "day", weather: "clear", ...extra });
-  const res = await app.inject({ method: "GET", url: `/api/world/resolve?${query}`, headers });
+  const res = await app.inject({ method: "GET", url: `/api/editor/resolve?${query}`, headers: auth });
   expect(res.statusCode, res.body).toBe(200);
   return WorldContextSchema.parse(res.json());
 }
@@ -58,16 +61,21 @@ describe("authorization", () => {
       ["PUT", "/api/editor/draft"],
       ["POST", "/api/editor/validate"],
       ["POST", "/api/editor/publish"],
+      ["GET", "/api/editor/published"],
+      ["GET", `/api/editor/resolve?lat=${FOREST.lat}&lng=${FOREST.lng}`],
     ] as const) {
       expect((await app.inject({ method, url })).statusCode).toBe(401);
       expect((await app.inject({ method, url, headers: { authorization: "Bearer wrong" } })).statusCode).toBe(401);
     }
   });
 
-  it("only lets editors resolve against the draft", async () => {
-    const url = `/api/world/resolve?lat=${FOREST.lat}&lng=${FOREST.lng}&stage=draft`;
-    expect((await app.inject({ method: "GET", url })).statusCode).toBe(401);
-    expect((await app.inject({ method: "GET", url, headers: auth })).statusCode).toBe(200);
+  it("no longer exposes coordinate resolution or the whole world publicly", async () => {
+    // These used to be public, which let anyone look up any coordinate ("teleport").
+    for (const url of [`/api/world/resolve?lat=${FOREST.lat}&lng=${FOREST.lng}`, "/api/world/published", "/api/creatures"]) {
+      expect((await app.inject({ method: "GET", url })).statusCode, url).toBe(404);
+    }
+    const draft = `/api/editor/resolve?lat=${FOREST.lat}&lng=${FOREST.lng}&stage=draft`;
+    expect((await app.inject({ method: "GET", url: draft, headers: auth })).statusCode).toBe(200);
   });
 });
 
@@ -162,7 +170,7 @@ describe("draft / published isolation", () => {
     expect(published.habitat?.name).toBe("Forest Edge");
     expect(published.nearbyPois).toHaveLength(1);
 
-    const draft = await resolve(FOREST, { stage: "draft" }, auth);
+    const draft = await resolve(FOREST, { stage: "draft" });
     expect(draft.habitat?.name).toBe("Renamed Forest");
     expect(draft.nearbyPois).toHaveLength(0);
     expect(draft.version).toBeNull();
@@ -176,7 +184,7 @@ describe("draft / published isolation", () => {
     await publish();
     await saveDraft({ regions: [], habitats: [], pois: [], encounterTables: [] });
     expect((await resolve(FOREST)).region?.slug).toBe("mabunyi-nature-reserve");
-    expect((await resolve(FOREST, { stage: "draft" }, auth)).region).toBeNull();
+    expect((await resolve(FOREST, { stage: "draft" })).region).toBeNull();
   });
 
   it("refuses to publish an invalid draft and leaves the published world untouched", async () => {
@@ -204,10 +212,10 @@ describe("draft / published isolation", () => {
   });
 });
 
-describe("GET /api/world/published", () => {
-  const getPublished = () => app.inject({ method: "GET", url: "/api/world/published" });
+describe("GET /api/editor/published", () => {
+  const getPublished = () => app.inject({ method: "GET", url: "/api/editor/published", headers: auth });
 
-  it("is public and empty before anything is published", async () => {
+  it("is empty before anything is published", async () => {
     await saveDraft(sampleWorld());
     const body = PublishedWorldResponseSchema.parse((await getPublished()).json());
     expect(body.version).toBeNull();
@@ -279,7 +287,7 @@ describe("payload validation", () => {
 
   it("rejects malformed coordinates", async () => {
     for (const q of ["lat=95&lng=121", "lat=14&lng=200", "lat=abc&lng=121", "lng=121", "lat=14&lng=121&radius=0"]) {
-      const res = await app.inject({ method: "GET", url: `/api/world/resolve?${q}` });
+      const res = await app.inject({ method: "GET", url: `/api/editor/resolve?${q}`, headers: auth });
       expect(res.statusCode, q).toBe(400);
     }
   });

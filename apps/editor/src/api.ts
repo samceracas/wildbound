@@ -70,6 +70,6 @@ export const api = {
   resolve: (q: ResolveQueryInput) => {
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(q)) if (v !== undefined) params.set(k, String(v));
-    return request(WorldContextSchema, `/api/world/resolve?${params}`);
+    return request(WorldContextSchema, `/api/editor/resolve?${params}`);
   },
 };

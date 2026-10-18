@@ -3,3 +3,7 @@ export * from "./encounters.ts";
 export * from "./geometry.ts";
 export * from "./validation.ts";
 export * from "./context.ts";
+export * from "./movement.ts";
+export * from "./spawning.ts";
+export * from "./weather.ts";
+export * from "./capture.ts";

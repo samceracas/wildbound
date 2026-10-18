@@ -63,3 +63,19 @@ export const NEARBY_POI_LIMIT = 25;
 
 export const ENCOUNTER_WEIGHT_MIN = 1;
 export const ENCOUNTER_WEIGHT_MAX = 1000;
+
+/** Rarity bands (Wildkin Bible). Rarity is not strength. */
+export const RARITIES = ["common", "uncommon", "rare", "TBD"] as const;
+export type Rarity = (typeof RARITIES)[number];
+
+/** Activity pattern vocabulary (Wildkin Bible, section 4). */
+export const ACTIVITY_PATTERNS = [
+  "diurnal",
+  "nocturnal",
+  "crepuscular",
+  "cathemeral",
+  "sheltering_by_day",
+  "seasonal",
+  "TBD",
+] as const;
+export type ActivityPattern = (typeof ACTIVITY_PATTERNS)[number];

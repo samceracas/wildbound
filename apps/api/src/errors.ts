@@ -1,43 +1,42 @@
-import type { FastifyError, FastifyReply, FastifyRequest } from "fastify";
-import type { ApiError } from "@wildbound/shared";
-import type { z } from "zod";
+import type { ErrorRequestHandler } from "express";
+import { Prisma } from "@wildbound/db";
+import { HttpError } from "./http.ts";
 
-export function badRequestFromZod(error: z.ZodError, message: string): ApiError {
-  return {
-    error: "bad_request",
-    message,
-    issues: error.issues.map((i) => ({
-      severity: "error" as const,
-      code: "schema",
-      entityType: "world" as const,
-      message: `${i.path.join(".") || "(root)"}: ${i.message}`,
-    })),
-  };
+/** Postgres SQLSTATE behind a Prisma error (raw queries report it via the driver adapter). */
+function pgCode(error: Prisma.PrismaClientKnownRequestError): { code?: string; message?: string } {
+  const cause = (error.meta?.driverAdapterError as { cause?: { originalCode?: string; originalMessage?: string } } | undefined)
+    ?.cause;
+  return { code: cause?.originalCode, message: cause?.originalMessage };
 }
 
-interface PgError {
-  code?: string;
-  constraint?: string;
-  detail?: string;
-  message: string;
-}
-
-/** Maps database constraint failures to client errors; everything else is a 500. */
-export function errorHandler(error: FastifyError & PgError, request: FastifyRequest, reply: FastifyReply) {
-  const pgCode = error.code ?? (error.cause as PgError | undefined)?.code;
-  const pg = (error.cause as PgError | undefined) ?? error;
-  if (pgCode === "23514" || pgCode === "XX000" || pgCode === "22023") {
-    return reply.code(400).send({ error: "invalid_geometry", message: pg.message });
+/** Maps HttpErrors, body-parser errors and database constraint failures to JSON; everything else is a 500. */
+export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
+  if (error instanceof HttpError) {
+    res.status(error.status).json(error.toBody());
+    return;
   }
-  if (pgCode === "23505") {
-    return reply.code(409).send({ error: "conflict", message: pg.detail ?? pg.message });
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    const pg = pgCode(error);
+    const message = pg.message ?? error.message;
+    if (pg.code === "23514" || pg.code === "XX000" || pg.code === "22023") {
+      res.status(400).json({ error: "invalid_geometry", message });
+      return;
+    }
+    if (pg.code === "23505" || error.code === "P2002") {
+      res.status(409).json({ error: "conflict", message });
+      return;
+    }
+    if (pg.code === "23503" || error.code === "P2003") {
+      res.status(400).json({ error: "invalid_reference", message });
+      return;
+    }
   }
-  if (pgCode === "23503") {
-    return reply.code(400).send({ error: "invalid_reference", message: pg.detail ?? pg.message });
+  // express.json() errors (malformed JSON, too large) carry a 4xx status.
+  const status = typeof error?.status === "number" ? error.status : 500;
+  if (status < 500) {
+    res.status(status).json({ error: "bad_request", message: String(error.message ?? "Bad request") });
+    return;
   }
-  if (error.statusCode && error.statusCode < 500) {
-    return reply.code(error.statusCode).send({ error: "bad_request", message: error.message });
-  }
-  request.log.error(error);
-  return reply.code(500).send({ error: "internal", message: "Internal server error" });
-}
+  console.error(error);
+  res.status(500).json({ error: "internal", message: "Internal server error" });
+};
