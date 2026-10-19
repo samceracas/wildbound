@@ -29,7 +29,7 @@ export const GAME_RULES = {
   /** Fastest plausible movement between two reports (~144 km/h, allows vehicles). */
   maxSpeedMps: 40,
   /** Reports worse than this are ignored (not accepted, not flagged). */
-  maxAccuracyM: 100,
+  maxAccuracyM: 200,
   /** Distance slack that is always allowed regardless of time (GPS jitter). */
   jitterSlackM: 25,
   /** Implausible jumps in a row before the player is locked out. */

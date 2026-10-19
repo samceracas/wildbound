@@ -6,6 +6,8 @@ import { PLAYER_HEAD, wildkinIcon } from "@/lib/assets.ts";
 interface Props {
   player: { lat: number; lng: number } | null;
   spawns: SpawnView[];
+  /** The raw GPS fix and its accuracy radius; drawn as a ring that turns red past GAME_RULES.maxAccuracyM. */
+  accuracy: { lat: number; lng: number; accuracy: number } | null;
   selectedId: string | null;
   onSelect: (spawn: SpawnView) => void;
   /** Text on the tag above a marker (the name once observed, else the registry number). */
@@ -13,6 +15,7 @@ interface Props {
 }
 
 const RANGE_SOURCE = "interact-range";
+const ACCURACY_SOURCE = "gps-accuracy";
 
 /** Circle polygon (approximate) of `radiusM` around a point, for the interact range ring. */
 function circle(center: { lat: number; lng: number }, radiusM: number, steps = 48) {
@@ -54,10 +57,61 @@ function spawnElement(src: string): HTMLElement {
 }
 
 /**
+ * Adds the GPS-accuracy and interact-range overlays once the style is ready.
+ * Called before every draw instead of relying on the map's "load" event: "load"
+ * waits for tiles, so it can fire late (or never, when the tile server is
+ * unreachable) and anything drawn before it would be lost.
+ */
+function ensureOverlays(m: maplibregl.Map): boolean {
+  if (!m.isStyleLoaded()) return false;
+  if (m.getSource(RANGE_SOURCE)) return true;
+  // GPS accuracy (under the interact ring): green while usable, terracotta when the server would ignore the fix.
+  const usable: maplibregl.ExpressionSpecification = ["get", "usable"];
+  m.addSource(ACCURACY_SOURCE, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  m.addLayer({
+    id: "accuracy-fill",
+    type: "fill",
+    source: ACCURACY_SOURCE,
+    paint: { "fill-color": ["case", usable, "#4F8A68", "#C96A5B"], "fill-opacity": 0.1 },
+  });
+  m.addLayer({
+    id: "accuracy-line",
+    type: "line",
+    source: ACCURACY_SOURCE,
+    paint: { "line-color": ["case", usable, "#4F8A68", "#C96A5B"], "line-width": 1.5, "line-opacity": 0.8 },
+  });
+  // Observe/capture range.
+  m.addSource(RANGE_SOURCE, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  m.addLayer({ id: "range-fill", type: "fill", source: RANGE_SOURCE, paint: { "fill-color": "#1F6B57", "fill-opacity": 0.08 } });
+  m.addLayer({
+    id: "range-line",
+    type: "line",
+    source: RANGE_SOURCE,
+    paint: { "line-color": "#1F6B57", "line-width": 1.5, "line-dasharray": [2, 2] },
+  });
+  return true;
+}
+
+/** Runs `draw` now if the style is ready, otherwise as soon as it is. Returns a cleanup. */
+function whenReady(m: maplibregl.Map, draw: () => void): () => void {
+  if (ensureOverlays(m)) {
+    draw();
+    return () => {};
+  }
+  const onStyle = () => {
+    if (!ensureOverlays(m)) return;
+    m.off("styledata", onStyle);
+    draw();
+  };
+  m.on("styledata", onStyle);
+  return () => m.off("styledata", onStyle);
+}
+
+/**
  * The radar. MapLibre is imperative, so the map is created once and markers are
  * synced in effects (React never re-renders the map itself).
  */
-export function RadarMap({ player, spawns, selectedId, onSelect, labelFor }: Props) {
+export function RadarMap({ player, accuracy, spawns, selectedId, onSelect, labelFor }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const playerMarker = useRef<maplibregl.Marker | null>(null);
@@ -93,16 +147,6 @@ export function RadarMap({ player, spawns, selectedId, onSelect, labelFor }: Pro
       minZoom: 14,
       attributionControl: { compact: true },
     });
-    m.on("load", () => {
-      m.addSource(RANGE_SOURCE, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-      m.addLayer({ id: "range-fill", type: "fill", source: RANGE_SOURCE, paint: { "fill-color": "#1F6B57", "fill-opacity": 0.08 } });
-      m.addLayer({
-        id: "range-line",
-        type: "line",
-        source: RANGE_SOURCE,
-        paint: { "line-color": "#1F6B57", "line-width": 1.5, "line-dasharray": [2, 2] },
-      });
-    });
     map.current = m;
     return () => {
       m.remove();
@@ -124,14 +168,25 @@ export function RadarMap({ player, spawns, selectedId, onSelect, labelFor }: Pro
     } else {
       playerMarker.current.setLngLat([player.lng, player.lat]);
     }
-    const ring = () => (m.getSource(RANGE_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(circle(player, GAME_RULES.interactRadiusM));
-    if (m.isStyleLoaded()) ring();
-    else m.once("load", ring);
     if (!centered.current) {
       m.jumpTo({ center: [player.lng, player.lat] });
       centered.current = true;
     }
+    return whenReady(m, () =>
+      (m.getSource(RANGE_SOURCE) as maplibregl.GeoJSONSource).setData(circle(player, GAME_RULES.interactRadiusM)),
+    );
   }, [player]);
+
+  // GPS accuracy ring, centred on the raw fix (that is what the accuracy describes).
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+    return whenReady(m, () => {
+      const source = m.getSource(ACCURACY_SOURCE) as maplibregl.GeoJSONSource;
+      if (!accuracy) return source.setData({ type: "FeatureCollection", features: [] });
+      source.setData({ ...circle(accuracy, accuracy.accuracy), properties: { usable: accuracy.accuracy <= GAME_RULES.maxAccuracyM } });
+    });
+  }, [accuracy]);
 
   // Spawn markers: add new, move existing, remove gone.
   useEffect(() => {

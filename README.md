@@ -249,7 +249,7 @@ If location sharing is turned off (or the signal is lost) mid-game, the game is 
 Previously anyone could call the public resolver with any coordinate and "be" anywhere. Now:
 
 - **No public coordinate lookup.** Resolving arbitrary coordinates and reading the whole world are editor-only (`/api/editor/*`, bearer token).
-- **The server tracks where each player is.** Clients only *report* GPS fixes (`POST /api/game/position`). `checkMovement` in `@wildbound/world` accepts a fix only if the distance from the last accepted one is at most `40 m/s × elapsed + both accuracies + 25 m`, using the server's clock. Fixes worse than 100 m accuracy are ignored.
+- **The server tracks where each player is.** Clients only *report* GPS fixes (`POST /api/game/position`). `checkMovement` in `@wildbound/world` accepts a fix only if the distance from the last accepted one is at most `40 m/s × elapsed + both accuracies + 25 m`, using the server's clock. Fixes worse than `GAME_RULES.maxAccuracyM` (200 m, generous for desktop Wi-Fi location) are ignored. On the radar, the solid ring is your GPS accuracy (green when usable, red when too imprecise); the dashed ring is the 60 m observe/capture range.
 - **Strikes and lockout.** Each implausible jump is rejected and counts as a strike; 3 in a row lock the player for 2 minutes. An accepted move resets the count.
 - **Server-authoritative actions.** Spawns are created by the server around the tracked position and belong to one player. Observe/capture check ownership, status, expiry and distance from the *tracked* position, never coordinates sent with the request.
 - **Stale positions don't count.** A position older than 2 minutes cannot be used to act; the web client re-sends its last fix every 30 s while still.

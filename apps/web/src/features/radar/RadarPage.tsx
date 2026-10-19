@@ -52,6 +52,7 @@ export function RadarPage() {
         <div className="relative flex-1">
           <RadarMap
             player={player}
+            accuracy={fix}
             spawns={spawns}
             selectedId={selectedId}
             onSelect={(s) => setSelectedId(s.id)}
@@ -64,7 +65,17 @@ export function RadarPage() {
           <p className="min-w-0 font-vt text-lg leading-5 text-ink" role="status">
             {radarStatus(state, fix)}
           </p>
-          {fix && <span className="shrink-0 font-pixel text-[7px] text-ink-muted">ACC ±{Math.round(fix.accuracy)}M</span>}
+          {fix && (
+            <span
+              className={cn(
+                "shrink-0 font-pixel text-[7px]",
+                fix.accuracy <= GAME_RULES.maxAccuracyM ? "text-ink-muted" : "text-terracotta",
+              )}
+              title={`Fixes worse than ±${GAME_RULES.maxAccuracyM} m are ignored`}
+            >
+              ACC ±{Math.round(fix.accuracy)}/{GAME_RULES.maxAccuracyM}M
+            </span>
+          )}
         </div>
       </div>
     </div>
