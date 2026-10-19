@@ -52,7 +52,6 @@ export function RadarPage() {
         <div className="relative flex-1">
           <RadarMap
             player={player}
-            accuracy={fix}
             spawns={spawns}
             selectedId={selectedId}
             onSelect={(s) => setSelectedId(s.id)}
