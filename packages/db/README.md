@@ -1,5 +1,7 @@
 # @wildbound/db
 
+> Detailed documentation: [docs/03-database.md](../../docs/03-database.md).
+
 Database layer: Prisma schema and migrations, PostGIS queries, seed data and test helpers.
 
 ## Tech

@@ -1,5 +1,7 @@
 # @wildbound/shared
 
+> Detailed documentation: [docs/02-world-model.md](../../docs/02-world-model.md).
+
 The data contract. Zod schemas and the TypeScript types inferred from them, used by the editor, API, web app and database layer so everyone agrees on one shape.
 
 ## Contents

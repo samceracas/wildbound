@@ -1,5 +1,7 @@
 # @wildbound/editor
 
+> Detailed documentation: [docs/05-map-editor.md](../../docs/05-map-editor.md).
+
 The WILDBOUND **Map Editor**: an internal developer tool for authoring the world on top of real geography. It is a small game-world authoring tool with geographic capabilities, not a GIS application.
 
 ## What it does

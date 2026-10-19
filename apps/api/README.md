@@ -1,5 +1,7 @@
 # @wildbound/api
 
+> Detailed documentation: [docs/04-api-reference.md](../../docs/04-api-reference.md).
+
 Express 5 REST API. It authors and publishes the world (editor only), and runs the player game: username sessions, position reports, spawns, Observe/Capture, Registry, inventory and party.
 
 ## Responsibilities

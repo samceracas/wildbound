@@ -11,6 +11,11 @@ Real location (lat/lng)
 WILDBOUND region  ->  Habitat  ->  Conditions (time, weather)  ->  Encounter table  ->  Wildkin
 ```
 
+> 📚 **Full documentation lives in [`docs/`](docs/README.md)**: a plain-English overview for non-programmers,
+> architecture and data-flow diagrams, the database, every API endpoint, the editor and game internals, the game rules
+> (spawning, weather, anti-teleport) with charts, and a cookbook of step-by-step recipes for adding features safely.
+> This README is the short version.
+
 ## Table of contents
 
 - [The idea](#the-idea)

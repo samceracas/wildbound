@@ -1,5 +1,7 @@
 # @wildbound/world
 
+> Detailed documentation: [docs/07-game-systems.md](../../docs/07-game-systems.md).
+
 Pure WILDBOUND domain logic. No database, no React, no network: the same functions run in the API, the editor, tests and, later, the game client.
 
 ## Modules

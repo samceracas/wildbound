@@ -1,5 +1,7 @@
 # @wildbound/web
 
+> Detailed documentation: [docs/06-web-game.md](../../docs/06-web-game.md).
+
 The WILDBOUND game: username login → location sharing → radar, Registry, Satchel and Party. Mobile-first (designed at 390px), styled as a handheld "field nav" console after the six Stitch mockups in [`patches/0.1.0/mockups/`](../../patches/0.1.0/mockups/) (`1-login` … `6-party`, each as `.html` + `.png`), using the "Field Registry" design tokens.
 
 Parts are intentionally unfinished: look for `TODO(you)` (see [`patches/0.1.0/EXERCISES.md`](../../patches/0.1.0/EXERCISES.md)).
