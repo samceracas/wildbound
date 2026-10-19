@@ -1,62 +1,91 @@
-import { Compass, MapPinOff, ShieldCheck } from "lucide-react";
-import { Navigate } from "react-router";
-import { Shell, Wordmark } from "@/components/layout/Shell.tsx";
-import { Button } from "@/components/ui/button.tsx";
-import { useLocation } from "./LocationProvider.tsx";
+import { MapPinOff, Navigation } from "lucide-react";
+import { Navigate, useNavigate } from "react-router";
+import { ConsoleButton, LcdScreen, Led, Shell } from "@/components/layout/Shell.tsx";
+import { useLogout } from "@/lib/queries.ts";
+import { cn } from "@/lib/utils";
+import { useLocation, type LocationStatus } from "./LocationProvider.tsx";
 
 /**
  * Step 2 of 2: location sharing. The game is never reachable without it:
  * once the first fix arrives we move on to the radar automatically.
+ * Layout: Stitch screen 2 "Location Permission" (patches/0.1.0/mockups/2-location.html).
  */
 export function LocationGatePage() {
   const { status, start } = useLocation();
+  const logout = useLogout();
+  const navigate = useNavigate();
   if (status === "active") return <Navigate to="/play" replace />;
 
+  const tracking = status === "acquiring";
   return (
     <Shell>
-      <header className="bg-deep-forest px-6 pt-10 pb-8">
-        <Wordmark />
-        <h1 className="text-display mt-8 text-paper">Share your location</h1>
-        <p className="mt-3 text-paper/75">
-          Wildbound maps where you are to a habitat in the Field Registry. Wildkin only appear around your real position.
-        </p>
-      </header>
-
-      <div className="flex flex-1 flex-col gap-4 px-6 py-8">
-        <Reason icon={<Compass className="size-5" />} title="Find nearby Wildkin">
-          Your habitat, local weather and time of day decide which species can appear.
-        </Reason>
-        <Reason icon={<ShieldCheck className="size-5" />} title="Checked on the server">
-          Positions are verified for plausible movement. Jumping across the map pauses your survey.
-        </Reason>
-
-        <StatusNote status={status} />
-
-        <div className="mt-auto flex flex-col gap-3">
-          <Button size="lg" onClick={start} disabled={status === "acquiring" || status === "unsupported"}>
-            {status === "acquiring" ? "Waiting for GPS…" : status === "denied" ? "Try again" : "Allow location sharing"}
-          </Button>
-          <p className="text-center text-xs text-ink-muted">Step 2 of 2 · Location stays on while you play</p>
-        </div>
+      <div className="mt-2 mb-3 flex items-center justify-between px-3 font-pixel text-[7px] tracking-wider uppercase">
+        <span className="text-chassis-text">WB-01 // Field unit</span>
+        <span className="flex items-center gap-2 text-chassis-text">
+          Power <Led className="size-2" />
+        </span>
       </div>
+
+      <LcdScreen>
+        <div className="mb-3 flex items-center justify-between border-b-2 border-lcd-edge pb-1.5 font-pixel text-[8px]">
+          <span className="rounded-sm bg-lcd-edge px-2 py-1 text-lcd">FIELD TERMINAL</span>
+          <span>SATELLITE LINK</span>
+        </div>
+
+        <div className="flex flex-col items-center">
+          <div className="relative flex size-20 items-center justify-center rounded-full border-4 border-[#33583b] bg-[#d0e5c1] shadow-[inset_0_2px_4px_rgb(0_0_0/0.25)]">
+            <span aria-hidden className="absolute inset-1 rounded-full border border-dashed border-[#618a6a]" />
+            <span
+              className={cn(
+                "relative flex size-11 items-center justify-center rounded-full border-2 border-[#7fc897] bg-[#1e4a35]",
+                tracking && "animate-pulse",
+              )}
+            >
+              <Navigation className="size-6 text-[#55ffa2]" aria-hidden />
+            </span>
+            <span className="absolute right-2 bottom-1 font-pixel text-[6px]">GPS</span>
+          </div>
+          <h1 className="mt-3 font-pixel text-[13px] leading-5 tracking-tight">Enable location?</h1>
+          <p className="mt-1 border border-lcd-edge bg-[#c3deb2] px-2 py-0.5 font-pixel text-[8px]">
+            [ TRACKER MODE: {tracking ? "SEARCHING" : "OFF"} ]
+          </p>
+        </div>
+
+        <div className="relative mt-5 rounded-md border-4 border-[#143224] bg-[#f8fbf4] p-2.5 pt-3 shadow-[2px_2px_0_#27533c]">
+          <span className="absolute -top-2.5 left-3 rounded-sm bg-[#143224] px-1.5 py-0.5 font-pixel text-[7px] text-[#86efac]">DIALOGUE</span>
+          <p className="font-vt text-[21px] leading-[22px] tracking-wide">
+            Wildbound maps your real position to a habitat in the Field Registry. Your local weather and time of day decide which Wildkin appear.
+          </p>
+          <p className="mt-2 font-vt text-lg leading-5 text-lcd-ink/70">
+            Positions are checked on the server: impossible jumps pause your survey.
+          </p>
+        </div>
+
+        <StatusLine status={status} />
+      </LcdScreen>
+
+      <div className="mt-4 flex flex-col gap-2.5">
+        <ConsoleButton face="A" onClick={start} disabled={tracking || status === "unsupported"} trailing="►">
+          {tracking ? "Waiting for GPS…" : status === "denied" ? "Try again" : "Allow location"}
+        </ConsoleButton>
+        <ConsoleButton
+          face="B"
+          trailing="ESC"
+          disabled={logout.isPending}
+          onClick={() => logout.mutate(undefined, { onSuccess: () => navigate("/") })}
+        >
+          Switch researcher
+        </ConsoleButton>
+      </div>
+      <p className="mt-3 text-center font-pixel text-[7px] tracking-widest text-chassis-text uppercase">
+        Step 2 of 2 · location stays on while you play
+      </p>
     </Shell>
   );
 }
 
-function Reason({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
-  return (
-    <div className="flex gap-3 rounded-lg border border-muted-paper bg-paper p-4">
-      <div className="mt-0.5 text-primary-forest">{icon}</div>
-      <div>
-        <p className="text-label-lg text-ink">{title}</p>
-        <p className="mt-1 text-sm text-ink-muted">{children}</p>
-      </div>
-    </div>
-  );
-}
-
-function StatusNote({ status }: { status: ReturnType<typeof useLocation>["status"] }) {
-  const text =
+function StatusLine({ status }: { status: LocationStatus }) {
+  const problem =
     status === "denied"
       ? "Location is blocked for this site. Allow it in your browser's site settings, then try again."
       : status === "unsupported"
@@ -64,11 +93,17 @@ function StatusNote({ status }: { status: ReturnType<typeof useLocation>["status
         : status === "unavailable"
           ? "Location is allowed but no GPS fix is arriving yet. Check that location services are on."
           : null;
-  if (!text) return null;
+  if (!problem) {
+    return (
+      <p className="mt-3 text-center font-pixel text-[7px] leading-3 text-[#2b563b]">
+        {status === "acquiring" ? "GPS: ACQUIRING SATELLITES…" : "GPS READY: AWAITING PERMISSION"}
+      </p>
+    );
+  }
   return (
-    <p className="flex gap-2 rounded-md bg-terracotta/10 px-3 py-2 text-sm text-terracotta">
-      <MapPinOff className="mt-0.5 size-4 shrink-0" />
-      {text}
+    <p role="alert" className="mt-3 flex gap-2 border-2 border-terracotta bg-terracotta/10 px-2 py-1 font-vt text-lg leading-5 text-terracotta">
+      <MapPinOff className="mt-0.5 size-4 shrink-0" aria-hidden />
+      {problem}
     </p>
   );
 }

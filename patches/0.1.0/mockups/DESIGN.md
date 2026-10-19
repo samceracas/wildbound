@@ -88,14 +88,21 @@ Tonal layering and borders, not shadows. Detached dialogs: `1px solid #E8E1D2` p
 
 ## Screens (mobile, 390px wide)
 
-| Screen | Stitch screen id |
-|---|---|
-| Login (register username) | 3b2371ca6ac94485a17b1b46780de550 |
-| Allow Location Sharing | 5c4d27f9208f4f489f7568f7a47cd5a8 |
-| Radar | 7a3785983cb84ea7b285ec377f28b6cc |
-| Inventory (Satchel) | 3939552b21024c39a31e671470409461 |
-| Registry | c60e00288fab46a1ab5fb25cd5d561c3 |
-| Party | ca65ef18aad34a288cd8d4772a0e45ba |
+| Screen | Stitch screen id | Files |
+|---|---|---|
+| Login (register username) | 3b2371ca6ac94485a17b1b46780de550 | `1-login.html/.png` |
+| Allow Location Sharing | 5c4d27f9208f4f489f7568f7a47cd5a8 | `2-location.html/.png` |
+| Radar | 7a3785983cb84ea7b285ec377f28b6cc | `3-radar.html/.png` |
+| Inventory (Satchel) | 3939552b21024c39a31e671470409461 | `4-inventory.html/.png` |
+| Registry | c60e00288fab46a1ab5fb25cd5d561c3 | `5-registry.html/.png` |
+| Party | ca65ef18aad34a288cd8d4772a0e45ba | `6-party.html/.png` |
 
-Screenshots (`*.png`) and exported HTML (`*.html`) belong next to this file. See the handover notes
-in `patches/0.1.0/` for how to download them.
+Downloaded in pass 2 with `curl -L` from the Stitch MCP `get_screen` URLs. The `.png` files are
+Stitch's own captures (429px wide, the largest it serves); the Login and Location captures came back
+blank from Stitch, so open the `.html` files in a browser to see those two. The HTML loads Tailwind
+from `cdn.tailwindcss.com`.
+
+The screens go further than the tokens above: a dark handheld "field nav" chassis with a pixel
+font (Press Start 2P), dot-matrix body text (VT323), scanlines, cartridge-style tabs and A/B face
+buttons around the paper screen. `apps/web` follows that look. Stitch's placeholder content
+(Pokémon-style names, HP/ATK stats, filler items) was not copied; the game shows only real data.

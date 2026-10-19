@@ -1,0 +1,210 @@
+<!DOCTYPE html><html lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+<title>Field Expedition Pokénav SP-24 — Field Satchel</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            console: {
+              shell: '#0f241d',
+              bezel: '#143127',
+              screenBg: '#f4ede0',
+              screenInner: '#eae1ce',
+              screenCard: '#fcfaf5',
+              darkGreen: '#1b3d32',
+              mossGreen: '#2a5a49',
+              accentAmber: '#d99b38',
+              accentRed: '#c85a40',
+              accentCyan: '#43c59e',
+              borderTone: '#cbd5c7',
+              textDark: '#1a2e26',
+              textMuted: '#5e7568',
+            }
+          },
+          fontFamily: {
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+            sans: ['system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+            serif: ['Georgia', 'Cambria', 'serif']
+          }
+        }
+      }
+    }
+  </script>
+<style data-purpose="typography">
+    .font-digital {
+      font-family: 'Courier New', Courier, monospace;
+      letter-spacing: -0.02em;
+    }
+    .text-xxs {
+      font-size: 0.625rem;
+      line-height: 0.85rem;
+    }
+  </style>
+<style data-purpose="console-chassis-styling">
+    /* Subtle pixel grid and console shadows */
+    .lcd-screen-texture {
+      background-image: radial-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 0);
+      background-size: 4px 4px;
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: #e2d9c4;
+      border-radius: 4px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #2a5a49;
+      border-radius: 4px;
+    }
+    .chassis-screw {
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.8), 0 1px 1px rgba(255,255,255,0.1);
+    }
+  </style>
+</head>
+<body class="bg-zinc-950 min-h-screen flex items-center justify-center p-0 sm:p-4 text-console-textDark antialiased select-none">
+<!-- BEGIN: HandheldDeviceChassis -->
+<main class="w-full max-w-[420px] bg-console-shell rounded-none sm:rounded-[36px] shadow-2xl border-x-0 sm:border-4 border-[#091712] overflow-hidden flex flex-col relative" data-purpose="game-console-device">
+<!-- Top Hardware Triggers / Accents -->
+<div class="h-3 bg-[#0a1914] flex justify-between px-8 items-center border-b border-[#1b3d32]/40" data-purpose="hardware-bumpers">
+<div class="text-[8px] font-mono text-emerald-800 tracking-wider">◄ L-TRIGGER</div>
+<div class="w-12 h-1 bg-emerald-950 rounded-full"></div>
+<div class="text-[8px] font-mono text-emerald-800 tracking-wider">R-TRIGGER ►</div>
+</div>
+<!-- BEGIN: ConsoleHeader -->
+<header class="px-3.5 pt-2 pb-1.5 bg-console-shell border-b border-emerald-950/60" data-purpose="console-top-meta"><!-- Title Bar & User Badge -->
+<div class="flex items-center justify-between gap-1 mb-1.5">
+  <div class="flex items-center gap-1.5">
+    <div class="w-4 h-4 rounded-sm bg-console-accentAmber/20 flex items-center justify-center border border-console-accentAmber/40">
+      <span class="text-console-accentAmber text-xs leading-none">✦</span>
+    </div>
+    <div>
+      <h1 class="text-[11px] font-black tracking-wider text-emerald-100 uppercase font-mono leading-tight">EXPEDITION POKÉNAV SP-24</h1>
+      <p class="text-[7.5px] font-mono tracking-widest text-emerald-500/80 leading-none">MABUNYI CARTOGRAPHY • V2.4</p>
+    </div>
+  </div>
+  <!-- Researcher Badge -->
+  <div class="flex items-center gap-1 bg-console-bezel px-2 py-0.5 rounded border border-emerald-700/40 shadow-inner">
+    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+    <span class="text-[9px] font-mono font-bold text-emerald-200 tracking-wide">SAM [R-1]</span>
+  </div>
+</div>
+<!-- Telemetry Status Bar -->
+<div class="flex items-center justify-between text-[8px] font-mono text-emerald-400 px-1 py-0.5 bg-[#091812] rounded border border-emerald-900/60">
+  <div class="flex items-center gap-2">
+    <span class="flex items-center gap-1">
+      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px_#34d399]"></span> PWR
+    </span>
+    <span class="flex items-center gap-1 text-amber-400">
+      <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> GPS: ON
+    </span>
+    <span class="flex items-center gap-1 text-teal-300">
+      <span class="w-1.5 h-1.5 rounded-full bg-teal-400"></span> 98%
+    </span>
+  </div>
+  <div class="flex items-center gap-1.5 text-emerald-200">
+    <span class="text-amber-300">☀️ CLEAR • 24°C</span>
+    <span class="text-emerald-300/80 text-[7.5px]">• D-03 • 14:20</span>
+    <div class="flex items-center gap-0.5 bg-emerald-950 px-1 py-0.2 rounded border border-emerald-700/50 text-[7px] text-emerald-300">
+      <span class="">■■■</span><span class="text-emerald-300/40">■</span> 84%
+    </div>
+  </div>
+</div></header>
+<!-- END: ConsoleHeader -->
+<!-- BEGIN: TopModeNavigation -->
+<nav aria-label="System Navigation" class="px-2 pt-2 pb-1.5 bg-console-shell" data-purpose="navigation-tabs"><div class="grid grid-cols-4 gap-1 text-center font-mono font-bold text-[10px]">
+  <!-- Tab 1: Radar -->
+  <div class="py-1 rounded bg-console-bezel text-emerald-300/80 border border-emerald-900/40 flex items-center justify-center gap-1 cursor-pointer">
+    <span class="text-[9px]">⊕</span> RADAR
+  </div>
+  <!-- Tab 2: Registry -->
+  <div class="py-1 rounded bg-console-bezel text-emerald-300/80 border border-emerald-900/40 flex items-center justify-center gap-1 cursor-pointer">
+    REGISTRY <span class="text-amber-400 text-[8.5px]">48</span>
+  </div>
+  <!-- Tab 3: Satchel (ACTIVE) -->
+  <div class="py-1 rounded bg-console-screenBg text-console-textDark border border-amber-200/40 shadow-sm flex items-center justify-center gap-1.5 relative">
+    <span class="w-1.5 h-1.5 rounded-full bg-console-accentRed animate-pulse"></span>
+    <span class="">SATCHEL</span>
+    <span class="text-[8px] text-console-mossGreen font-semibold">4kg</span>
+  </div>
+  <!-- Tab 4: Party -->
+  <div class="py-1 rounded bg-console-bezel text-emerald-300/80 border border-emerald-900/40 flex items-center justify-center gap-1 cursor-pointer">
+    PARTY <span class="text-teal-300 text-[8.5px]">4/6</span>
+  </div>
+</div></nav>
+<!-- END: TopModeNavigation -->
+<!-- BEGIN: MainScreenArea -->
+<div class="px-2 pb-2 bg-console-shell">
+<div class="bg-console-screenBg rounded-2xl border-2 border-[#16382b] p-3 shadow-inner flex flex-col gap-2.5 lcd-screen-texture relative overflow-hidden" style="min-height: 580px;">
+<!-- Header Info Bar inside Screen -->
+<div class="flex items-center justify-between border-b border-stone-300 pb-1.5">
+<div class="flex items-center gap-1.5">
+<span class="text-base leading-none">🎒</span>
+<div>
+<h2 class="text-xs font-bold uppercase tracking-wider text-console-textDark font-mono leading-none">FIELD SATCHEL</h2>
+<span class="text-[8px] font-mono text-console-textMuted uppercase tracking-tight">Standard Field Issue Pack</span>
+</div>
+</div>
+<div class="text-right font-mono">
+<div class="text-[9px] font-bold text-console-textDark tracking-tight">LOAD: 4.2 / 15.0 KG</div>
+<!-- Weight Progress Bar -->
+<div class="w-24 h-1.5 bg-stone-200 rounded-full overflow-hidden border border-stone-300/70 mt-0.5">
+<div class="bg-console-mossGreen h-full w-[28%] rounded-full"></div>
+</div>
+</div>
+</div>
+<!-- BEGIN: PocketCategoryTabs -->
+<div class="flex items-center gap-1 overflow-x-auto pb-0.5" data-purpose="satchel-pocket-filters"><button class="px-2.5 py-1 rounded-sm text-[8px] font-pixel uppercase bg-[#183d30] text-[#f4efe3] flex items-center gap-1 border-2 border-[#386b56] shadow-sm tracking-tighter"><span class="text-[#e29d38] text-[7px]">▶</span> ALL</button><button class="px-2 py-1 rounded-sm text-[8px] font-pixel uppercase bg-[#dfd6be] hover:bg-[#d2c7ac] text-[#2c443b] transition border border-[#b8ae93] tracking-tighter">ITEMS / CAPTURE</button><button class="px-2 py-1 rounded-sm text-[8px] font-pixel uppercase bg-[#dfd6be] hover:bg-[#d2c7ac] text-[#2c443b] transition border border-[#b8ae93] tracking-tighter">BERRIES / REMEDY</button><button class="px-2 py-1 rounded-sm text-[8px] font-pixel uppercase bg-[#dfd6be] hover:bg-[#d2c7ac] text-[#2c443b] transition border border-[#b8ae93] tracking-tighter">KEY ITEMS</button></div>
+<!-- END: PocketCategoryTabs -->
+<!-- BEGIN: SelectedItemDetailCard -->
+<div class="bg-console-screenCard rounded-xl border border-stone-300/80 p-2.5 shadow-sm" data-purpose="selected-item-display"><div class="flex items-start gap-2.5 bg-[#f5efe3] p-2 rounded border-2 border-[#c5ba9f] gba-slot-inset"><div class="w-12 h-12 rounded bg-[#e8ded0] border-2 border-[#315e4d] flex items-center justify-center shrink-0 scanlines shadow-inner"><svg class="w-9 h-9 drop-shadow" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="16" cy="16" r="13" fill="#1e4033"></circle><path d="M3 16C3 8.82 8.82 3 16 3C23.18 3 29 8.82 29 16H3Z" fill="#d95b43"></path><path d="M3 16C3 23.18 8.82 29 16 29C23.18 29 29 23.18 29 16H3Z" fill="#f5f5f0"></path><rect x="3" y="14.5" width="26" height="3" fill="#162a22"></rect><circle cx="16" cy="16" r="4.5" fill="#ffffff" stroke="#162a22" stroke-width="1.5"></circle><circle cx="16" cy="16" r="2" fill="#d9d9d9" stroke="#162a22" stroke-width="1"></circle><path d="M8 7C10.5 5 13 4.5 16 4.5" stroke="rgba(255,255,255,0.7)" stroke-width="1.5" stroke-linecap="round"></path></svg></div><div class="flex-1 min-w-0"><div class="flex items-center justify-between gap-1"><h3 class="text-[10px] font-pixel text-[#123024] tracking-tight">FIELD ORB</h3><span class="text-[8px] font-pixel text-[#164332] bg-[#cbead8] px-1.5 py-0.5 rounded border border-[#64ab88] shadow-sm">x8 AVAIL</span></div><div class="mt-1 bg-[#fffdfa] p-1.5 rounded border border-[#cfc4ab] shadow-inner"><p class="text-[13px] font-gba text-[#2a453b] leading-tight line-clamp-2">A standard containment device calibrated for wild Wildkin in Mabunyi Reserve. High capture rate in dense canopy.</p></div></div></div><div class="grid grid-cols-2 gap-1.5 mt-2 pt-1 font-pixel text-[8px]"><button class="py-1.5 px-2 rounded bg-[#1e4838] hover:bg-[#143629] text-[#f7e9a8] font-bold tracking-wider flex items-center justify-center gap-1 shadow-sm border border-[#3b755e] gba-beveled transition"><span class="text-[9px] text-[#ffdd55]">[A]</span> USE ON PARTY</button><button class="py-1.5 px-2 rounded bg-[#ded5be] hover:bg-[#cfc4a9] text-[#1e382e] font-bold tracking-wider flex items-center justify-center gap-1 border border-[#ada286] gba-beveled transition"><span class="text-[9px] text-[#2c5342]">[SELECT]</span> SHORTCUT</button></div></div>
+<!-- END: SelectedItemDetailCard -->
+<!-- Capacity and Quick Slot Indicator -->
+<div class="flex items-center justify-between text-[9px] font-mono px-0.5 text-console-textMuted"><span class="font-pixel text-[8px] uppercase tracking-wider text-[#1e382e] flex items-center gap-1"><span class="text-[#c85a40]">▼</span> INVENTORY LIST</span><span class="font-pixel text-[7px] bg-[#ecd8a5] text-[#4f3205] px-1.5 py-0.5 rounded border border-[#bf9c56] font-bold shadow-inner">4 ACTIVE SLOTS</span></div>
+<!-- BEGIN: InventoryItemList -->
+<div class="flex-1 overflow-y-auto space-y-1.5 pr-0.5 max-h-[220px] custom-scroll" data-purpose="inventory-scroll-container"><div class="flex items-center justify-between p-1.5 rounded bg-[#c5e6d2] border-2 border-[#2b664d] shadow-sm cursor-pointer gba-slot-inset"><div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-[#204a37] border border-[#112a1e] flex items-center justify-center text-[9px] font-bold text-white shrink-0 shadow-inner"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#d95b43"></circle><path d="M2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12H2Z" fill="#ffffff"></path><rect y="10.5" width="24" height="3" fill="#162a22"></rect><circle cx="12" cy="12" r="3" fill="#ffffff" stroke="#162a22" stroke-width="1.5"></circle></svg></div><div><div class="text-[8.5px] font-pixel text-[#0b281c] leading-tight">FIELD ORB</div><div class="text-[12px] text-[#2c614b] font-gba leading-none">Standard capture orb • 0.2kg</div></div></div><div class="text-right"><span class="text-[9px] font-pixel text-[#0b281c] bg-[#e6fbf0] px-1.5 py-0.5 rounded border border-[#488e6f]">×08</span></div></div><div class="flex items-center justify-between p-1.5 rounded bg-[#f5efe2] border border-[#cfc3a7] hover:border-[#3a755d] shadow-sm cursor-pointer transition"><div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-[#1c3e5e] border border-[#102436] flex items-center justify-center text-[9px] text-[#ffd875] shrink-0 shadow-inner"><svg class="w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#225b8a"></circle><path d="M2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12H2Z" fill="#ffffff"></path><rect y="10.5" width="24" height="3" fill="#111f2c"></rect><circle cx="12" cy="12" r="3" fill="#ffffff" stroke="#111f2c" stroke-width="1.5"></circle><rect x="5" y="4" width="3" height="3" fill="#f59e0b"></rect><rect x="16" y="4" width="3" height="3" fill="#f59e0b"></rect></svg></div><div><div class="text-[8.5px] font-pixel text-[#242f2b] leading-tight">GREAT FIELD ORB</div><div class="text-[12px] text-[#697a70] font-gba leading-none">Reinforced brass lattice • 0.3kg</div></div></div><div class="text-right"><span class="text-[9px] font-pixel text-[#3a4740] bg-[#e7ded0] px-1.5 py-0.5 rounded border border-[#b8ab91]">×02</span></div></div><div class="flex items-center justify-between p-1.5 rounded bg-[#f5efe2] border border-[#cfc3a7] hover:border-[#3a755d] shadow-sm cursor-pointer transition"><div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-[#d6eedf] border border-[#48996e] flex items-center justify-center text-[11px] shrink-0">🌿</div><div><div class="text-[8.5px] font-pixel text-[#242f2b] leading-tight">HERB SALVE</div><div class="text-[12px] text-[#697a70] font-gba leading-none">Restores 20 HP to Wildkin • 0.1kg</div></div></div><div class="text-right"><span class="text-[9px] font-pixel text-[#3a4740] bg-[#e7ded0] px-1.5 py-0.5 rounded border border-[#b8ab91]">×05</span></div></div><div class="flex items-center justify-between p-1.5 rounded bg-[#f5efe2] border border-[#cfc3a7] hover:border-[#3a755d] shadow-sm cursor-pointer transition"><div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-[#f8e7cb] border border-[#c4984f] flex items-center justify-center text-[11px] shrink-0">🍞</div><div><div class="text-[8.5px] font-pixel text-[#242f2b] leading-tight">FOREST RATION</div><div class="text-[12px] text-[#697a70] font-gba leading-none">Restores 50 HP + fatigue • 0.4kg</div></div></div><div class="text-right"><span class="text-[9px] font-pixel text-[#3a4740] bg-[#e7ded0] px-1.5 py-0.5 rounded border border-[#b8ab91]">×03</span></div></div><div class="flex items-center justify-between p-1.5 rounded bg-[#f5efe2] border border-[#cfc3a7] hover:border-[#3a755d] shadow-sm cursor-pointer transition"><div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-[#d2ebe4] border border-[#499988] flex items-center justify-center text-[11px] shrink-0">🍃</div><div><div class="text-[8.5px] font-pixel text-[#242f2b] leading-tight">ANTIDOTE LEAF</div><div class="text-[12px] text-[#697a70] font-gba leading-none">Cures poison and jungle sap • 0.05kg</div></div></div><div class="text-right"><span class="text-[9px] font-pixel text-[#3a4740] bg-[#e7ded0] px-1.5 py-0.5 rounded border border-[#b8ab91]">×02</span></div></div><div class="flex items-center justify-between p-1.5 rounded bg-[#faedd2] border border-[#d8be86] shadow-sm cursor-pointer transition"><div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-[#ffe8a8] border border-[#aa822d] flex items-center justify-center text-[11px] shrink-0">🪈</div><div><div class="text-[8.5px] font-pixel text-[#3d2c0b] leading-tight">NATURALIST WHISTLE</div><div class="text-[12px] text-[#856b37] font-gba leading-none">Key Item: Calms aggressive Wildkin</div></div></div><div class="text-right"><span class="text-[8px] font-pixel text-[#6a4f15] bg-[#ffe18d] px-1.5 py-0.5 rounded border border-[#c49a37]">KEY</span></div></div><div class="flex items-center justify-between p-1.5 rounded bg-[#faedd2] border border-[#d8be86] shadow-sm cursor-pointer transition"><div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-[#ffe8a8] border border-[#aa822d] flex items-center justify-center text-[11px] shrink-0">🗺️</div><div><div class="text-[8.5px] font-pixel text-[#3d2c0b] leading-tight">MABUNYI TRAIL MAP</div><div class="text-[12px] text-[#856b37] font-gba leading-none">Key Item: Topography &amp; boundaries</div></div></div><div class="text-right"><span class="text-[8px] font-pixel text-[#6a4f15] bg-[#ffe18d] px-1.5 py-0.5 rounded border border-[#c49a37]">KEY</span></div></div></div>
+<!-- END: InventoryItemList -->
+<!-- Bottom Satchel Footer Summary -->
+<div class="pt-1.5 border-t border-stone-300 flex items-center justify-between text-[8px] font-mono text-console-textMuted"><div class="flex items-center gap-1.5 font-pixel text-[7px] text-[#334d41]"><span class="">PACK SLOTS:</span><span class="text-[#0f2e21] font-bold">7/20</span><span class="">•</span><span class="">BULK:</span><span class="text-[#0f2e21] font-bold">LIGHT</span></div><div class="font-pixel text-[7px] text-[#1b5e43] uppercase tracking-wider flex items-center gap-1"><span class="text-[#d95b43]">■</span> HOLD [SELECT] TO REORDER</div></div>
+</div>
+</div>
+<!-- END: MainScreenArea -->
+<!-- BEGIN: ConsoleBottomStatusBar -->
+<footer class="px-3 py-2 bg-console-shell border-t border-emerald-950 flex items-center justify-between text-emerald-300 font-mono text-[9px]" data-purpose="hardware-button-prompts">
+<!-- Hardware Screws and Mode indicator -->
+<div class="flex items-center gap-2">
+<div class="w-2.5 h-2.5 rounded-full bg-[#122820] chassis-screw flex items-center justify-center text-[7px] text-emerald-800">✕</div>
+<div class="flex items-center gap-1.5">
+<span class="bg-[#0b1b15] text-emerald-400 font-bold px-1.5 py-0.5 rounded border border-emerald-800/80 text-[8px]">
+            [Y] SORT
+          </span>
+<span class="text-emerald-500/70 text-[8px]">•</span>
+<span class="text-[8px] tracking-wider text-emerald-400 uppercase font-black">
+            WILDBOUND POKÉNAV
+          </span>
+</div>
+</div>
+<!-- Action Button Prompts -->
+<div class="flex items-center gap-1.5">
+<span class="flex items-center gap-0.5">
+<span class="w-3.5 h-3.5 rounded-full bg-emerald-700 text-white font-bold flex items-center justify-center text-[7px] shadow-sm">A</span>
+<span class="text-[8px] font-bold text-emerald-200">USE</span>
+</span>
+<span class="flex items-center gap-0.5">
+<span class="w-3.5 h-3.5 rounded-full bg-red-800 text-white font-bold flex items-center justify-center text-[7px] shadow-sm">B</span>
+<span class="text-[8px] font-bold text-emerald-200">BACK</span>
+</span>
+<div class="w-2.5 h-2.5 rounded-full bg-[#122820] chassis-screw flex items-center justify-center text-[7px] text-emerald-800 ml-1">✕</div>
+</div>
+</footer>
+<!-- END: ConsoleBottomStatusBar -->
+</main>
+<!-- END: HandheldDeviceChassis -->
+
+
+
+
+</body></html>

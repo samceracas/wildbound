@@ -8,14 +8,14 @@ export function RequireSession() {
   if (me.isPending) {
     return (
       <Shell className="items-center justify-center">
-        <p className="text-ink-muted">Opening your ledger…</p>
+        <p className="font-pixel text-[9px] text-chassis-text">OPENING YOUR LEDGER…</p>
       </Shell>
     );
   }
   if (me.isError) {
     return (
       <Shell className="items-center justify-center p-6 text-center">
-        <p className="text-terracotta">Cannot reach the Wildbound API. Is `pnpm dev:api` running?</p>
+        <p className="font-vt text-xl text-[#f0a596]">Cannot reach the Wildbound API. Is `pnpm dev:api` running?</p>
       </Shell>
     );
   }

@@ -8,6 +8,8 @@ interface Props {
   spawns: SpawnView[];
   selectedId: string | null;
   onSelect: (spawn: SpawnView) => void;
+  /** Text on the tag above a marker (the name once observed, else the registry number). */
+  labelFor: (spawn: SpawnView) => string;
 }
 
 const RANGE_SOURCE = "interact-range";
@@ -37,11 +39,25 @@ function markerElement(src: string, className: string): HTMLElement {
   return el;
 }
 
+/** Spawn marker: a pixel-font tag above a round icon (Stitch radar screen). */
+function spawnElement(src: string): HTMLElement {
+  const el = document.createElement("button");
+  el.type = "button";
+  el.className = "flex flex-col items-center gap-1 outline-none";
+  const tag = document.createElement("span");
+  tag.dataset.role = "tag";
+  const icon = markerElement(src, "");
+  icon.dataset.role = "icon";
+  icon.tabIndex = -1;
+  el.append(tag, icon);
+  return el;
+}
+
 /**
  * The radar. MapLibre is imperative, so the map is created once and markers are
  * synced in effects (React never re-renders the map itself).
  */
-export function RadarMap({ player, spawns, selectedId, onSelect }: Props) {
+export function RadarMap({ player, spawns, selectedId, onSelect, labelFor }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const playerMarker = useRef<maplibregl.Marker | null>(null);
@@ -66,9 +82,9 @@ export function RadarMap({ player, spawns, selectedId, onSelect }: Props) {
           },
         },
         layers: [
-          { id: "paper", type: "background", paint: { "background-color": "#F6F0E3" } },
-          // Muted basemap so the pixel art reads first.
-          { id: "osm", type: "raster", source: "osm", paint: { "raster-saturation": -0.55, "raster-opacity": 0.85 } },
+          // Pale survey-green "LCD" under a washed-out basemap, so the pixel art reads first.
+          { id: "paper", type: "background", paint: { "background-color": "#DBE8D8" } },
+          { id: "osm", type: "raster", source: "osm", paint: { "raster-saturation": -0.8, "raster-opacity": 0.6 } },
         ],
       },
       center: [121.04, 14.65],
@@ -131,7 +147,7 @@ export function RadarMap({ player, spawns, selectedId, onSelect }: Props) {
     for (const s of spawns) {
       let marker = spawnMarkers.current.get(s.id);
       if (!marker) {
-        const el = markerElement(wildkinIcon(s.creatureId), "");
+        const el = spawnElement(wildkinIcon(s.creatureId));
         el.addEventListener("click", (e) => {
           e.stopPropagation();
           onSelectRef.current(s);
@@ -140,13 +156,26 @@ export function RadarMap({ player, spawns, selectedId, onSelect }: Props) {
         spawnMarkers.current.set(s.id, marker);
       }
       const el = marker.getElement();
-      el.setAttribute("aria-label", `Wildkin No. ${s.registryNumber}${s.inRange ? ", in range" : ""}`);
-      el.className = [
-        "size-12 rounded-full border-2 bg-paper/90 p-0.5 transition-transform",
-        s.id === selectedId ? "scale-125 border-field-gold" : s.inRange ? "border-primary-forest" : "border-muted-paper",
-      ].join(" ");
+      const label = labelFor(s);
+      const selected = s.id === selectedId;
+      el.setAttribute("aria-label", `${label}${s.inRange ? ", in range" : ""}`);
+      const tag = el.querySelector<HTMLElement>("[data-role=tag]");
+      const icon = el.querySelector<HTMLElement>("[data-role=icon]");
+      if (tag) {
+        tag.textContent = label;
+        tag.className = [
+          "whitespace-nowrap rounded border border-white/30 px-1.5 py-0.5 font-pixel text-[7px] shadow-md",
+          selected ? "bg-field-gold text-ink" : s.inRange ? "bg-primary-forest text-paper" : "bg-moss text-paper",
+        ].join(" ");
+      }
+      if (icon) {
+        icon.className = [
+          "size-11 rounded-full border-2 bg-paper/90 p-0.5 shadow-md transition-transform",
+          selected ? "scale-125 border-field-gold" : s.inRange ? "border-primary-forest" : "border-white",
+        ].join(" ");
+      }
     }
-  }, [spawns, selectedId]);
+  }, [spawns, selectedId, labelFor]);
 
   const recenter = () => {
     if (map.current && player) map.current.easeTo({ center: [player.lng, player.lat], zoom: 17 });
@@ -156,13 +185,34 @@ export function RadarMap({ player, spawns, selectedId, onSelect }: Props) {
     <div className="absolute inset-0">
       {/* maplibre-gl.css forces position:relative on the container, so size it explicitly. */}
       <div ref={container} className="h-full w-full" />
-      <button
-        type="button"
-        onClick={recenter}
-        className="absolute top-3 right-3 z-10 rounded-md border border-muted-paper bg-paper px-3 py-2 text-label-lg text-primary-forest shadow-card"
-      >
-        Recenter
-      </button>
+      <div className="absolute top-3 right-3 z-10 flex flex-col gap-2">
+        <MapButton label="Zoom in" onClick={() => map.current?.zoomIn()}>
+          +
+        </MapButton>
+        <MapButton label="Zoom out" onClick={() => map.current?.zoomOut()}>
+          −
+        </MapButton>
+        <MapButton label="Recenter on you" onClick={recenter} active>
+          ◎
+        </MapButton>
+      </div>
     </div>
+  );
+}
+
+function MapButton({ label, onClick, active, children }: { label: string; onClick: () => void; active?: boolean; children: string }) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+      className={
+        "flex size-9 items-center justify-center rounded-md border-2 border-deep-forest font-pixel text-[12px] shadow-[2px_2px_0_rgb(24_63_54/0.5)] outline-none focus-visible:ring-2 focus-visible:ring-field-gold active:translate-y-px " +
+        (active ? "bg-primary-forest text-paper" : "bg-paper text-deep-forest")
+      }
+    >
+      {children}
+    </button>
   );
 }

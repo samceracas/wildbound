@@ -28,6 +28,20 @@
   --success: #4f8a68;
   --locked: #7c827e;
 
+  /* Handheld "Field Nav" console (Stitch screens 1-6) */
+  --chassis: #12322a;
+  --chassis-deep: #0b1d17;
+  --chassis-edge: #275345;
+  --chassis-text: #71a392;
+  --lcd: #e4f2d7;
+  --lcd-ink: #142617;
+  --lcd-edge: #436449;
+  --screen: #f6f3e7;
+  --screen-panel: #f0ebe0;
+  --screen-inset: #e7e1d1;
+  --screen-edge: #cec6b3;
+  --led: #34d399;
+
   /* shadcn semantic tokens */
   --background: var(--warm-paper);
   --foreground: var(--ink);
@@ -52,6 +66,9 @@
 @theme inline {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Noto Serif", ui-serif, Georgia, serif;
+  /* Console labels (Press Start 2P) and dot-matrix body text (VT323). */
+  --font-pixel: "Press Start 2P", ui-monospace, monospace;
+  --font-vt: "VT323", ui-monospace, monospace;
 
   --color-deep-forest: var(--deep-forest);
   --color-forest-slate: var(--forest-slate);
@@ -69,6 +86,18 @@
   --color-terracotta: var(--terracotta);
   --color-success: var(--success);
   --color-locked: var(--locked);
+  --color-chassis: var(--chassis);
+  --color-chassis-deep: var(--chassis-deep);
+  --color-chassis-edge: var(--chassis-edge);
+  --color-chassis-text: var(--chassis-text);
+  --color-lcd: var(--lcd);
+  --color-lcd-ink: var(--lcd-ink);
+  --color-lcd-edge: var(--lcd-edge);
+  --color-screen: var(--screen);
+  --color-screen-panel: var(--screen-panel);
+  --color-screen-inset: var(--screen-inset);
+  --color-screen-edge: var(--screen-edge);
+  --color-led: var(--led);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -108,7 +137,7 @@
     @apply h-full m-0;
   }
   body {
-    @apply bg-deep-forest text-foreground font-sans antialiased;
+    @apply bg-chassis-deep text-foreground font-sans antialiased;
   }
 }
 
@@ -135,5 +164,30 @@
   /* Unknown Registry entries: the species' shape only. */
   .silhouette {
     filter: brightness(0) opacity(0.55);
+  }
+
+  /* ---- Handheld console pieces (patches/0.1.0/mockups) ---- */
+  /* CRT scanlines over a screen. Purely decorative: pointer-events off. */
+  .scanlines {
+    position: relative;
+  }
+  .scanlines::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background-image: repeating-linear-gradient(0deg, rgb(0 0 0 / 0.045) 0 1px, transparent 1px 3px);
+  }
+  /* Recessed (inset) and raised panels on the paper screen. */
+  .inset-panel {
+    @apply rounded-sm border border-screen-edge bg-screen-inset shadow-[inset_0_1px_2px_rgb(0_0_0/0.12)];
+  }
+  .raised-panel {
+    @apply rounded-lg border-2 border-[#b8ae97] bg-screen-panel shadow-[0_2px_0_#b8ae97];
+  }
+  /* Screw heads on the chassis corners. */
+  .screw {
+    @apply absolute size-2 rounded-full border border-chassis-deep bg-chassis;
   }
 }
