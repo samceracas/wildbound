@@ -1,12 +1,12 @@
 import { useCallback, useState } from "react";
 import { Link } from "react-router";
-import type { SpawnView } from "@wildbound/shared";
+import { GAME_RULES, type GameStateResponse, type SpawnView } from "@wildbound/shared";
 import { ConsoleButton } from "@/components/layout/Shell.tsx";
 import { ApiError } from "@/lib/api.ts";
 import { registryNo, wildkinIcon } from "@/lib/assets.ts";
 import { useCapture, useGameState, useObserve, useRegistry } from "@/lib/queries.ts";
 import { cn } from "@/lib/utils";
-import { useLocation } from "../location/LocationProvider.tsx";
+import { useLocation, type Fix } from "../location/LocationProvider.tsx";
 import { RadarMap } from "./RadarMap.tsx";
 
 /** Layout: Stitch screen 3 "Radar" (patches/0.1.0/mockups/3-radar.html). */
@@ -62,19 +62,35 @@ export function RadarPage() {
 
         <div className="z-20 flex items-center justify-between gap-3 border-t border-ink/10 bg-screen-panel px-3 py-1.5">
           <p className="min-w-0 font-vt text-lg leading-5 text-ink" role="status">
-            {state.isPending
-              ? "Scanning the area…"
-              : !state.data?.region
-                ? "No surveyed habitat here. Head into a published region to find Wildkin."
-                : spawns.length === 0
-                  ? "Nothing stirring nearby. Wildkin come and go with the weather and time of day."
-                  : `${spawns.length} Wildkin nearby. Tap one to observe or capture it.`}
+            {radarStatus(state, fix)}
           </p>
           {fix && <span className="shrink-0 font-pixel text-[7px] text-ink-muted">ACC ±{Math.round(fix.accuracy)}M</span>}
         </div>
       </div>
     </div>
   );
+}
+
+/**
+ * One line explaining the radar. The server only resolves a region from a
+ * position it accepted recently, so "no region" has several causes; name the
+ * real one instead of blaming the map.
+ */
+function radarStatus(state: { isPending: boolean; error: Error | null; data?: GameStateResponse }, fix: Fix | null): string {
+  if (state.isPending) return "Scanning the area…";
+  if (!state.data) return `Can't reach the survey server${state.error ? ` (${state.error.message})` : ""}. Retrying…`;
+  const { position, environment, region, lockedUntil, spawns } = state.data;
+  // environment is null whenever the server has no usable position for us.
+  if (!position || !environment) {
+    if (lockedUntil) return "Survey paused after impossible GPS jumps. It resumes shortly.";
+    if (fix && fix.accuracy > GAME_RULES.maxAccuracyM) {
+      return `GPS too imprecise (±${Math.round(fix.accuracy)} m, need ±${GAME_RULES.maxAccuracyM} m). Step outside or turn on precise location.`;
+    }
+    return position ? "Your last position is out of date. Waiting for a fresh GPS fix…" : "Waiting for your first GPS fix to be accepted…";
+  }
+  if (!region) return "No surveyed habitat here. Head into a published region to find Wildkin.";
+  if (spawns.length === 0) return "Nothing stirring nearby. Wildkin come and go with the weather and time of day.";
+  return `${spawns.length} Wildkin nearby. Tap one to observe or capture it.`;
 }
 
 /** Dialogue panel for one spawn: Observe and Capture. */
