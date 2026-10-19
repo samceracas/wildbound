@@ -1,13 +1,19 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import type { WorldContext } from "@wildbound/shared";
 import { NEARBY_POI_MAX_RADIUS_M, TIME_OF_DAY, WEATHER } from "@wildbound/shared";
 import { describeConditions } from "@wildbound/world";
+import { cn } from "@/lib/utils.ts";
+import { editorKeys, useCreatures, useResolve, useWorldStatus } from "../lib/queries.ts";
+import { previewWithModifiers } from "../lib/spawn-preview.ts";
 import { useEditor } from "../store.ts";
+import { Bar, Button, Input, PanelTitle, Pill, Select, SubTitle, Tag } from "./ui.tsx";
 
 function CoordinateInput() {
   const point = useEditor((s) => s.preview.point);
   const setPreview = useEditor((s) => s.setPreview);
   const resolvePreview = useEditor((s) => s.resolvePreview);
+  const qc = useQueryClient();
   const format = (p: [number, number] | null) => (p ? `${p[1].toFixed(6)}, ${p[0].toFixed(6)}` : "");
   const [text, setText] = useState(format(point));
   useEffect(() => setText(format(point)), [point]);
@@ -18,90 +24,126 @@ function CoordinateInput() {
     const lng = Number(m[2]);
     if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
     setPreview({ point: [lng, lat] });
-    void resolvePreview();
+    resolvePreview();
+    // Same point again: "Resolve" still means "ask the server again".
+    void qc.invalidateQueries({ queryKey: editorKeys.resolveAll });
   };
   return (
     <form
-      className="row"
+      className="flex items-center gap-1.5"
       onSubmit={(e) => {
         e.preventDefault();
         submit();
       }}
     >
-      <input type="text" placeholder="lat, lng (or click the map)" value={text} onChange={(e) => setText(e.target.value)} />
-      <button className="btn primary small" type="submit">
+      <Input placeholder="lat, lng (or click the map)" value={text} onChange={(e) => setText(e.target.value)} />
+      <Button variant="primary" size="small" type="submit">
         Resolve
-      </button>
+      </Button>
     </form>
+  );
+}
+
+const card = "rounded-control border-l-[3px] bg-panel-2 px-2.5 py-2";
+const kicker = "text-kicker uppercase tracking-[0.08em] text-muted";
+
+/** Available Wildkin: shares from encounter weights, then after species spawn modifiers (exercise #2). */
+function AvailableWildkin({ ctx }: { ctx: WorldContext }) {
+  const creatures = useCreatures();
+  if (ctx.availableWildkin.length === 0) return <p className="my-[1em] text-meta text-muted">Nothing can appear under these conditions.</p>;
+  const preview = previewWithModifiers(ctx.availableWildkin, creatures, ctx.environment);
+  return (
+    <>
+      <ul className="flex flex-col gap-1.5">
+        {preview.wildkin.map((w) => {
+          const changed = Math.abs(w.probability - w.rawProbability) >= 0.005;
+          return (
+            <li key={w.creatureId} className={cn("flex items-center gap-2", w.probability === 0 && "opacity-50")}>
+              <span className="w-[70px] font-semibold">{w.name}</span>
+              <Bar value={w.probability} title={`${(w.rawProbability * 100).toFixed(1)}% from encounter weights`} />
+              <span className="w-9 text-right text-muted">{(w.probability * 100).toFixed(0)}%</span>
+              {preview.status === "applied" && (
+                <span className="w-9 text-right text-tiny text-muted line-through" title="Before species spawn modifiers">
+                  {changed ? `${(w.rawProbability * 100).toFixed(0)}%` : ""}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {preview.status === "applied" && (
+        <p className="m-0 text-tiny text-muted">
+          After species spawn modifiers for {ctx.environment.weather} / {ctx.environment.timeOfDay} (struck through: from weights alone).
+        </p>
+      )}
+      {preview.status === "unchanged" && (
+        <p className="m-0 text-tiny text-warning">
+          Species spawn modifiers have no effect yet: implement exercise #2, applySpawnModifiers in packages/world/src/spawning.ts.
+        </p>
+      )}
+      {preview.status === "error" && (
+        <p className="m-0 text-tiny text-warning" title={preview.error}>
+          applySpawnModifiers threw ({preview.error}), so these are raw weights. See exercise #2 in packages/world/src/spawning.ts.
+        </p>
+      )}
+    </>
   );
 }
 
 function Result({ ctx }: { ctx: WorldContext }) {
   if (!ctx.region) {
     return (
-      <div className="preview-empty">
+      <div className="rounded-control bg-panel-2 p-3">
         <strong>Outside the WILDBOUND world</strong>
-        <p className="muted small">No active {ctx.stage} region covers this coordinate. This is a normal, empty context.</p>
+        <p className="my-[1em] text-meta text-muted">No active {ctx.stage} region covers this coordinate. This is a normal, empty context.</p>
       </div>
     );
   }
   return (
-    <div className="preview-result">
-      <div className="ctx-card">
-        <div className="ctx-kicker">Region</div>
-        <div className="ctx-title">{ctx.region.name}</div>
-        <div className="muted small">{ctx.region.slug}</div>
+    <div className="flex flex-col gap-2">
+      <div className={cn(card, "border-region")}>
+        <div className={kicker}>Region</div>
+        <div className="text-title font-bold">{ctx.region.name}</div>
+        <div className="text-meta text-muted">{ctx.region.slug}</div>
       </div>
-      <div className="ctx-card">
-        <div className="ctx-kicker">Habitat</div>
+      <div className={cn(card, "border-accent")}>
+        <div className={kicker}>Habitat</div>
         {ctx.habitat ? (
           <>
-            <div className="ctx-title">{ctx.habitat.name}</div>
+            <div className="text-title font-bold">{ctx.habitat.name}</div>
             {!ctx.habitat.conditionsMet && (
-              <div className="warning small">Habitat conditions not met ({describeConditions(ctx.habitat.conditionRules)})</div>
+              <div className="text-meta text-warning">Habitat conditions not met ({describeConditions(ctx.habitat.conditionRules)})</div>
             )}
           </>
         ) : (
-          <div className="muted">None (open region ground)</div>
+          <div className="text-muted">None (open region ground)</div>
         )}
       </div>
-      <div className="ctx-tags">
-        <span className="pill">{ctx.environment.timeOfDay}</span>
-        <span className="pill">{ctx.environment.weather}</span>
+      <div className="flex flex-wrap gap-1">
+        <Pill>{ctx.environment.timeOfDay}</Pill>
+        <Pill>{ctx.environment.weather}</Pill>
         {ctx.environment.tags.map((t) => (
-          <span key={t} className="tag">
-            {t}
-          </span>
+          <Tag key={t}>{t}</Tag>
         ))}
       </div>
 
-      <h4>Available Wildkin</h4>
-      {ctx.availableWildkin.length === 0 ? (
-        <p className="muted small">Nothing can appear under these conditions.</p>
-      ) : (
-        <ul className="wildkin">
-          {ctx.availableWildkin.map((w) => (
-            <li key={w.creatureId}>
-              <span className="wk-name">{w.name}</span>
-              <div className="bar">
-                <span style={{ width: `${w.probability * 100}%` }} />
-              </div>
-              <span className="wk-pct">{(w.probability * 100).toFixed(0)}%</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      <SubTitle>Available Wildkin</SubTitle>
+      <AvailableWildkin ctx={ctx} />
 
-      <h4>Encounter tables</h4>
-      {ctx.encounterTables.length === 0 && <p className="muted small">No active tables here.</p>}
+      <SubTitle>Encounter tables</SubTitle>
+      {ctx.encounterTables.length === 0 && <p className="my-[1em] text-meta text-muted">No active tables here.</p>}
       {ctx.encounterTables.map((t) => (
-        <details key={t.id} className={`ctx-table ${t.applicable ? "" : "closed"}`}>
-          <summary>
-            {t.name} <span className="muted small">({t.scope}{t.applicable ? "" : ", not applicable"})</span>
+        <details key={t.id} className={cn("rounded-control bg-panel-2 px-2.5 py-1.5", !t.applicable && "opacity-60")}>
+          <summary className="cursor-pointer">
+            {t.name}{" "}
+            <span className="text-meta text-muted">
+              ({t.scope}
+              {t.applicable ? "" : ", not applicable"})
+            </span>
           </summary>
-          <ul>
+          <ul className="mt-1.5 list-disc pl-4">
             {t.entries.map((e) => (
-              <li key={e.creatureId} className={e.available ? "" : "muted"}>
+              <li key={e.creatureId} className={e.available ? "" : "text-muted"}>
                 {e.creatureName} · w{e.weight} · {e.available ? `${(e.probability * 100).toFixed(0)}%` : `needs ${describeConditions(e.conditions)}`}
               </li>
             ))}
@@ -109,12 +151,15 @@ function Result({ ctx }: { ctx: WorldContext }) {
         </details>
       ))}
 
-      <h4>Nearby POIs</h4>
-      {ctx.nearbyPois.length === 0 && <p className="muted small">None within radius.</p>}
-      <ul className="link-list">
+      <SubTitle>Nearby POIs</SubTitle>
+      {ctx.nearbyPois.length === 0 && <p className="my-[1em] text-meta text-muted">None within radius.</p>}
+      <ul className="flex flex-col gap-1">
         {ctx.nearbyPois.map((p) => (
           <li key={p.id}>
-            {p.name} <span className="muted small">· {p.type} · {Math.round(p.distanceMeters)} m</span>
+            {p.name}{" "}
+            <span className="text-meta text-muted">
+              · {p.type} · {Math.round(p.distanceMeters)} m
+            </span>
           </li>
         ))}
       </ul>
@@ -128,53 +173,69 @@ export function PreviewPanel() {
   const setPreview = useEditor((s) => s.setPreview);
   const resolvePreview = useEditor((s) => s.resolvePreview);
   const dirty = useEditor((s) => s.dirty);
-  const status = useEditor((s) => s.status);
+  const status = useWorldStatus();
+  const resolve = useResolve(preview.request);
   const [showJson, setShowJson] = useState(false);
 
   if (tool !== "preview" && !preview.point) return null;
 
   const change = (patch: Parameters<typeof setPreview>[0]) => {
     setPreview(patch);
-    if (preview.point) void resolvePreview();
+    if (preview.point) resolvePreview();
   };
+  const result = resolve.isError ? null : (resolve.data ?? null);
 
   return (
-    <aside className="preview">
-      <header className="preview-header">
-        <h2>Test location</h2>
-        <button className="btn small ghost" title="Remove simulated player" onClick={() => setPreview({ point: null, result: null })}>
+    <aside className="flex w-[340px] shrink-0 flex-col gap-2.5 overflow-auto border-l border-line bg-panel p-3">
+      <header className="flex items-center justify-between">
+        <PanelTitle className="m-0">Test location</PanelTitle>
+        <Button variant="ghost" size="small" title="Remove simulated player" onClick={() => setPreview({ point: null, request: null })}>
           ×
-        </button>
+        </Button>
       </header>
-      <p className="muted small">Click the map, drag the pink player, or use arrow keys (Shift = bigger steps) in Test mode.</p>
+      <p className="my-[1em] text-meta text-muted">Click the map, drag the pink player, or use arrow keys (Shift = bigger steps) in Test mode.</p>
       <CoordinateInput />
-      <div className="preview-controls">
-        <div className="segmented">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <div className="inline-flex overflow-hidden rounded-control border border-line">
           {(["draft", "published"] as const).map((stage) => (
-            <button key={stage} className={preview.stage === stage ? "on" : ""} onClick={() => change({ stage })}>
+            <button
+              key={stage}
+              type="button"
+              className={cn(
+                "cursor-pointer border-0 bg-transparent px-2.5 py-1",
+                preview.stage === stage && "bg-accent font-semibold text-accent-ink",
+              )}
+              onClick={() => change({ stage })}
+            >
               {stage}
             </button>
           ))}
         </div>
-        <select value={preview.timeOfDay} onChange={(e) => change({ timeOfDay: e.target.value as typeof preview.timeOfDay })} aria-label="Time of day">
+        <Select
+          className="w-auto"
+          value={preview.timeOfDay}
+          onChange={(e) => change({ timeOfDay: e.target.value as typeof preview.timeOfDay })}
+          aria-label="Time of day"
+        >
           <option value="auto">time: now</option>
           {TIME_OF_DAY.map((t) => (
             <option key={t} value={t}>
               {t}
             </option>
           ))}
-        </select>
-        <select value={preview.weather} onChange={(e) => change({ weather: e.target.value as typeof preview.weather })} aria-label="Weather">
+        </Select>
+        <Select className="w-auto" value={preview.weather} onChange={(e) => change({ weather: e.target.value as typeof preview.weather })} aria-label="Weather">
           {WEATHER.map((w) => (
             <option key={w} value={w}>
               {w}
             </option>
           ))}
-        </select>
-        <label className="radius">
+        </Select>
+        <label className="flex items-center gap-1 text-meta text-muted">
           POI radius
-          <input
+          <Input
             type="number"
+            className="w-[70px]"
             min={10}
             max={NEARBY_POI_MAX_RADIUS_M}
             step={50}
@@ -187,17 +248,19 @@ export function PreviewPanel() {
           m
         </label>
       </div>
-      {preview.stage === "draft" && dirty && <div className="warning small">Resolving the saved draft. Save to include unsaved edits.</div>}
-      {preview.stage === "published" && !status?.publishedVersion && <div className="warning small">Nothing has been published yet.</div>}
-      {preview.loading && <p className="muted">Resolving…</p>}
-      {preview.error && <div className="error small">{preview.error}</div>}
-      {preview.result && !preview.loading && <Result ctx={preview.result} />}
-      {preview.result && (
-        <div className="json-toggle">
-          <button className="btn small ghost" onClick={() => setShowJson(!showJson)}>
+      {preview.stage === "draft" && dirty && <div className="text-meta text-warning">Resolving the saved draft. Save to include unsaved edits.</div>}
+      {preview.stage === "published" && !status?.publishedVersion && <div className="text-meta text-warning">Nothing has been published yet.</div>}
+      {resolve.isFetching && !result && <p className="my-[1em] text-muted">Resolving…</p>}
+      {resolve.error && <div className="text-meta text-danger">{resolve.error.message}</div>}
+      {result && <Result ctx={result} />}
+      {result && (
+        <div>
+          <Button variant="ghost" size="small" onClick={() => setShowJson(!showJson)}>
             {showJson ? "Hide" : "Show"} API response
-          </button>
-          {showJson && <pre className="json">{JSON.stringify(preview.result, null, 2)}</pre>}
+          </Button>
+          {showJson && (
+            <pre className="my-[1em] max-h-[320px] overflow-auto rounded-control bg-canvas p-2 text-tiny">{JSON.stringify(result, null, 2)}</pre>
+          )}
         </div>
       )}
     </aside>

@@ -8,5 +8,6 @@ export function MapView() {
     const editorMap = new EditorMap(ref.current);
     return () => editorMap.destroy();
   }, []);
-  return <div ref={ref} className="map" />;
+  // `!`: maplibre-gl.css (unlayered) sets .maplibregl-map { position: relative }, which beats layered utilities.
+  return <div ref={ref} className="absolute! inset-0" />;
 }

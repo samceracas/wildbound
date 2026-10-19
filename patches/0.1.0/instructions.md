@@ -1,4 +1,4 @@
-# State: Not implemented
+# State: Implemented
 # Overview
 I just added new agentic skills to the root project on the main​ branch. I want to change how I want to work with this project since i'm a bit overwhelmed with life right now. I want to brush up my react, node.js, express.js, prisma skills, tailwind css, tanstack query, postgresql, zod, react-hook-form. Right now the tech stack isn't standardized. Change the tech stack for the map editor, the web app, and api to follow what I mentioned. Keep existing stack for the location related features as-is. Think creating creating the whole wildbound editor, api, and web game v0.1.0 (just the basics) but with parts that are unfinished for me to implement or like a "fill in the blanks" but with full/partial features/snippets missing that I need to implement. You can add comments on the code on what needs to be implemented on my end for each feature missing so I could follow through with the implementation manually. For the editor, i like it as is but with some improvements.
 

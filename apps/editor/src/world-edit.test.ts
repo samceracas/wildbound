@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Polygon, Position } from "@wildbound/shared";
 import { EMPTY_WORLD } from "@wildbound/shared";
 import {
+  changedFields,
   createEncounterTable,
   createHabitat,
   createPoi,
@@ -136,5 +137,23 @@ describe("regionAt", () => {
     expect(regionAt(small.world, [121, 14.65])?.id).toBe(small.region.id);
     expect(regionAt(small.world, [121.03, 14.65])?.id).toBe(big.region.id);
     expect(regionAt(small.world, [130, 10])).toBeUndefined();
+  });
+});
+
+describe("changedFields", () => {
+  const habitat = { name: "Forest", habitatTags: ["canopy"], conditionRules: { timeOfDay: [], weather: ["rain"] } };
+
+  it("keeps only the fields whose value changed (deep)", () => {
+    expect(
+      changedFields(habitat, { name: "Forest", habitatTags: ["canopy", "fern"], conditionRules: { timeOfDay: [], weather: ["rain"] } }),
+    ).toEqual({ habitatTags: ["canopy", "fern"] });
+  });
+
+  it("is empty when nothing changed, so no undo step is recorded", () => {
+    expect(changedFields(habitat, { ...habitat, habitatTags: [...habitat.habitatTags] })).toEqual({});
+  });
+
+  it("treats null and a value as different", () => {
+    expect(changedFields<{ interactionId: string | null }>({ interactionId: null }, { interactionId: "gate" })).toEqual({ interactionId: "gate" });
   });
 });

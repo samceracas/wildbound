@@ -90,11 +90,11 @@ The app stack is standardized on React, Node.js + Express, Prisma, PostgreSQL, T
 | Monorepo | pnpm 10 workspaces | `apps/*` and `packages/*` |
 | Frontend | React 19 + Vite 7 | Editor and web game |
 | Routing (web) | React Router 7 | `/` login → `/location` → `/play/*` |
-| Styling (web) | Tailwind CSS 4 + shadcn/ui | Theme from the Stitch "Field Registry" design system |
-| Server state (web) | TanStack Query 5 | All API calls go through query/mutation hooks |
-| Forms (web) | react-hook-form + Zod resolver | The same Zod schemas the API validates with |
+| Styling | Tailwind CSS 4 (+ shadcn/ui in the web game) | Web: handheld "field nav" look from the Stitch mockups (`patches/0.1.0/mockups/`); editor: its original dark theme as `@theme` tokens |
+| Server state | TanStack Query 5 | Editor and web: all API calls go through query/mutation hooks |
+| Forms | react-hook-form + Zod resolver | Editor inspectors and web forms use the same Zod schemas the API validates with |
 | Map | MapLibre GL JS 5 | Open-source WebGL maps, no API key needed |
-| Editor state | Zustand 5 | Undo/redo history, selection, preview |
+| Editor state | Zustand 5 | Local editing only: the world being edited, selection, tool, undo/redo |
 | Client geometry | Turf.js 7 | Convenience only; PostGIS is authoritative |
 | Backend | Express 5 | Plain REST + JSON, cookie sessions for players |
 | Database | PostgreSQL 16 + PostGIS 3.4 | Geometry as SRID 4326 (WGS84 lon/lat) |
@@ -121,7 +121,7 @@ wildbound/
     db/         Prisma schema + migrations, PostGIS queries, seed data, test helpers
     game/       (later) battle and game systems
     assets/     (later) tile, creature and effect asset metadata
-  patches/0.1.0/  v0.1.0 instructions, Stitch design tokens, handover notes, exercises
+  patches/0.1.0/  v0.1.0 instructions, Stitch mockups + design tokens, handover notes, exercises
   documents/      Game canon: Wildkin Bible, First Field Survey, Biology & Ecology reference
   docker/         Postgres init scripts (creates the test database)
 ```

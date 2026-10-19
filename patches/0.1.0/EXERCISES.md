@@ -15,6 +15,7 @@ Find them all: `grep -rn "TODO(you)" apps packages --include=*.ts --include=*.ts
 | 6 | Rename form | `apps/web/src/features/party/RenameForm.tsx` | react-hook-form, zodResolver, `useMutation`, query invalidation | The nickname changes in Party without a reload |
 | 7 | Rearrange the party (API) | `apps/api/src/routes/game.ts` → `PUT /party` | Prisma transactions, unique constraints, validation | 200/204, `GET /party` shows the new order |
 | 8 | Rearrange the party (UI, stretch) | `apps/web/src/features/party/PartyPage.tsx` | React state, `useMutation`, optimistic updates (bonus) | Moving a Wildkin between slots and storage sticks after refresh |
+| 9 | POI inspector on react-hook-form (editor) | `apps/editor/src/inspectors/PoiInspector.tsx` | react-hook-form, zodResolver with the shared `PointOfInterestSchema`, Zustand undo/redo | Each field edit is one Ctrl+Z step; a bad slug or empty name shows the zod message and is not committed |
 
 ## Tips
 
@@ -29,4 +30,5 @@ Find them all: `grep -rn "TODO(you)" apps packages --include=*.ts --include=*.ts
 - **Security.** Always scope queries by `playerId: res.locals.player.id`. Never trust ids or coordinates
   from the request without checking ownership (see `loadActionableSpawn`).
 - **Reference.** Finished examples of every pattern exist nearby: Observe (transaction + upsert), GET /party
-  (view mapping), LoginPage (react-hook-form + zod), `useObserve` (mutation + invalidation).
+  (view mapping), LoginPage (react-hook-form + zod), `useObserve` (mutation + invalidation). For 9, the editor's
+  `HabitatInspector` is the finished example; `RegionInspector` and `EncounterTableInspector` show the other field types.
