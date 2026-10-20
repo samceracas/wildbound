@@ -165,23 +165,58 @@ export function gameRoutes(deps: AppDeps): Router {
    * ------------------------------------------------------------------------
    */
   router.put("/party", async (req, _res) => {
-    parseOr400(UpdatePartyRequestSchema, req.body, "Invalid party");
+    const { slots } = parseOr400(UpdatePartyRequestSchema, req.body, "Invalid party");
     throw notImplemented("Updating the party");
   });
 
   /**
    * Give a captured Wildkin a nickname (null clears it).
-   *
-   * ------------------------------------------------------------------------
-   * TODO(you): implement. Find the row with { id, playerId } (404 if missing),
-   * update `nickname`, and respond with the updated CapturedWildkinView.
-   * The web app's rename form (apps/web/src/features/party/RenameForm.tsx) calls this.
-   * ------------------------------------------------------------------------
    */
-  router.patch("/wildkin/:id", async (req, _res) => {
-    parseOr400(SpawnParamsSchema, req.params, "Invalid id");
-    parseOr400(RenameWildkinRequestSchema, req.body, "Invalid nickname");
-    throw notImplemented("Renaming");
+  router.patch("/wildkin/:id", async (req, res) => {
+    const { id } = parseOr400(SpawnParamsSchema, req.params, "Invalid id");
+    const { nickname } = parseOr400(RenameWildkinRequestSchema, req.body, "Invalid nickname");
+
+    const capturedWildkin = await db.capturedWildkin.findFirst({
+      where: {
+        id,
+        playerId: res.locals.player.id,
+      }
+    });
+
+    if (!capturedWildkin) {
+      throw new HttpError(404, "not_found", "Player wildkin not found")
+    }
+
+    const creatureEntry = await db.creature.findFirst({
+      where: {
+        id: capturedWildkin.creatureId,
+      }
+    });
+
+    if (!creatureEntry) {
+      throw new HttpError(404, "not_found", "Wildkin not found")
+    }
+
+    const [results] = await db.$transaction([
+      db.capturedWildkin.update({
+        where: {
+          id,
+          playerId: res.locals.player.id,
+        },
+        data: {
+          nickname,
+        }
+      })
+    ]);
+
+    const view: CapturedWildkinView = {
+      ...results,
+      registryNumber: creatureEntry.registryNumber ?? 0,
+      speciesName: creatureEntry.name ?? results.creatureId,
+      capturedAt: results.capturedAt.toISOString(),
+    }
+
+    res.json(view satisfies CapturedWildkinView);
   });
 
   router.use((_req, _res, next) => next(new HttpError(404, "not_found", "Unknown game route")));

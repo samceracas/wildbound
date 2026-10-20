@@ -29,5 +29,6 @@ import type { Weather } from "@wildbound/shared";
  */
 export function weatherFromWmoCode(code: number): Weather {
   void code;
+  console.log(code);
   return "clear";
 }

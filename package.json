@@ -13,7 +13,7 @@
     "db:migrate": "pnpm --filter @wildbound/db migrate",
     "db:seed": "pnpm --filter @wildbound/db seed",
     "db:reset": "pnpm --filter @wildbound/db reset",
-    "dev": "pnpm --parallel --filter @wildbound/api --filter @wildbound/editor dev",
+    "dev": "pnpm --parallel --filter @wildbound/api --filter @wildbound/editor --filter @wildbound/web dev",
     "dev:api": "pnpm --filter @wildbound/api dev",
     "dev:editor": "pnpm --filter @wildbound/editor dev",
     "dev:web": "pnpm --filter @wildbound/web dev",
