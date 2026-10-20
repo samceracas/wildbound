@@ -29,7 +29,7 @@ On this update, we will be adding a creature manager app which will help us brai
 
 # Implementation notes
 - Update this file state to "Implemented" when all of the requirements listed above are implemented.
-- Update the necessary documentations especially the ones at `docs` folder
+- Update the necessary documentations especially the ones at `docs` folder and all README files
 - If this requires multiple passes, don't update yet the state of this file.
   - Every after pass, create the handover files just within this folder and add in the necessary implementation details as a prompt to be executed on a clear session. If ready to clear, say "Ready to clear".
 - Ask any questions before implementing if things are not clear.
