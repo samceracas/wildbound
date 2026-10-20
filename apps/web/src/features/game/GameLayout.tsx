@@ -75,7 +75,7 @@ function ConsoleHeader() {
         </span>
         <div className="min-w-0">
           <p className="font-pixel text-[9px] leading-tight tracking-widest text-[#a8f1d8] uppercase">Wildbound nav</p>
-          <p className="font-vt text-sm leading-none tracking-wider text-chassis-text uppercase">Mabunyi cartography · v0.1</p>
+          <p className="font-vt text-sm leading-none tracking-wider text-chassis-text uppercase">Mabunyi cartography · v0.2</p>
         </div>
       </div>
       <button

@@ -105,7 +105,7 @@ export function publishIssues(data: WildkinEntryData): ValidationIssue[] {
   return PUBLISH_REQUIRED_FIELDS.filter((f) => String(data[f] ?? "").trim() === "").map((f) => ({
     severity: "error" as const,
     code: "required",
-    entityType: "world" as const,
+    entityType: "wildkin" as const,
     entityId: data.id,
     message: `${f} is required before publishing`,
   }));

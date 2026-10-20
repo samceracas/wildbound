@@ -159,8 +159,11 @@ export type WildkinSuggestion = z.infer<typeof WildkinSuggestionSchema>;
 export const AssistRequestSchema = z.object({
   /** The author's general idea, e.g. "a shy moth that pollinates night-blooming vines by the creek". */
   prompt: z.string().trim().min(3, "Describe the idea in a few words").max(2000),
-  /** Current form values, so the assistant can refine rather than start over. */
-  current: WildkinEntryInputSchema.partial().optional(),
+  /**
+   * Current form values, so the assistant can refine rather than start over.
+   * Loose on purpose: a half-filled form (empty id, unfinished tags) is still useful context.
+   */
+  current: z.record(z.string(), z.unknown()).optional(),
 });
 export type AssistRequest = z.infer<typeof AssistRequestSchema>;
 
