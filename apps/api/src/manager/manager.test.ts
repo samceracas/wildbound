@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { WildkinEntryInputSchema } from "@wildbound/shared";
 import { artPrompt, canAfford, faceDetails, pickPose, poseOf, SPRITE_POSES } from "./art.ts";
-import { sanitizeSuggestion } from "./assistant.ts";
+import { GroqAssistant, normalizeEntry, sanitizeSuggestion } from "./assistant.ts";
 import { fileURLToPath } from "node:url";
 import { buildLoreContext, loreDocuments } from "./lore.ts";
 
@@ -103,5 +103,62 @@ describe("sanitizeSuggestion", () => {
     const { suggestion, dropped } = sanitizeSuggestion({ entry: { name: "Lampyra", rarity: "legendary" }, notes: "x" });
     expect(suggestion).toEqual({ name: "Lampyra" });
     expect(dropped).toEqual(["rarity"]);
+  });
+});
+
+describe("normalizeEntry (model answers in other shapes)", () => {
+  const fields = { name: "Kalikot", classification: "Starlit Cat Wildkin", rarity: "rare" };
+
+  it("accepts the requested object, a JSON string and a wrapper", () => {
+    expect(normalizeEntry(fields)).toEqual(fields);
+    expect(normalizeEntry(JSON.stringify(fields))).toEqual(fields);
+    expect(normalizeEntry({ wildkin: fields })).toEqual(fields);
+  });
+
+  it("merges a list of partial objects (the 'Dropped 0, 1, 2, 3' case)", () => {
+    expect(normalizeEntry([{ name: "Kalikot" }, { classification: "Starlit Cat Wildkin" }, { rarity: "rare" }, {}])).toEqual(fields);
+    expect(normalizeEntry([{ entry: fields }])).toEqual(fields);
+  });
+
+  it("turns field/value pairs into an object", () => {
+    expect(
+      normalizeEntry([
+        { field: "name", value: "Kalikot" },
+        { key: "classification", value: "Starlit Cat Wildkin" },
+        { name: "rarity", value: "rare" },
+      ]),
+    ).toEqual(fields);
+  });
+
+  it("sanitizes a list answer into a usable suggestion", () => {
+    const { suggestion, dropped } = sanitizeSuggestion({ entry: [{ name: "Kalikot" }, { activityPattern: "Nocturnal" }], notes: [] });
+    expect(suggestion).toEqual({ name: "Kalikot", activityPattern: "nocturnal" });
+    expect(dropped).toEqual([]);
+  });
+
+  it("explains an answer with nothing usable", () => {
+    const { suggestion, notes } = sanitizeSuggestion({ entry: [1, 2, 3], notes: [] });
+    expect(suggestion).toEqual({});
+    expect(notes.at(-1)).toMatch(/no usable fields/);
+  });
+});
+
+describe("GroqAssistant", () => {
+  const reply = (content: string) =>
+    (async () => new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200 })) as unknown as typeof fetch;
+  const context = { lore: "", roster: [], identities: {} };
+
+  it("handles a top-level list answer", async () => {
+    const assistant = new GroqAssistant("key", "openai/gpt-oss-120b", "http://groq.test", reply('[{"name":"Kalikot"},{"rarity":"rare"}]'));
+    const raw = await assistant.suggest({ prompt: "a starlit cat" }, context);
+    expect(sanitizeSuggestion(raw).suggestion).toEqual({ name: "Kalikot", rarity: "rare" });
+  });
+
+  it("handles entry given as a list", async () => {
+    const content = JSON.stringify({ entry: [{ name: "Kalikot" }, { diet: "Rat-like Wildkin" }], notes: ["ok"] });
+    const assistant = new GroqAssistant("key", "openai/gpt-oss-120b", "http://groq.test", reply(content));
+    const result = sanitizeSuggestion(await assistant.suggest({ prompt: "a starlit cat" }, context));
+    expect(result.suggestion).toEqual({ name: "Kalikot", diet: "Rat-like Wildkin" });
+    expect(result.notes).toEqual(["ok"]);
   });
 });

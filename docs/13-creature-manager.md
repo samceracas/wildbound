@@ -293,6 +293,11 @@ sequenceDiagram
 
 - The model must answer one JSON object (`response_format: json_object`, temperature 0.8, up to 4096 tokens, 90 s
   timeout).
+- The prompt shows the exact answer shape (`{"entry": {<field>: <value>, …}, "notes": […]}`), but models do not always
+  follow it (`openai/gpt-oss-120b` sometimes returns the fields as a list). `normalizeEntry` accepts the usual variants
+  (fields at the top level, a list of partial objects, a list of `{field, value}` pairs, a JSON string, one extra
+  wrapper) and turns them into one object. If nothing usable is left, the notes say so and the API logs the raw answer
+  (`[assistant] … answered in an unexpected shape`) so you can see what the model sent.
 - Each field is validated on its own (`WildkinSuggestionSchema`); small slips are fixed first (ids and habitat tags
   are slugified, `"Nocturnal"` becomes `nocturnal`, comma lists become arrays, skills default to `proposed`). Fields
   that still fail are **dropped** and listed, instead of failing the whole answer.

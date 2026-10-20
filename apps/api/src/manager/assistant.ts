@@ -84,7 +84,11 @@ Rules (from the Wildkin Bible):
 - Keep it reusable: no bespoke engine mechanics for one creature.
 - Tone: grounded field-research naturalism with a gentle sense of wonder (Mabunyi Nature Reserve, tropical Philippine forest setting).
 
-Answer with ONE JSON object: {"entry": {...fields...}, "notes": ["..."]}.
+Answer with ONE JSON object. "entry" is an OBJECT whose keys are the field names below (never an array, never a list
+of {field, value} pairs). Example shape:
+{"entry": {"id": "kalikot", "name": "Kalikot", "classification": "...", "registryDescription": "...",
+"habitatTags": ["canopy"], "rarity": "uncommon", "activityPattern": "nocturnal", "skills": [{"name": "...",
+"description": "...", "canon": "proposed"}]}, "notes": ["..."]}
 "notes" lists canon conflicts, overlaps with existing Wildkin, and which details are proposals. Write all prose in English.
 ${FIELD_GUIDE}
 === WILDBOUND canon documents (authority order) ===
@@ -124,9 +128,51 @@ function coerce(key: string, value: unknown): unknown {
   return value;
 }
 
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/**
+ * Turns whatever shape a model used for the entry into one object of fields.
+ * Models do not always follow the requested `{"entry": {...}}` shape; seen and
+ * accepted here:
+ *   - the object itself, possibly as a JSON string
+ *   - a list of partial objects (`[{name…}, {habitat…}, …]`), merged in order
+ *   - a list of pairs (`[{"field": "name", "value": "…"}, …]`, also key/name + value)
+ *   - a list of wrapped answers (`[{"entry": {…}}]`)
+ *   - one more level of wrapping (`{"wildkin": {…}}`, `{"entry": {"entry": {…}}}`)
+ */
+export function normalizeEntry(value: unknown, depth = 0): Record<string, unknown> {
+  if (depth > 3) return {};
+  if (typeof value === "string") {
+    try {
+      return normalizeEntry(JSON.parse(value), depth + 1);
+    } catch {
+      return {};
+    }
+  }
+  if (Array.isArray(value)) {
+    const out: Record<string, unknown> = {};
+    for (const item of value) {
+      if (!isRecord(item)) continue;
+      const key = item.field ?? item.key ?? item.name;
+      if ("value" in item && typeof key === "string" && Object.keys(item).length <= 3) out[key] = item.value;
+      else Object.assign(out, normalizeEntry(item.entry ?? item, depth + 1));
+    }
+    return out;
+  }
+  if (!isRecord(value)) return {};
+  const shape = WildkinSuggestionSchema.shape;
+  const known = Object.keys(value).filter((k) => k in shape).length;
+  // A wrapper object with a single nested entry and no fields of its own.
+  if (known === 0) {
+    const nested = Object.values(value).find((v) => isRecord(v) || Array.isArray(v));
+    if (nested !== undefined) return normalizeEntry(nested, depth + 1);
+  }
+  return value;
+}
+
 /** Validates each field on its own and drops the ones that fail. */
 export function sanitizeSuggestion(raw: RawSuggestion): { suggestion: WildkinSuggestion; notes: string[]; dropped: string[] } {
-  const entry = raw.entry && typeof raw.entry === "object" ? (raw.entry as Record<string, unknown>) : {};
+  const entry = normalizeEntry(raw.entry);
   const shape = WildkinSuggestionSchema.shape;
   const suggestion: Record<string, unknown> = {};
   const dropped: string[] = [];
@@ -152,6 +198,9 @@ export function sanitizeSuggestion(raw: RawSuggestion): { suggestion: WildkinSug
       delete suggestion.habitatTags;
       dropped.push("habitatTags");
     }
+  }
+  if (Object.keys(suggestion).length === 0) {
+    notes.push("The model's answer had no usable fields (it may have used an unexpected format). Try again, or rephrase the idea.");
   }
   return { suggestion: suggestion as WildkinSuggestion, notes, dropped };
 }
@@ -193,13 +242,17 @@ export class GroqAssistant implements WildkinAssistant {
     if (!res.ok) throw new AssistantError(`Groq returned ${res.status}: ${body.error?.message ?? "unknown error"}`);
     const content = body.choices?.[0]?.message?.content;
     if (!content) throw new AssistantError("Groq returned an empty answer");
-    let parsed: { entry?: unknown; notes?: unknown };
+    let parsed: unknown;
     try {
-      parsed = JSON.parse(content) as typeof parsed;
+      parsed = JSON.parse(content);
     } catch {
       throw new AssistantError("Groq did not return valid JSON");
     }
-    // Some models answer with the fields at the top level instead of under "entry".
-    return parsed.entry ? { entry: parsed.entry, notes: parsed.notes } : { entry: parsed, notes: [] };
+    // Some models answer with the fields at the top level (or as a list) instead of under "entry".
+    const result = isRecord(parsed) && "entry" in parsed ? { entry: parsed.entry, notes: parsed.notes } : { entry: parsed, notes: [] };
+    if (Object.keys(normalizeEntry(result.entry)).length === 0) {
+      console.warn(`[assistant] ${this.model} answered in an unexpected shape:`, content.slice(0, 2000));
+    }
+    return result;
   }
 }
