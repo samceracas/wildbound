@@ -7,10 +7,12 @@ import {
   publishWildkin,
   restoreWildkin,
   saveWildkinArt,
+  purgeWildkin,
   softDeleteWildkin,
   updateWildkin,
   wildkinArtPrompt,
   wildkinStats,
+  wildkinUsage,
   WildkinRepoError,
   type DeletedFilter,
 } from "@wildbound/db";
@@ -26,6 +28,7 @@ import {
   type GenerateArtResponse,
   type ManagerConfig,
   type WildkinListResponse,
+  type WildkinUsage,
 } from "@wildbound/shared";
 import type { RequestHandler } from "express";
 import { z } from "zod";
@@ -37,6 +40,12 @@ import { AssistantError, sanitizeSuggestion } from "../manager/assistant.ts";
 import { buildLoreContext, loreDocuments } from "../manager/lore.ts";
 
 const IdParamsSchema = z.object({ id: SlugSchema });
+const DeleteQuerySchema = z.object({
+  permanent: z
+    .enum(["1", "true", "0", "false"])
+    .optional()
+    .transform((v) => v === "1" || v === "true"),
+});
 const ListQuerySchema = z.object({ deleted: z.enum(["exclude", "include", "only"]).default("exclude") });
 
 /** Repository errors → HTTP. */
@@ -98,10 +107,23 @@ export function managerRoutes(deps: AppDeps): Router {
     res.json(await repo(() => publishWildkin(db, id, now())));
   });
 
+  /**
+   * DELETE /wildkin/:id              soft delete (restorable; frees the registry number)
+   * DELETE /wildkin/:id?permanent=1  permanent delete of the entry, its art, the creature
+   *                                  and everything referencing it (see GET …/usage first)
+   */
   router.delete("/wildkin/:id", async (req, res) => {
     const { id } = parseOr400(IdParamsSchema, req.params, "Invalid id");
-    await repo(() => softDeleteWildkin(db, id, now()));
+    const { permanent } = parseOr400(DeleteQuerySchema, req.query, "Invalid query");
+    if (permanent) await repo(() => purgeWildkin(db, id));
+    else await repo(() => softDeleteWildkin(db, id, now()));
     res.status(204).end();
+  });
+
+  /** What a permanent delete would also remove. */
+  router.get("/wildkin/:id/usage", async (req, res) => {
+    const { id } = parseOr400(IdParamsSchema, req.params, "Invalid id");
+    res.json((await repo(() => wildkinUsage(db, id))) satisfies WildkinUsage);
   });
 
   router.post("/wildkin/:id/restore", async (req, res) => {
@@ -166,15 +188,35 @@ export function managerRoutes(deps: AppDeps): Router {
       );
     }
 
+    // The manager cancels its request when the page is closed: stop PixelLab work and save nothing.
+    const cancel = new AbortController();
+    res.on("close", () => {
+      if (!res.writableFinished) cancel.abort();
+    });
+
     const prompts: Record<string, string> = {};
+    const jobs = await Promise.all(
+      kinds.map(async (kind) => {
+        // Knowing the previous prompt lets a regenerated sprite pick a different pose.
+        const prompt = artPrompt(entry, kind, extraPrompt, { previousPrompt: await wildkinArtPrompt(db, id, kind) });
+        prompts[kind] = prompt;
+        return { kind, prompt };
+      }),
+    );
+    // Icon and sprite are generated in parallel, and only saved once both succeeded.
+    const images = await artCall(() =>
+      Promise.all(
+        jobs.map((j) => generator.generate({ description: j.prompt, size: ART_SIZES[j.kind], kind: j.kind, signal: cancel.signal })),
+      ),
+    ).catch((error: unknown) => {
+      if (cancel.signal.aborted) return null;
+      throw error;
+    });
+    if (!images || cancel.signal.aborted) return; // the client is gone; nothing to answer
     const generated: GenerateArtResponse["generated"] = [];
-    for (const kind of kinds) {
-      // Knowing the previous prompt lets a regenerated sprite pick a different pose.
-      const prompt = artPrompt(entry, kind, extraPrompt, { previousPrompt: await wildkinArtPrompt(db, id, kind) });
-      prompts[kind] = prompt;
-      const png = await artCall(() => generator.generate({ description: prompt, size: ART_SIZES[kind], kind }));
-      await saveWildkinArt(db, id, kind, png, { prompt, model: generator.model }, now());
-      generated.push(kind);
+    for (const [i, j] of jobs.entries()) {
+      await saveWildkinArt(db, id, j.kind, images[i]!, { prompt: j.prompt, model: generator.model }, now());
+      generated.push(j.kind);
     }
     const balanceAfter = await generator.balance().catch(() => null);
     res.json({

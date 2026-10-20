@@ -6,6 +6,7 @@ import {
   WildkinEntrySchema,
   WildkinListResponseSchema,
   WildkinStatsSchema,
+  WildkinUsageSchema,
   wildkinArtPath,
   type ArtKind,
   type AssistRequest,
@@ -89,7 +90,9 @@ async function request<S extends z.ZodType>(schema: S, path: string, init: Reque
         ...init.headers,
       },
     });
-  } catch {
+  } catch (error) {
+    if (init.signal?.aborted) throw new ApiRequestError("Cancelled", 0, "cancelled");
+    void error;
     throw new ApiRequestError(`Cannot reach the API at ${API_TARGET}. Is it running (pnpm dev:api)?`, 0, "network");
   }
   const body: unknown = res.status === 204 ? null : await res.json().catch(() => null);
@@ -126,12 +129,16 @@ export const api = {
   update: (id: string, body: WildkinEntryInput) =>
     request(WildkinEntrySchema, `${BASE}/wildkin/${enc(id)}`, json("PUT", body)),
   publish: (id: string) => request(WildkinEntrySchema, `${BASE}/wildkin/${enc(id)}/publish`, json("POST")),
-  remove: (id: string) => request(z.null(), `${BASE}/wildkin/${enc(id)}`, json("DELETE")),
+  /** Soft delete (restorable), or `permanent` to erase it and everything referencing it. */
+  remove: (id: string, permanent = false) =>
+    request(z.null(), `${BASE}/wildkin/${enc(id)}${permanent ? "?permanent=1" : ""}`, json("DELETE")),
+  usage: (id: string) => request(WildkinUsageSchema, `${BASE}/wildkin/${enc(id)}/usage`),
   restore: (id: string) => request(WildkinEntrySchema, `${BASE}/wildkin/${enc(id)}/restore`, json("POST")),
   assist: (body: AssistRequest) => request(AssistResponseSchema, `${BASE}/assist`, json("POST", body)),
   artBalance: () => request(ArtBalanceSchema, `${BASE}/art/balance`),
-  generateArt: (id: string, body: GenerateArtRequest) =>
-    request(GenerateArtResponseSchema, `${BASE}/wildkin/${enc(id)}/art`, json("POST", body)),
+  /** `signal` cancels the request; the API then stops PixelLab work and saves nothing. */
+  generateArt: (id: string, body: GenerateArtRequest, signal?: AbortSignal) =>
+    request(GenerateArtResponseSchema, `${BASE}/wildkin/${enc(id)}/art`, { ...json("POST", body), signal }),
 };
 
 /** Public URL of a Wildkin's generated art (no token needed). */

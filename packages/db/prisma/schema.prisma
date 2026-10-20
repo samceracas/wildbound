@@ -9,7 +9,8 @@
 // (id, stage). Editors only ever write stage = 'draft'. Publishing copies the
 // draft rows to stage = 'published' in one transaction.
 //
-// CHECK constraints (ST_IsValid, weight range) are not expressible here; they
+// CHECK constraints (ST_IsValid, weight range) and partial unique indexes
+// (registry numbers unique among non-deleted rows) are not expressible here; they
 // live in the SQL migrations. Edit migration.sql by hand when you add one.
 
 generator client {
@@ -32,8 +33,9 @@ enum PublicationStage {
 
 model Creature {
   id               String   @id
-  /// Registry number shown in the Registry ("No. 001"). Unique per species.
-  registryNumber   Int      @unique @map("registry_number")
+  /// Registry number shown in the Registry ("No. 001"). Unique among non-deleted species
+  /// (partial unique index in migration 4_registry_number_reuse; Prisma cannot express it).
+  registryNumber   Int      @map("registry_number")
   name             String
   description      String   @default("")
   habitatAffinity  String[] @default([]) @map("habitat_affinity")
@@ -74,7 +76,8 @@ enum WildkinEntryStatus {
 model WildkinEntry {
   /// Canonical ID; equals creatures.id once published.
   id             String             @id
-  registryNumber Int                @unique @map("registry_number")
+  /// Unique among non-deleted entries (partial unique index, migration 4_registry_number_reuse).
+  registryNumber Int                @map("registry_number")
   name           String
   status         WildkinEntryStatus @default(draft)
   /// Every other WildkinEntryInput field (prose, tags, modifiers, skills…).

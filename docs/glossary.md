@@ -54,7 +54,8 @@ the software.
 | **Seed** | tech | Starting data loaded into the database (5 Wildkin with their encyclopedia entries and art, the Mabunyi world) |
 | **Session / cookie** | tech | How the server remembers you're logged in (`wb_session`) |
 | **Slug** | tech | A URL-safe id like `forest-edge` |
-| **Soft delete** | tech | Marking a row deleted (`deleted_at`) instead of removing it. A soft-deleted Wildkin stops spawning but stays in players' Registry, and can be restored |
+| **Soft delete** | tech | Marking a row deleted (`deleted_at`) instead of removing it. A soft-deleted Wildkin stops spawning but stays in players' Registry, frees its registry number, and can be restored. The Creature Manager also offers **permanent delete**, which erases it and everything referencing it |
+| **Art job** | tech | A PixelLab generation in the Creature Manager that keeps running while you use other pages (minimized into the dock); closing the tab cancels it |
 | **Spawn** | game | One Wildkin placed by the server near one player, for up to 10 minutes (less if it wanders off) |
 | **Spawn modifiers** | game | Per-species multipliers on encounter weight by weather and time of day |
 | **SRID 4326 / WGS84** | tech | The standard latitude/longitude coordinate system (as used by GPS) |

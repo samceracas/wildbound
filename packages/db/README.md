@@ -19,6 +19,7 @@ prisma/
     1_players/          Registry fields on creatures, player tables, hand-written CHECKs
     2_wildkin_manager/  v0.2.0: wildkin_entries, wildkin_art, creatures.movement_style/deleted_at, spawns.heading/moved_at
     3_registry_description/  v0.2.0: backfills registryDescription in wildkin_entries.content
+    4_registry_number_reuse/ v0.2.0: registry numbers unique only among non-deleted rows (partial indexes)
 seed/
   creatures.json        Kawi, Mimu, Lumae, Kantar, Riverkin with Registry data, spawn modifiers and movement style
   wildkin.json          Their full Wildkin Bible entries for the Creature Manager (validated by WildkinEntryInputSchema)

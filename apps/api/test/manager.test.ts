@@ -43,8 +43,21 @@ class FakeArt implements ArtGenerator {
   async balance() {
     return this.balanceValue;
   }
-  async generate(args: { description: string; size: number }) {
+  /** When set, generate() waits this long (or until aborted). */
+  delayMs = 0;
+  aborted = 0;
+  async generate(args: { description: string; size: number; signal?: AbortSignal }) {
     this.calls.push(args);
+    if (this.delayMs) {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, this.delayMs);
+        args.signal?.addEventListener("abort", () => {
+          clearTimeout(timer);
+          this.aborted++;
+          reject(new Error("aborted"));
+        });
+      });
+    }
     this.balanceValue = { ...this.balanceValue, generations: (this.balanceValue.generations ?? 0) - 1 };
     return PNG;
   }
@@ -92,6 +105,8 @@ beforeEach(async () => {
   await seedWildkinEntries(handle.db, seedWildkinBible());
   art.balanceValue = { generations: 10, usd: 0 };
   art.calls = [];
+  art.delayMs = 0;
+  art.aborted = 0;
 });
 
 describe("auth", () => {
@@ -166,6 +181,45 @@ describe("encyclopedia CRUD + publish", () => {
     expect((await api("post", "/wildkin/mimu/restore")).status).toBe(200);
     expect((await listCreatures(handle.db)).map((c) => c.id)).toContain("mimu");
   });
+
+  it("releases the registry number of a deleted Wildkin; restoring then picks the next free one", async () => {
+    await api("post", "/wildkin").send(draft());
+    expect((await api("delete", "/wildkin/lampyra")).status).toBe(204);
+    expect((await api("get", "/stats")).body.nextRegistryNumber).toBe(6);
+
+    // No. 6 can be reused right away.
+    const other = await api("post", "/wildkin").send(draft({ id: "tala", name: "Tala" }));
+    expect(other.status, other.text).toBe(201);
+    expect(other.body.registryNumber).toBe(6);
+    expect((await api("post", "/wildkin/tala/publish")).status).toBe(200);
+
+    // Restoring Lampyra cannot take No. 6 back.
+    const restored = await api("post", "/wildkin/lampyra/restore");
+    expect(restored.status).toBe(200);
+    expect(restored.body.registryNumber).toBe(7);
+  });
+
+  it("deletes permanently, with everything that referenced the species", async () => {
+    const usage = await api("get", "/wildkin/kawi/usage");
+    expect(usage.status).toBe(200);
+    expect(usage.body).toEqual({ encounterEntries: { draft: 0, published: 0 }, capturedWildkin: 0, registryEntries: 0, activeSpawns: 0 });
+
+    // A player who met and caught a Kawi.
+    const player = await handle.db.player.create({ data: { username: "sam", displayName: "Sam" } });
+    await handle.db.registryEntry.create({ data: { playerId: player.id, creatureId: "kawi" } });
+    await handle.db.capturedWildkin.create({ data: { playerId: player.id, creatureId: "kawi" } });
+    expect((await api("get", "/wildkin/kawi/usage")).body).toMatchObject({ capturedWildkin: 1, registryEntries: 1 });
+
+    expect((await api("delete", "/wildkin/kawi?permanent=1")).status).toBe(204);
+    expect((await api("get", "/wildkin/kawi")).status).toBe(404);
+    expect(await handle.db.creature.findUnique({ where: { id: "kawi" } })).toBeNull();
+    expect(await handle.db.capturedWildkin.count({ where: { creatureId: "kawi" } })).toBe(0);
+    expect(await handle.db.wildkinArt.count({ where: { entryId: "kawi" } })).toBe(0);
+
+    // Its id and number are free again.
+    const again = await api("post", "/wildkin").send(draft({ id: "kawi", name: "Kawi", registryNumber: 1 }));
+    expect(again.status, again.text).toBe(201);
+  });
 });
 
 describe("AI assistant", () => {
@@ -236,6 +290,14 @@ describe("art generation", () => {
     expect(png.headers["content-type"]).toBe("image/png");
     expect(Buffer.compare(png.body as Buffer, PNG)).toBe(0);
     expect((await request(app).get("/api/art/wildkin/mimu/icon.png")).status).toBe(404);
+  });
+
+  it("stops and saves nothing when the client goes away mid-generation", async () => {
+    art.delayMs = 2000;
+    await expect(api("post", "/wildkin/kawi/art").send({ kinds: ["icon", "sprite"] }).timeout(200)).rejects.toThrow();
+    await new Promise((r) => setTimeout(r, 100));
+    expect(art.aborted).toBe(2);
+    expect(await handle.db.wildkinArt.count({ where: { entryId: "kawi", prompt: { not: "imported" } } })).toBe(0);
   });
 
   it("refuses when the balance is too low", async () => {

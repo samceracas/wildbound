@@ -164,6 +164,18 @@ export const GAME_FIELDS = [
 ] as const satisfies readonly (keyof WildkinEntryData)[];
 export type GameField = (typeof GAME_FIELDS)[number];
 
+/** Everything a permanent delete also removes (GET /api/manager/wildkin/:id/usage). */
+export const WildkinUsageSchema = z.object({
+  /** Encounter-table entries listing this species, per world stage. */
+  encounterEntries: z.object({ draft: z.number().int(), published: z.number().int() }),
+  /** Individuals players have captured. */
+  capturedWildkin: z.number().int(),
+  /** Players' Registry records of this species. */
+  registryEntries: z.number().int(),
+  activeSpawns: z.number().int(),
+});
+export type WildkinUsage = z.infer<typeof WildkinUsageSchema>;
+
 // ---------------------------------------------------------------- AI assistant
 
 /**

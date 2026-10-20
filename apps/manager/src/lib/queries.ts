@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import type { GenerateArtRequest, WildkinEntry, WildkinEntryInput } from "@wildbound/shared";
+import type { WildkinEntry, WildkinEntryInput } from "@wildbound/shared";
 import { api, type DeletedFilter } from "./api.ts";
 
 /**
@@ -61,11 +61,22 @@ export function usePublishWildkin() {
 export function useDeleteWildkin() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.remove(id),
-    onSuccess: (_, id) => {
-      void qc.invalidateQueries({ queryKey: keys.entry(id) });
+    mutationFn: ({ id, permanent = false }: { id: string; permanent?: boolean }) => api.remove(id, permanent),
+    onSuccess: (_, { id, permanent }) => {
+      if (permanent) qc.removeQueries({ queryKey: keys.entry(id) });
+      else void qc.invalidateQueries({ queryKey: keys.entry(id) });
       afterWrite(qc);
     },
+  });
+}
+
+/** What a permanent delete would also remove (fetched when the delete dialog asks for it). */
+export function useWildkinUsage(id: string | null) {
+  return useQuery({
+    queryKey: ["manager", "wildkin", "usage", id ?? ""],
+    queryFn: () => api.usage(id!),
+    enabled: !!id,
+    staleTime: 0,
   });
 }
 
@@ -81,17 +92,4 @@ export function useAssist() {
 /** PixelLab balance. Always fetched fresh when the art dialog opens. */
 export function useArtBalance(enabled: boolean) {
   return useQuery({ queryKey: keys.balance, queryFn: api.artBalance, enabled, staleTime: 0 });
-}
-
-export function useGenerateArt() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, body }: { id: string; body: GenerateArtRequest }) => api.generateArt(id, body),
-    onSuccess: (res, { id }) => {
-      qc.setQueryData<WildkinEntry>(keys.entry(id), (old) => (old ? { ...old, art: res.art } : old));
-      void qc.invalidateQueries({ queryKey: keys.entry(id) });
-      void qc.invalidateQueries({ queryKey: keys.balance });
-      afterWrite(qc);
-    },
-  });
 }

@@ -9,6 +9,7 @@ import {
   type WildkinEntryData,
   type WildkinStats,
   type WildkinSummary,
+  type WildkinUsage,
 } from "@wildbound/shared";
 import type { Database } from "./client.ts";
 import type { WildkinArt, WildkinEntry as WildkinEntryRow } from "./generated/prisma/client.ts";
@@ -117,13 +118,20 @@ async function loadRow(db: Executor, id: string): Promise<RowWithArt> {
   return row;
 }
 
-/** Registry numbers are shared with creatures that were never authored here (e.g. seeded ones). */
-async function assertRegistryNumberFree(db: Executor, id: string, registryNumber: number) {
+/**
+ * Registry numbers are shared with creatures that were never authored here
+ * (e.g. seeded ones). Deleted Wildkin do not hold on to their number.
+ */
+async function registryNumberOwner(db: Executor, id: string, registryNumber: number): Promise<string | null> {
   const [entry, creature] = await Promise.all([
-    db.wildkinEntry.findFirst({ where: { registryNumber, NOT: { id } }, select: { id: true } }),
-    db.creature.findFirst({ where: { registryNumber, NOT: { id } }, select: { id: true } }),
+    db.wildkinEntry.findFirst({ where: { registryNumber, deletedAt: null, NOT: { id } }, select: { id: true } }),
+    db.creature.findFirst({ where: { registryNumber, deletedAt: null, NOT: { id } }, select: { id: true } }),
   ]);
-  const owner = entry?.id ?? creature?.id;
+  return entry?.id ?? creature?.id ?? null;
+}
+
+async function assertRegistryNumberFree(db: Executor, id: string, registryNumber: number) {
+  const owner = await registryNumberOwner(db, id, registryNumber);
   if (owner) throw new WildkinRepoError("conflict", `Registry number ${registryNumber} is already used by "${owner}"`);
 }
 
@@ -207,24 +215,78 @@ export async function softDeleteWildkin(db: Database, id: string, now = new Date
   });
 }
 
+/** Smallest number above every non-deleted entry and creature. */
+async function nextRegistryNumber(db: Executor): Promise<number> {
+  const [entry, creature] = await Promise.all([
+    db.wildkinEntry.aggregate({ where: { deletedAt: null }, _max: { registryNumber: true } }),
+    db.creature.aggregate({ where: { deletedAt: null }, _max: { registryNumber: true } }),
+  ]);
+  return Math.max(entry._max.registryNumber ?? 0, creature._max.registryNumber ?? 0) + 1;
+}
+
+/**
+ * Brings a soft-deleted Wildkin back. Its registry number was released when it
+ * was deleted; if another Wildkin took it meanwhile, the restored one gets the
+ * next free number (the caller can tell from the returned registryNumber).
+ */
 export async function restoreWildkin(db: Database, id: string): Promise<WildkinEntry> {
   return db.$transaction(async (tx) => {
-    await loadRow(tx, id);
-    await tx.creature.updateMany({ where: { id }, data: { deletedAt: null } });
-    return toEntry(await tx.wildkinEntry.update({ where: { id }, data: { deletedAt: null }, include: { art: artSelect } }));
+    const row = await loadRow(tx, id);
+    const registryNumber = (await registryNumberOwner(tx, id, row.registryNumber))
+      ? await nextRegistryNumber(tx)
+      : row.registryNumber;
+    await tx.creature.updateMany({ where: { id }, data: { deletedAt: null, registryNumber } });
+    return toEntry(
+      await tx.wildkinEntry.update({ where: { id }, data: { deletedAt: null, registryNumber }, include: { art: artSelect } }),
+    );
   });
 }
 
-export async function wildkinStats(db: Executor): Promise<WildkinStats> {
-  const [entries, maxCreature] = await Promise.all([
-    db.wildkinEntry.findMany({ include: { art: artSelect } }),
-    db.creature.aggregate({ _max: { registryNumber: true } }),
+/** What a permanent delete would also remove (shown before confirming). */
+export async function wildkinUsage(db: Executor, id: string): Promise<WildkinUsage> {
+  await loadRow(db, id);
+  const [draft, published, captured, registry, spawns] = await Promise.all([
+    db.encounterEntry.count({ where: { creatureId: id, stage: "draft" } }),
+    db.encounterEntry.count({ where: { creatureId: id, stage: "published" } }),
+    db.capturedWildkin.count({ where: { creatureId: id } }),
+    db.registryEntry.count({ where: { creatureId: id } }),
+    db.spawn.count({ where: { creatureId: id, status: "active" } }),
   ]);
+  return {
+    encounterEntries: { draft, published },
+    capturedWildkin: captured,
+    registryEntries: registry,
+    activeSpawns: spawns,
+  };
+}
+
+/**
+ * Permanent delete: removes the encyclopedia entry and its art, the game
+ * creature, and everything that points at it (encounter-table entries in the
+ * draft and published world, players' Registry records, captured individuals
+ * and spawns). Cannot be undone; the registry number is free afterwards.
+ */
+export async function purgeWildkin(db: Database, id: string): Promise<WildkinUsage> {
+  return db.$transaction(async (tx) => {
+    const usage = await wildkinUsage(tx, id);
+    await tx.encounterEntry.deleteMany({ where: { creatureId: id } });
+    await tx.capturedWildkin.deleteMany({ where: { creatureId: id } });
+    await tx.registryEntry.deleteMany({ where: { creatureId: id } });
+    await tx.spawn.deleteMany({ where: { creatureId: id } });
+    await tx.creature.deleteMany({ where: { id } });
+    await tx.wildkinEntry.delete({ where: { id } }); // art cascades
+    return usage;
+  }, WILDKIN_TX);
+}
+
+const WILDKIN_TX = { timeout: 30_000, maxWait: 10_000 } as const;
+
+export async function wildkinStats(db: Executor): Promise<WildkinStats> {
+  const [entries, next] = await Promise.all([db.wildkinEntry.findMany({ include: { art: artSelect } }), nextRegistryNumber(db)]);
   const all = entries.map(toEntry);
   const live = all.filter((e) => !e.deletedAt);
   const byRarity: Record<string, number> = {};
   for (const e of live) byRarity[e.rarity] = (byRarity[e.rarity] ?? 0) + 1;
-  const maxEntry = all.reduce((m, e) => Math.max(m, e.registryNumber), 0);
   return {
     total: live.length,
     published: live.filter((e) => e.status === "published").length,
@@ -233,7 +295,7 @@ export async function wildkinStats(db: Executor): Promise<WildkinStats> {
     deleted: all.length - live.length,
     withArt: live.filter((e) => e.art.icon).length,
     byRarity,
-    nextRegistryNumber: Math.max(maxEntry, maxCreature._max.registryNumber ?? 0) + 1,
+    nextRegistryNumber: next,
   };
 }
 

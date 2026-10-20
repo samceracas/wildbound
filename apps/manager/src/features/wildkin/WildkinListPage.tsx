@@ -4,24 +4,15 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { PageHeader } from "@/components/layout/AppLayout";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { useDeleteWildkin, useRestoreWildkin, useWildkinList } from "@/lib/queries";
+import { useRestoreWildkin, useWildkinList } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { formatRegistryNumber } from "@/lib/wildkin-form";
 import { ErrorNotice, RarityBadge, StatusBadge, WildkinArt } from "./common";
+import { DeleteWildkinDialog } from "./DeleteWildkinDialog";
 
 const SHOW_DELETED_KEY = "wildbound.manager.showDeleted";
 
@@ -38,9 +29,9 @@ export function WildkinListPage() {
   const [search, setSearch] = useState("");
   const [showDeleted, setShowDeleted] = useState(readShowDeleted);
   const list = useWildkinList(showDeleted ? "include" : "exclude");
-  const del = useDeleteWildkin();
   const restore = useRestoreWildkin();
   const [pendingDelete, setPendingDelete] = useState<WildkinSummary | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -93,7 +84,8 @@ export function WildkinListPage() {
         </div>
 
         <ErrorNotice error={list.error} title="Could not load Wildkin" />
-        <ErrorNotice error={del.error ?? restore.error} />
+        <ErrorNotice error={restore.error} />
+        {notice ? <p className="rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-sm text-fg">{notice}</p> : null}
 
         <div className="overflow-hidden rounded-lg border border-line bg-panel">
           <table className="w-full text-sm">
@@ -138,14 +130,28 @@ export function WildkinListPage() {
                     <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end gap-1">
                         {deleted ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={restore.isPending}
-                            onClick={() => restore.mutate(w.id)}
-                          >
-                            <RotateCcwIcon /> Restore
-                          </Button>
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={restore.isPending}
+                              onClick={() =>
+                                restore.mutate(w.id, {
+                                  onSuccess: (e) =>
+                                    setNotice(
+                                      e.registryNumber !== w.registryNumber
+                                        ? `${e.name} restored as ${formatRegistryNumber(e.registryNumber)} (${formatRegistryNumber(w.registryNumber)} is now used by another Wildkin).`
+                                        : `${e.name} restored.`,
+                                    ),
+                                })
+                              }
+                            >
+                              <RotateCcwIcon /> Restore
+                            </Button>
+                            <Button size="sm" variant="destructive-ghost" onClick={() => setPendingDelete(w)}>
+                              <Trash2Icon /> Delete permanently
+                            </Button>
+                          </>
                         ) : (
                           <>
                             <Button asChild size="sm" variant="ghost">
@@ -179,25 +185,7 @@ export function WildkinListPage() {
         </div>
       </div>
 
-      <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {pendingDelete?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The entry is soft-deleted: it disappears from the list but can be restored from “Show deleted”.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => pendingDelete && del.mutate(pendingDelete.id)}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteWildkinDialog wildkin={pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)} />
     </div>
   );
 }

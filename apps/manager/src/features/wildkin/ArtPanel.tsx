@@ -1,6 +1,8 @@
 import { ART_KINDS, ART_SIZES, type ArtKind, type GenerateArtResponse, type WildkinEntry } from "@wildbound/shared";
-import { ImageIcon, Loader2Icon, WandSparklesIcon } from "lucide-react";
-import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { CheckCircle2Icon, ImageIcon, Loader2Icon, Minimize2Icon, WandSparklesIcon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,7 +17,15 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiRequestError } from "@/lib/api";
-import { useArtBalance, useGenerateArt, useManagerConfig } from "@/lib/queries";
+import {
+  cancelArtJob,
+  dismissArtJob,
+  setArtJobMinimized,
+  startArtJob,
+  useArtJob,
+  type ArtJob,
+} from "@/lib/art-jobs";
+import { useArtBalance, useManagerConfig } from "@/lib/queries";
 import { ErrorNotice, WildkinArt } from "./common";
 
 const fmtUsd = (n: number) => `$${n.toFixed(2)}`;
@@ -24,6 +34,10 @@ const fmtUsd = (n: number) => `$${n.toFixed(2)}`;
  * Current icon (64px) and sprite (128px), scaled up pixelated, plus the PixelLab
  * generator. Art is generated from the SAVED entry, so `ensureSaved` saves the
  * draft first when the form has unsaved changes (it returns false when saving failed).
+ *
+ * A generation runs as an art job (lib/art-jobs.ts): the dialog shows its
+ * progress and can be minimized into the dock, so you can keep working on other
+ * pages; leaving this page minimizes it automatically.
  */
 export function ArtPanel({
   entry,
@@ -40,8 +54,33 @@ export function ArtPanel({
   const [extraPrompt, setExtraPrompt] = useState("");
   const [lastResult, setLastResult] = useState<GenerateArtResponse | null>(null);
   const balance = useArtBalance(open);
-  const generate = useGenerateArt();
+  const qc = useQueryClient();
+  const job = useArtJob(entry?.id);
+  const running = job?.status === "running";
   const [saving, setSaving] = useState(false);
+  const location = useLocation();
+
+  // Opened from the dock ("Open" on another page): show the job again.
+  useEffect(() => {
+    if (entry && (location.state as { openArt?: boolean } | null)?.openArt) setArtJobMinimized(entry.id, false);
+  }, [entry, location.state]);
+
+  // Remember the last result so it stays listed under the art after the job is dismissed.
+  useEffect(() => {
+    if (job?.status === "done" && job.result) setLastResult(job.result);
+  }, [job?.status, job?.result]);
+
+  // Leaving the page never cancels a generation: it keeps running in the dock.
+  const jobRef = useRef(job);
+  jobRef.current = job;
+  useEffect(
+    () => () => {
+      const j = jobRef.current;
+      if (j?.status === "running") setArtJobMinimized(j.id, true);
+      else if (j && !j.minimized) dismissArtJob(j.id);
+    },
+    [],
+  );
 
   const enabled = config.data?.art.enabled ?? false;
   const deleted = !!entry?.deletedAt;
@@ -61,15 +100,16 @@ export function ArtPanel({
       const ok = await ensureSaved().finally(() => setSaving(false));
       if (!ok) return;
     }
-    generate.mutate(
-      { id: entry.id, body: { kinds, extraPrompt: extraPrompt.trim() || undefined } },
-      {
-        onSuccess: (res) => {
-          setLastResult(res);
-          setOpen(false);
-        },
-      },
-    );
+    startArtJob(qc, { id: entry.id, name: entry.name, kinds, extraPrompt: extraPrompt.trim() || undefined });
+    setOpen(false);
+  };
+
+  /** The job dialog is visible while its job is not minimized. */
+  const jobOpen = !!job && !job.minimized;
+  const closeJob = () => {
+    if (!job) return;
+    if (job.status === "running") setArtJobMinimized(job.id, true);
+    else dismissArtJob(job.id);
   };
 
   const art = entry?.art ?? { icon: false, sprite: false, version: null };
@@ -96,10 +136,15 @@ export function ArtPanel({
         </div>
 
         <div className="space-y-2">
-          <Button variant="gold" disabled={!canOpen || generate.isPending} onClick={() => setOpen(true)}>
-            {generate.isPending ? <Loader2Icon className="animate-spin" /> : <WandSparklesIcon />}
-            {generate.isPending ? "Generating…" : "Generate sprites with PixelLab"}
-          </Button>
+          {running ? (
+            <Button variant="gold" onClick={() => setArtJobMinimized(job.id, false)}>
+              <Loader2Icon className="animate-spin" /> Generating… (show)
+            </Button>
+          ) : (
+            <Button variant="gold" disabled={!canOpen} onClick={() => setOpen(true)}>
+              <WandSparklesIcon /> Generate sprites with PixelLab
+            </Button>
+          )}
           {!entry ? (
             <p className="text-xs text-faint">Save the draft first; art is generated from the saved entry.</p>
           ) : deleted ? (
@@ -113,14 +158,6 @@ export function ArtPanel({
           )}
         </div>
 
-        <ErrorNotice
-          error={open ? null : generate.error}
-          title={
-            generate.error instanceof ApiRequestError && generate.error.code === "insufficient_credits"
-              ? "Not enough PixelLab credits"
-              : "Art generation failed"
-          }
-        />
 
         {lastResult ? (
           <details className="rounded-md border border-line bg-field/60 p-3 text-xs text-muted">
@@ -200,23 +237,92 @@ export function ArtPanel({
             {notEnough ? <p className="text-xs text-danger">Not enough generations left for this request.</p> : null}
           </div>
 
-          <ErrorNotice error={generate.error} />
-
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <Button
               variant="gold"
-              disabled={kinds.length === 0 || balance.isPending || notEnough || generate.isPending || saving}
+              disabled={kinds.length === 0 || balance.isPending || notEnough || running || saving}
               onClick={() => void run()}
             >
-              {generate.isPending || saving ? <Loader2Icon className="animate-spin" /> : <WandSparklesIcon />}
-              {saving ? "Saving…" : generate.isPending ? "Generating…" : `Generate ${kinds.join(" + ") || "…"}`}
+              {saving ? <Loader2Icon className="animate-spin" /> : <WandSparklesIcon />}
+              {saving ? "Saving…" : `Generate ${kinds.join(" + ") || "…"}`}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={jobOpen} onOpenChange={(o) => !o && closeJob()}>
+        <DialogContent>{job ? <JobView job={job} onClose={closeJob} /> : null}</DialogContent>
+      </Dialog>
     </section>
+  );
+}
+
+/** Progress, then outcome, of one art job. Closing while it runs only minimizes it. */
+function JobView({ job, onClose }: { job: ArtJob; onClose: () => void }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (job.status !== "running") return;
+    const t = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, [job.status]);
+  const secs = Math.round(((job.finishedAt ?? now) - job.startedAt) / 1000);
+  const what = job.kinds.join(" + ");
+  const insufficient = job.error instanceof ApiRequestError && job.error.code === "insufficient_credits";
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>
+          {job.status === "running"
+            ? `Generating ${what}…`
+            : job.status === "done"
+              ? "Art generated"
+              : job.status === "cancelled"
+                ? "Generation cancelled"
+                : insufficient
+                  ? "Not enough PixelLab credits"
+                  : "Art generation failed"}
+        </DialogTitle>
+        <DialogDescription>
+          {job.status === "running"
+            ? `${job.name} · ${secs}s. PixelLab usually takes 10–60 s. Minimize to keep working; closing or reloading the browser tab cancels it.`
+            : job.status === "done"
+              ? `${job.name} · ${what} in ${secs}s.`
+              : job.status === "cancelled"
+                ? "Nothing was saved."
+                : `${job.name} · ${what}`}
+        </DialogDescription>
+      </DialogHeader>
+      {job.status === "running" ? (
+        <div className="flex items-center justify-center py-6">
+          <Loader2Icon className="size-8 animate-spin text-gold" />
+        </div>
+      ) : job.status === "done" ? (
+        <p className="flex items-center gap-2 text-sm text-accent">
+          <CheckCircle2Icon className="size-4" /> Saved. The new art is shown in Field sketches.
+        </p>
+      ) : job.status === "failed" ? (
+        <ErrorNotice error={job.error} />
+      ) : null}
+      <DialogFooter>
+        {job.status === "running" ? (
+          <>
+            <Button variant="destructive-ghost" onClick={() => cancelArtJob(job.id)}>
+              Cancel generation
+            </Button>
+            <Button variant="outline" onClick={onClose}>
+              <Minimize2Icon /> Minimize
+            </Button>
+          </>
+        ) : (
+          <Button variant="outline" onClick={onClose}>
+            Close
+          </Button>
+        )}
+      </DialogFooter>
+    </>
   );
 }

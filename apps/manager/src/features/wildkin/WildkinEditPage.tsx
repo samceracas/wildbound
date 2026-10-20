@@ -51,7 +51,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   useCreateWildkin,
-  useDeleteWildkin,
   usePublishWildkin,
   useRestoreWildkin,
   useStats,
@@ -69,6 +68,7 @@ import {
 } from "@/lib/wildkin-form";
 import { ArtPanel } from "./ArtPanel";
 import { AssistPanel } from "./AssistPanel";
+import { DeleteWildkinDialog } from "./DeleteWildkinDialog";
 import { GamePreview } from "./GamePreview";
 import { asErrorInfo, ErrorNotice, StatusBadge } from "./common";
 import {
@@ -186,9 +186,8 @@ function WildkinForm({ entry, initial }: { entry: WildkinEntry | null; initial: 
   const create = useCreateWildkin();
   const update = useUpdateWildkin();
   const publish = usePublishWildkin();
-  const del = useDeleteWildkin();
   const restore = useRestoreWildkin();
-  const busy = create.isPending || update.isPending || publish.isPending || del.isPending || restore.isPending;
+  const busy = create.isPending || update.isPending || publish.isPending || restore.isPending;
 
   const location = useLocation();
   // A publish that failed right after creating the entry arrives here via router state.
@@ -338,14 +337,31 @@ function WildkinForm({ entry, initial }: { entry: WildkinEntry | null; initial: 
             {deleted ? (
               <div className="flex items-center justify-between gap-3 rounded-md border border-danger/40 bg-danger/10 px-4 py-3 text-sm">
                 <span>This Wildkin is deleted. Restore it to edit, publish or generate art.</span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() => restore.mutate(entry.id, { onError: setServerError })}
-                >
-                  <RotateCcwIcon /> Restore
-                </Button>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="destructive-ghost" disabled={busy} onClick={() => setConfirmDelete(true)}>
+                    <Trash2Icon /> Delete permanently
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() =>
+                      restore.mutate(entry.id, {
+                        onSuccess: (e) => {
+                          reset(entryToFormValues(e));
+                          if (e.registryNumber !== entry.registryNumber) {
+                            setNotice(
+                              `Restored as ${formatRegistryNumber(e.registryNumber)}: ${formatRegistryNumber(entry.registryNumber)} is now used by another Wildkin.`,
+                            );
+                          }
+                        },
+                        onError: setServerError,
+                      })
+                    }
+                  >
+                    <RotateCcwIcon /> Restore
+                  </Button>
+                </div>
               </div>
             ) : null}
 
@@ -607,31 +623,11 @@ function WildkinForm({ entry, initial }: { entry: WildkinEntry | null; initial: 
         </footer>
       </div>
 
-      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {entry?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The entry is soft-deleted and can be restored from the Wildkin list (“Show deleted”).
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() =>
-                entry &&
-                del.mutate(entry.id, {
-                  onSuccess: () => goTo("/wildkin"),
-                  onError: setServerError,
-                })
-              }
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteWildkinDialog
+        wildkin={confirmDelete && entry ? entry : null}
+        onOpenChange={setConfirmDelete}
+        onDeleted={() => goTo("/wildkin")}
+      />
 
       <AlertDialog open={blocker.state === "blocked"} onOpenChange={(o) => !o && blocker.reset?.()}>
         <AlertDialogContent>

@@ -39,7 +39,7 @@
 erDiagram
     creatures {
         text id PK "slug, e.g. kawi"
-        int registry_number UK
+        int registry_number "unique among non-deleted"
         text name
         text description
         text_arr habitat_affinity
@@ -53,7 +53,7 @@ erDiagram
     }
     wildkin_entries {
         text id PK "canonical id = creatures.id once published"
-        int registry_number UK
+        int registry_number "unique among non-deleted"
         text name
         enum status "draft | published"
         jsonb content "every other Bible field"
@@ -242,13 +242,13 @@ flowchart LR
 
 | Table | Prisma model | Notes |
 |---|---|---|
-| `creatures` | `Creature` | One row per species: the **game data** the editor and the game read. `spawn_modifiers` and `skills` are JSON validated by Zod on read. `movement_style` (default `forager`) drives [wandering](07-game-systems.md#wandering-spawns-experimental). Written by `pnpm db:seed` (`upsertCreatures`) and by **Publish** in the Creature Manager. Rows are never hard-deleted by the app: `deleted_at` marks a **soft-deleted** species (it stops spawning and disappears from editor pickers). A real `DELETE` of a creature that encounter entries or captured Wildkin reference is **blocked** (RESTRICT) |
+| `creatures` | `Creature` | One row per species: the **game data** the editor and the game read. `spawn_modifiers` and `skills` are JSON validated by Zod on read. `movement_style` (default `forager`) drives [wandering](07-game-systems.md#wandering-spawns-experimental). Written by `pnpm db:seed` (`upsertCreatures`) and by **Publish** in the Creature Manager. `deleted_at` marks a **soft-deleted** species (it stops spawning and disappears from editor pickers). A plain `DELETE` of a creature that encounter entries or captured Wildkin reference is **blocked** (RESTRICT); the Creature Manager's permanent delete (`purgeWildkin`) removes those rows first, in one transaction |
 
 ### Encyclopedia (Creature Manager)
 
 | Table | Prisma model | Notes |
 |---|---|---|
-| `wildkin_entries` | `WildkinEntry` | One Wildkin Bible entry per species, authored in the [Creature Manager](13-creature-manager.md). `id`, `registry_number` (unique) and `name` are columns; every other field (prose, tags, spawn modifiers, skills, movement style…) is in `content` JSON, validated by `WildkinEntryInputSchema` from `@wildbound/shared` on every read. `status` is `draft` until the first publish; "unpublished changes" means `updated_at > published_at`. `deleted_at` = soft delete |
+| `wildkin_entries` | `WildkinEntry` | One Wildkin Bible entry per species, authored in the [Creature Manager](13-creature-manager.md). `id`, `registry_number` (unique among non-deleted entries) and `name` are columns; every other field (prose, tags, spawn modifiers, skills, movement style…) is in `content` JSON, validated by `WildkinEntryInputSchema` from `@wildbound/shared` on every read. `status` is `draft` until the first publish; "unpublished changes" means `updated_at > published_at`. `deleted_at` = soft delete |
 | `wildkin_art` | `WildkinArt` | PNG bytes per entry and kind (`icon` 64 px, `sprite` 128 px; `CHECK kind IN ('icon','sprite')`), plus the PixelLab `prompt` and `model` used (`"imported"` for the hand-made seed art). PK `(entry_id, kind)`, so regenerating replaces the old image. Served publicly at `GET /api/art/wildkin/:id/:kind.png` |
 
 There is deliberately **no foreign key** between `wildkin_entries` and `creatures`. They share the id by convention:
@@ -289,12 +289,13 @@ The validation in code is the first line of defence; these database rules are th
 | `encounter_entries_weight_range CHECK (weight BETWEEN 1 AND 1000)` | `0_init` | Out-of-range weights |
 | Composite FKs including `stage` | `0_init` | Draft rows pointing at published rows |
 | Unique slugs per stage (and region) | `0_init` | Duplicate slugs |
-| `creatures_registry_number_positive`, unique `registry_number` | `1_players` | Bad Registry numbering |
+| `creatures_registry_number_positive` | `1_players` | Bad Registry numbering |
 | `inventory_items_quantity_non_negative CHECK (quantity >= 0)` | `1_players` | Spending capsules you don't have (even under races) |
 | `captured_wildkin_party_slot_range CHECK (party_slot IS NULL OR BETWEEN 0 AND 5)` + unique `(player_id, party_slot)` | `1_players` | Two Wildkin in one slot, slot 6+ |
 | `player_positions_lat_range`, `_lng_range` | `1_players` | Impossible coordinates |
 | `ON DELETE CASCADE` from `players` | `1_players` | Orphaned player data when a player is deleted |
-| Unique `wildkin_entries.registry_number`, `wildkin_art_kind_check`, `ON DELETE CASCADE` art → entry | `2_wildkin_manager` | Two entries with one number; unknown art kinds; orphaned art |
+| `wildkin_art_kind_check`, `ON DELETE CASCADE` art → entry | `2_wildkin_manager` | Unknown art kinds; orphaned art |
+| Partial unique `registry_number` on `creatures` and `wildkin_entries` (`WHERE deleted_at IS NULL`) | `4_registry_number_reuse` | Two live Wildkin with one number (a deleted one may share it) |
 
 The API's error handler (`apps/api/src/errors.ts`) maps the Postgres error codes to HTTP: `23514` (check), `XX000`/`22023`
 (PostGIS invalid geometry) → 400 `invalid_geometry`; `23505` (unique) → 409 `conflict`; `23503` (FK) → 400 `invalid_reference`.
@@ -352,7 +353,8 @@ flowchart LR
 | `createWildkin(db, data)` | Insert a draft. 409 `conflict` if the id exists as an entry **or** a creature, or the registry number is taken | `POST /api/manager/wildkin` |
 | `updateWildkin(db, data)` | Replace the entry (id is immutable). Refused for deleted entries | `PUT /api/manager/wildkin/:id` |
 | `publishWildkin(db, id)` | Check `PUBLISH_REQUIRED_FIELDS`, then upsert `creatures` with `creatureFromEntry(entry)` (clearing its `deleted_at`) and mark the entry published, in one transaction | `POST …/publish` |
-| `softDeleteWildkin` / `restoreWildkin` | Set / clear `deleted_at` on the entry **and** the creature with the same id | `DELETE …`, `POST …/restore` |
+| `softDeleteWildkin` / `restoreWildkin` | Set / clear `deleted_at` on the entry **and** the creature with the same id; restore moves to the next free registry number if its own was taken | `DELETE …`, `POST …/restore` |
+| `wildkinUsage` / `purgeWildkin` | Count / delete everything referencing a species (encounter entries, Registry records, captures, spawns), then the creature and the entry (art cascades) | `GET …/usage`, `DELETE …?permanent=1` |
 | `wildkinStats(db)` | Dashboard counts and `nextRegistryNumber` (max over entries and creatures + 1) | `GET /api/manager/stats` |
 | `saveWildkinArt` / `loadWildkinArt` | Upsert / read PNG bytes (`load` returns null for deleted entries) | art routes, seed |
 | `seedWildkinEntries(db, list)` | Insert entries that do not exist yet (never overwrites authored work); marked published when the creature already exists | seed |
@@ -439,6 +441,7 @@ The **GiST indexes** on every `geom` column make "which shapes contain this poin
 | `1_players` | Registry columns on `creatures` (backfills `registry_number` alphabetically, then `NOT NULL`), `spawn_status` enum, all player tables, hand-written CHECKs |
 | `2_wildkin_manager` | v0.2.0: `wildkin_entry_status` enum, `wildkin_entries`, `wildkin_art` (+ kind CHECK), `creatures.movement_style` (default `forager`) and `creatures.deleted_at`, `spawns.heading` and `spawns.moved_at` |
 | `3_registry_description` | v0.2.0: fills the new `registryDescription` in `wildkin_entries.content` from `creatures.description` (or the identity line for drafts) |
+| `4_registry_number_reuse` | v0.2.0: registry numbers unique only among non-deleted rows: partial unique indexes `creatures_registry_number_live_key` and `wildkin_entries_registry_number_live_key` (`WHERE deleted_at IS NULL`) replace the plain unique indexes |
 
 `runMigrations(url)` (`packages/db/src/migrate.ts`):
 

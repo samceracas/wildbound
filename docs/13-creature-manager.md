@@ -224,9 +224,22 @@ stateDiagram-v2
 - Ids and registry numbers are checked against **both** tables, so you cannot create an entry whose id or number
   belongs to an existing creature.
 
+### Deleting
+
+**Delete** (list row or entry page) asks how:
+
+| Choice | What it does |
+|---|---|
+| **Move to deleted** (default) | Soft delete, restorable (below) |
+| **Delete permanently** | Erases the entry, its art, the game creature and everything that references it. Before you confirm, the dialog lists what else goes (`GET …/usage`: draft and published encounter-table entries, players' Registry records, captured Wildkin, active spawns) and you must tick *I understand this cannot be undone*. Also offered on deleted rows ("Show deleted") and on a deleted entry's page |
+
+**Both free the registry number.** Registry numbers are unique only among Wildkin that are not deleted (partial unique
+indexes, migration `4_registry_number_reuse`), so a new Wildkin can take the number right away, and the next-number
+suggestion skips deleted ones.
+
 ### Soft delete
 
-**Delete** never removes data. It sets `deleted_at` on the entry and on the creature with the same id. Effects:
+**Move to deleted** sets `deleted_at` on the entry and on the creature with the same id. Effects:
 
 | Where | What happens |
 |---|---|
@@ -236,8 +249,9 @@ stateDiagram-v2
 | Game: art | `/api/art/...` answers 404, so the game falls back to the static PNG or a placeholder |
 | Map Editor | Removed from the Wildkin pickers. A draft that still lists it can be **saved**, but Validate/Publish report it as an **unknown Wildkin** until you remove it |
 
-**Restore** clears both flags and everything comes back. To remove a species for good you would need SQL (and
-captured Wildkin or encounter entries referencing it block that); this is deliberate.
+**Restore** clears both flags and everything comes back. If its registry number was taken in the meantime, the restored
+Wildkin gets the **next free number** and the manager tells you ("Restored as No. 007: No. 006 is now used by another
+Wildkin"). To remove a species for good, use **Delete permanently**.
 
 ## AI assistant
 
@@ -326,6 +340,22 @@ sequenceDiagram
 
 **Generate sprites with PixelLab** (the "Field sketches" panel) draws the Wildkin from its encyclopedia entry.
 
+### Generating in the background
+
+A generation takes 10–60 s, so it runs as an **art job** (`apps/manager/src/lib/art-jobs.ts`) that is not tied to the
+entry page:
+
+- While it runs, the dialog shows the elapsed time with **Minimize** and **Cancel generation**. Closing the dialog
+  also minimizes it, and leaving the page minimizes it automatically.
+- Minimized jobs sit in the **dock** at the bottom right of every page (`ArtJobsDock`): name, what is being made,
+  elapsed time, **Cancel** and **Open** (back to the Wildkin, dialog shown again). When it finishes the card shows
+  *Done in 0:42* (or the error) until you dismiss it, and the lists, stats and art refresh by themselves.
+- One job per Wildkin at a time; jobs for different Wildkin can run side by side.
+- **Closing or reloading the browser tab cancels running jobs.** The browser asks first. The manager aborts the
+  request; the API notices the closed connection, aborts its PixelLab calls and **saves nothing**. (A PixelLab image
+  that was already finishing may still count against your balance.) Icon and sprite are generated in parallel and
+  saved together, so a cancelled job never leaves one new image next to an old one.
+
 ```mermaid
 sequenceDiagram
     actor D as Designer
@@ -344,11 +374,11 @@ sequenceDiagram
     alt balance too low
         A-->>M: 402 insufficient_credits
     else
-        loop icon (64 px), sprite (128 px)
+        par icon (64 px) and sprite (128 px)
             A->>P: POST /create-image-pixen (transparent background)
             P-->>A: PNG (base64)
-            A->>DB: upsert (entry, kind) PNG + prompt + model
         end
+        A->>DB: upsert (entry, kind) PNG + prompt + model, only when both succeeded
         A-->>M: art info, balance before/after, prompts used
     end
 ```

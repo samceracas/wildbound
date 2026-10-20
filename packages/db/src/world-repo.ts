@@ -79,8 +79,8 @@ async function upsertCreaturesIn(db: Prisma.TransactionClient, list: CreatureDef
   const ids = list.map((c) => c.id);
   const numbers = list.map((c) => c.registryNumber);
   const [creatureClash, entryClash] = await Promise.all([
-    db.creature.findFirst({ where: { registryNumber: { in: numbers }, id: { notIn: ids } } }),
-    db.wildkinEntry.findFirst({ where: { registryNumber: { in: numbers }, id: { notIn: ids } } }),
+    db.creature.findFirst({ where: { registryNumber: { in: numbers }, id: { notIn: ids }, deletedAt: null } }),
+    db.wildkinEntry.findFirst({ where: { registryNumber: { in: numbers }, id: { notIn: ids }, deletedAt: null } }),
   ]);
   const clash = creatureClash ?? entryClash;
   if (clash) {

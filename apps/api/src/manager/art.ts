@@ -9,7 +9,8 @@ import type { ArtBalance, ArtKind, MovementStyleName, WildkinEntryData } from "@
 export interface ArtGenerator {
   readonly model: string;
   balance(): Promise<ArtBalance>;
-  generate(args: { description: string; size: number; kind: ArtKind }): Promise<Uint8Array>;
+  /** `signal` aborts the request (the manager page was closed). */
+  generate(args: { description: string; size: number; kind: ArtKind; signal?: AbortSignal }): Promise<Uint8Array>;
 }
 
 export class ArtError extends Error {}
@@ -137,7 +138,7 @@ export class PixelLabArt implements ArtGenerator {
       res = await this.fetchImpl(`${this.baseUrl.replace(/\/$/, "")}${path}`, {
         ...init,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.apiKey}`, ...init.headers },
-        signal: AbortSignal.timeout(180_000),
+        signal: init.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(180_000)]) : AbortSignal.timeout(180_000),
       });
     } catch (error) {
       throw new ArtError(`Could not reach PixelLab: ${(error as Error).message}`);
@@ -163,9 +164,10 @@ export class PixelLabArt implements ArtGenerator {
     };
   }
 
-  async generate(args: { description: string; size: number; kind: ArtKind }): Promise<Uint8Array> {
+  async generate(args: { description: string; size: number; kind: ArtKind; signal?: AbortSignal }): Promise<Uint8Array> {
     const body = await this.call<{ image?: { base64?: string } }>("/create-image-pixen", {
       method: "POST",
+      signal: args.signal,
       body: JSON.stringify({
         description: args.description,
         image_size: { width: args.size, height: args.size },

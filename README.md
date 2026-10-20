@@ -190,7 +190,7 @@ The Creature Manager's AI helpers are optional: add `GROQ_API_KEY` (free key at 
 
 If the Docker volume was created before `docker/initdb` existed, create the test database once: `docker exec -it wildbound-db createdb -U postgres wildbound_test`.
 
-**Upgrading from v0.1.0?** Run `pnpm install`, `pnpm db:migrate` (adds migrations `2_wildkin_manager` and `3_registry_description`) and `pnpm db:seed` (creates the five encyclopedia entries and imports their art; your world draft is kept). Add the new `.env` keys from `.env.example` (the manager reaches the API through its Vite proxy, so `CORS_ORIGINS` needs no change).
+**Upgrading from v0.1.0?** Run `pnpm install`, `pnpm db:migrate` (adds migrations `2_wildkin_manager` to `4_registry_number_reuse`) and `pnpm db:seed` (creates the five encyclopedia entries and imports their art; your world draft is kept). Add the new `.env` keys from `.env.example` (the manager reaches the API through its Vite proxy, so `CORS_ORIGINS` needs no change).
 
 **Upgrading from the Drizzle version?** Just run `pnpm db:migrate`. A database created by the old Drizzle migrations is detected and baselined (its world tables match the first Prisma migration), so your authored draft is kept. Then `pnpm db:seed` refreshes the Wildkin with their new Registry fields.
 

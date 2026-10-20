@@ -138,7 +138,8 @@ Every error body is `ApiError`:
 | POST | `/api/manager/wildkin` | editor | `WildkinEntryInput` | 201 `WildkinEntry` |
 | PUT | `/api/manager/wildkin/:id` | editor | `WildkinEntryInput` | `WildkinEntry` |
 | POST | `/api/manager/wildkin/:id/publish` | editor | – | `WildkinEntry` |
-| DELETE | `/api/manager/wildkin/:id` | editor | – | 204 (soft delete) |
+| DELETE | `/api/manager/wildkin/:id[?permanent=1]` | editor | – | 204 (soft delete, or permanent) |
+| GET | `/api/manager/wildkin/:id/usage` | editor | – | `WildkinUsage` |
 | POST | `/api/manager/wildkin/:id/restore` | editor | – | `WildkinEntry` |
 | POST | `/api/manager/assist` | editor | `AssistRequest` | `AssistResponse` |
 | GET | `/api/manager/art/balance` | editor | – | `ArtBalance` |
@@ -426,7 +427,20 @@ Field mapping (`creatureFromEntry`): `description` ← `registryDescription`,
 
 Soft delete → 204: sets `deleted_at` on the entry **and** on the creature with the same id (if published). The species
 stops spawning at once (existing spawns flee on the next poll), disappears from the editor's pickers and from the
-public art route, and stays in the Registry of players who already met it. Restore clears both and returns the entry.
+public art route, and stays in the Registry of players who already met it. Its registry number is released (numbers are
+unique only among non-deleted Wildkin). Restore clears both and returns the entry; if the number was taken meanwhile,
+the entry and creature get the next free number (compare `registryNumber`).
+
+`?permanent=1` → 204: deletes the entry and its art, the creature, and every encounter-table entry (draft and
+published), Registry record, captured Wildkin and spawn of that species, in one transaction. Cannot be undone.
+`GET /api/manager/wildkin/:id/usage` returns what that would remove:
+
+```json
+{ "encounterEntries": { "draft": 1, "published": 1 }, "capturedWildkin": 0, "registryEntries": 3, "activeSpawns": 0 }
+```
+
+`POST /api/manager/wildkin/:id/art`: if the client disconnects before the answer (the manager tab was closed or the job
+cancelled), the API aborts its PixelLab requests and saves nothing.
 
 ### `POST /api/manager/assist`
 

@@ -5,6 +5,7 @@ import { Link, NavLink, Outlet } from "react-router";
 import { Button } from "@/components/ui/button";
 import { useManagerConfig } from "@/lib/queries";
 import { cn } from "@/lib/utils";
+import { ArtJobsDock } from "./ArtJobsDock";
 import { TokenSettings } from "./TokenSettings";
 
 const NAV = [
@@ -65,6 +66,7 @@ export function AppLayout() {
       <main className="min-w-0 flex-1 overflow-y-auto">
         <Outlet />
       </main>
+      <ArtJobsDock />
     </div>
   );
 }
