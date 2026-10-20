@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { WildkinEntryInputSchema } from "@wildbound/shared";
-import { artPrompt, canAfford } from "./art.ts";
+import { artPrompt, canAfford, faceDetails, pickPose, poseOf, SPRITE_POSES } from "./art.ts";
 import { sanitizeSuggestion } from "./assistant.ts";
 import { buildLoreContext } from "./lore.ts";
 
@@ -34,13 +34,41 @@ describe("artPrompt", () => {
     visualHook: "two pale glowing eye-spots",
   });
 
-  it("builds the prompt from the physical description and visual hook", () => {
+  it("asks for the face only on icons, without body details", () => {
     const icon = artPrompt(entry, "icon");
-    expect(icon).toMatch(/Lampyra, a Glowing Moth Wildkin/);
-    expect(icon).toMatch(/dusty violet wings/);
+    expect(icon).toMatch(/^Headshot of Lampyra, a Glowing Moth Wildkin: extreme close-up of the face only/);
+    expect(icon).toMatch(/no body/);
     expect(icon).toMatch(/glowing eye-spots/);
-    expect(icon).toMatch(/portrait/);
-    expect(artPrompt(entry, "sprite", "on a leaf")).toMatch(/Full body.*on a leaf/);
+    expect(icon).not.toMatch(/wings|Full body|Pose:/);
+  });
+
+  it("asks for the whole body in a pose picked for the movement style", () => {
+    const sprite = artPrompt(entry, "sprite", "on a leaf", { random: () => 0 });
+    expect(sprite).toMatch(/^Full body of Lampyra/);
+    expect(sprite).toMatch(new RegExp(`Pose: ${SPRITE_POSES.forager[0]}\\.`));
+    expect(sprite).toMatch(/dusty violet wings/);
+    expect(sprite).toMatch(/on a leaf/);
+    expect(sprite).toMatch(/no background scenery/);
+    expect(sprite).not.toMatch(/Headshot/);
+    expect(poseOf(sprite)).toBe(SPRITE_POSES.forager[0]);
+    // Regenerating never repeats the previous pose.
+    expect(poseOf(artPrompt(entry, "sprite", undefined, { random: () => 0, previousPrompt: sprite }))).toBe(SPRITE_POSES.forager[1]);
+  });
+});
+
+describe("faceDetails", () => {
+  it("keeps head details and drops body parts", () => {
+    expect(
+      faceDetails("A small bird, smaller than a crow, with a compact rounded body, short hooked beak, dark-edged wings, a warm rust-colored breast patch, and long expressive tail feathers."),
+    ).toBe("A small bird, short hooked beak, a warm rust-colored breast patch");
+  });
+});
+
+describe("pickPose", () => {
+  it("varies with the random roll and fits the movement style", () => {
+    const poses = new Set(Array.from({ length: 9 }, (_, i) => pickPose("darter", () => i / 9)));
+    expect(poses.size).toBe(9);
+    expect(pickPose("darter", () => 0)).toBe(SPRITE_POSES.darter[0]);
   });
 });
 

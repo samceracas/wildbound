@@ -61,7 +61,39 @@ export async function listCreatures(db: Executor, opts: { includeDeleted?: boole
   );
 }
 
-export async function upsertCreatures(db: Executor, list: CreatureDefinition[]): Promise<void> {
+/**
+ * Inserts or updates the given creatures (seed data). Registry numbers are
+ * unique, and an older database can have the same species under different
+ * numbers (migration 1_players backfilled them alphabetically: Kantar = 1,
+ * Kawi = 2, …), so the listed creatures are first moved to temporary out-of-range
+ * numbers and then given their real ones, in one transaction.
+ *
+ * Throws a readable error when a number belongs to a creature or encyclopedia
+ * entry that is *not* in the list (e.g. one made in the Creature Manager).
+ */
+export async function upsertCreatures(db: Database, list: CreatureDefinition[]): Promise<void> {
+  await db.$transaction((tx) => upsertCreaturesIn(tx, list), WORLD_TX);
+}
+
+async function upsertCreaturesIn(db: Prisma.TransactionClient, list: CreatureDefinition[]): Promise<void> {
+  const ids = list.map((c) => c.id);
+  const numbers = list.map((c) => c.registryNumber);
+  const [creatureClash, entryClash] = await Promise.all([
+    db.creature.findFirst({ where: { registryNumber: { in: numbers }, id: { notIn: ids } } }),
+    db.wildkinEntry.findFirst({ where: { registryNumber: { in: numbers }, id: { notIn: ids } } }),
+  ]);
+  const clash = creatureClash ?? entryClash;
+  if (clash) {
+    const wanted = list.find((c) => c.registryNumber === clash.registryNumber)!;
+    throw new Error(
+      `Registry number ${clash.registryNumber} is needed for "${wanted.id}" but is used by "${clash.id}". ` +
+        `Give "${clash.id}" another number in the Creature Manager, then seed again.`,
+    );
+  }
+
+  // Phase 1: park the listed creatures on unique out-of-range numbers (real ones stay below 10000).
+  await db.$executeRaw`UPDATE creatures SET registry_number = registry_number + 1000000 WHERE id = ANY(${ids}::text[])`;
+  // Phase 2: write the real data.
   for (const c of list) {
     const data = {
       registryNumber: c.registryNumber,

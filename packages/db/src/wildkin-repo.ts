@@ -264,6 +264,12 @@ export async function loadWildkinArt(db: Executor, entryId: string, kind: ArtKin
   return art ? { png: art.png, createdAt: art.createdAt } : null;
 }
 
+/** The prompt the current art was generated with (null when there is none, or it was imported). */
+export async function wildkinArtPrompt(db: Executor, entryId: string, kind: ArtKind): Promise<string | null> {
+  const art = await db.wildkinArt.findUnique({ where: { entryId_kind: { entryId, kind } }, select: { prompt: true } });
+  return art?.prompt || null;
+}
+
 // ------------------------------------------------------------------ seeding
 
 /**

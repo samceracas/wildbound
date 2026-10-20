@@ -9,6 +9,7 @@ import {
   saveWildkinArt,
   softDeleteWildkin,
   updateWildkin,
+  wildkinArtPrompt,
   wildkinStats,
   WildkinRepoError,
   type DeletedFilter,
@@ -168,7 +169,8 @@ export function managerRoutes(deps: AppDeps): Router {
     const prompts: Record<string, string> = {};
     const generated: GenerateArtResponse["generated"] = [];
     for (const kind of kinds) {
-      const prompt = artPrompt(entry, kind, extraPrompt);
+      // Knowing the previous prompt lets a regenerated sprite pick a different pose.
+      const prompt = artPrompt(entry, kind, extraPrompt, { previousPrompt: await wildkinArtPrompt(db, id, kind) });
       prompts[kind] = prompt;
       const png = await artCall(() => generator.generate({ description: prompt, size: ART_SIZES[kind], kind }));
       await saveWildkinArt(db, id, kind, png, { prompt, model: generator.model }, now());

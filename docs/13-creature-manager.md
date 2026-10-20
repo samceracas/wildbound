@@ -314,17 +314,31 @@ sequenceDiagram
 | Model | PixelLab **Pixen** (`create-image-pixen`) | The cheapest image model: 1 generation per image |
 | Sizes | Icon **64 × 64**, sprite **128 × 128** (`ART_SIZES`) | Same as the hand-made art in `apps/web/public/wildkin/` |
 | Background | Transparent (`no_background`) | Markers and cards draw their own frame |
-| Style | Side view facing right (east), single-colour black outline, medium detail | Matches the existing art; the radar mirrors it when walking left |
+| Style | Icon: front view (south), face only. Sprite: side view facing right (east). Single-colour black outline, medium detail, a fresh random `seed` each time | Matches the existing art; the radar mirrors sprites when walking left |
 | Balance | Checked **before every generation**, in the dialog and again on the server | Never start a job you cannot pay for (402 `insufficient_credits`) |
 
-**The prompt** (`artPrompt` in `apps/api/src/manager/art.ts`) is built from the **saved** entry:
+**The prompt** (`artPrompt` in `apps/api/src/manager/art.ts`) is built from the **saved** entry, differently per kind:
 
 ```
-<Name>, a <Classification>. <Physical description (or identity)> Signature features: <Visual hook>.
-<Framing: icon = head-and-shoulders portrait facing right; sprite = full body, side view facing right>.
-cute but naturalistic creature, readable silhouette, clean pixel art, soft shading, game creature art.
-<Extra direction from the dialog> Design notes: <Visual design notes>
+Icon (face only):
+  Headshot of <Name>, a <Classification>: extreme close-up of the face only, cropped at the neck, eyes filling the
+  image, front view. Only the head is visible: no body, no legs, no tail.
+  Head colors and details: <face-related phrases of the physical description + visual hook>.
+  <style>, game icon. <Extra direction>
+
+Sprite (full body, varied pose):
+  Full body of <Name>, a <Classification>, side view facing right, whole creature visible, centered.
+  Pose: <random pose for the movement style>. Creature only: no background scenery, no branches, no ground, no props.
+  <Physical description> Signature features: <Visual hook>. <style>. <Extra direction> Design notes: <Visual design notes>
 ```
+
+- **Icons show the face only.** `faceDetails` keeps the phrases of the description that can describe a head
+  (colours, eyes, ears, beak, markings) and drops the ones about the body, wings, legs or tail, which otherwise pull
+  the model into drawing a half or full body.
+- **Sprites get a different pose each time.** `pickPose` picks from a pool for the species' **movement style**
+  (`SPRITE_POSES`: e.g. darter → mid-hop, poised to dart away, just landing…; skulker → crouched low, peeking out
+  cautiously…) plus a few general poses, and never the pose of the sprite being replaced. Each request also sends a
+  new random seed. Use the dialog's extra direction to ask for a specific pose.
 
 It is trimmed to 1200 characters. The prompts actually sent are shown under the art after generating, so you can see
 why a picture came out the way it did. To change the result, improve the **Appearance** section (or add extra

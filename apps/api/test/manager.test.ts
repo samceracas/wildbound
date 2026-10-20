@@ -217,7 +217,14 @@ describe("art generation", () => {
     expect(body.balanceBefore.generations).toBe(10);
     expect(body.art).toMatchObject({ icon: true, sprite: true });
     expect(art.calls.map((c) => c.size)).toEqual([64, 128]);
-    expect(art.calls[0]!.description).toMatch(/rust-colored breast/);
+    expect(art.calls[0]!.description).toMatch(/^Headshot of Kawi/);
+    expect(art.calls[1]!.description).toMatch(/^Full body of Kawi.*Pose: /);
+
+    // Regenerating the sprite picks a different pose than the stored one.
+    const again = await api("post", "/wildkin/kawi/art").send({ kinds: ["sprite"] });
+    expect(again.status).toBe(200);
+    const pose = (p: string) => p.match(/Pose: ([^.]+)\./)?.[1];
+    expect(pose(art.calls[2]!.description)).not.toBe(pose(art.calls[1]!.description));
 
     const png = await request(app).get(`/api/art/wildkin/kawi/icon.png?v=${body.art.version}`);
     expect(png.status).toBe(200);

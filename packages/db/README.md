@@ -73,6 +73,8 @@ When a schema change touches a geometry column or needs a CHECK constraint, edit
 
 Seeding and the Creature Manager: `pnpm db:seed` **upserts** the five seed creatures from `creatures.json` every time (so manager edits to *their game fields* are reset; publish again from the manager), but only **inserts missing** encyclopedia entries from `wildkin.json` and imports art from `apps/web/public/wildkin/` only where an entry has none, so authored entries and generated art are kept.
 
+Older databases can hold the seed creatures under other registry numbers (migration `1_players` numbered them alphabetically). Seeding moves them to temporary numbers and then to the canonical ones in one transaction. If a canonical number (1–5) is used by a creature or entry that is *not* seed data, seeding stops and names it: give that Wildkin another number in the Creature Manager and seed again.
+
 ## Publishing and saving
 
 - `saveDraft` replaces the whole draft in one interactive transaction, under an advisory lock shared with publishing.
