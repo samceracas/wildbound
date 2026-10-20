@@ -33,8 +33,16 @@ const parseGeo = <T>(value: string): T => JSON.parse(value) as T;
 
 // ------------------------------------------------------------------ creatures
 
-export async function listCreatures(db: Executor): Promise<CreatureDefinition[]> {
-  const rows = await db.creature.findMany({ orderBy: [{ registryNumber: "asc" }] });
+/**
+ * Game data for every species. Soft-deleted species (Creature Manager) are
+ * left out unless `includeDeleted` is set, so they never spawn or show up in
+ * the editor's pickers.
+ */
+export async function listCreatures(db: Executor, opts: { includeDeleted?: boolean } = {}): Promise<CreatureDefinition[]> {
+  const rows = await db.creature.findMany({
+    where: opts.includeDeleted ? {} : { deletedAt: null },
+    orderBy: [{ registryNumber: "asc" }],
+  });
   // Json columns come back as `unknown`; the schema restores their shape and defaults.
   return rows.map((r) =>
     CreatureDefinitionSchema.parse({
@@ -48,6 +56,7 @@ export async function listCreatures(db: Executor): Promise<CreatureDefinition[]>
       activityPattern: r.activityPattern,
       spawnModifiers: r.spawnModifiers,
       skills: r.skills,
+      movementStyle: r.movementStyle,
     }),
   );
 }
@@ -64,6 +73,7 @@ export async function upsertCreatures(db: Executor, list: CreatureDefinition[]):
       activityPattern: c.activityPattern,
       spawnModifiers: c.spawnModifiers,
       skills: c.skills,
+      movementStyle: c.movementStyle,
     };
     await db.creature.upsert({ where: { id: c.id }, create: { id: c.id, ...data }, update: data });
   }

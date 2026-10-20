@@ -1,7 +1,7 @@
 import maplibregl from "maplibre-gl";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { GAME_RULES, type SpawnView } from "@wildbound/shared";
-import { PLAYER_HEAD, wildkinIcon } from "@/lib/assets.ts";
+import { PLAYER_HEAD, wildkinArtFallback, wildkinIcon } from "@/lib/assets.ts";
 
 interface Props {
   player: { lat: number; lng: number } | null;
@@ -13,6 +13,41 @@ interface Props {
 }
 
 const RANGE_SOURCE = "interact-range";
+/** How long a marker takes to walk to a spawn's new position (polls are 10 s apart). */
+const WALK_MS = 2200;
+/** Fade in/out time for spawns that appear or wander off. */
+const FADE_MS = 350;
+
+type LngLat = { lat: number; lng: number };
+
+/** One spawn marker plus its walk animation state. */
+interface SpawnMarker {
+  marker: maplibregl.Marker;
+  /** Latest server data for this spawn (the click handler reads it). */
+  spawn: SpawnView;
+  /** Where the walk started, where it ends, and when it started (performance.now()). */
+  from: LngLat;
+  to: LngLat;
+  start: number;
+  /** Still has frames to draw (the rAF loop parks it at `to` when done). */
+  walking: boolean;
+  /** Icon mirrored (walking left; the art faces right). */
+  facingLeft: boolean;
+}
+
+const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+
+function reducedMotion(): boolean {
+  return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+}
+
+/** Where a marker is drawn at time `now`. */
+function positionAt(sm: SpawnMarker, now: number): LngLat {
+  const t = Math.min(1, Math.max(0, (now - sm.start) / WALK_MS));
+  if (t >= 1) return sm.to;
+  const k = easeInOut(t);
+  return { lat: sm.from.lat + (sm.to.lat - sm.from.lat) * k, lng: sm.from.lng + (sm.to.lng - sm.from.lng) * k };
+}
 
 /** Circle polygon (approximate) of `radiusM` around a point, for the interact range ring. */
 function circle(center: { lat: number; lng: number }, radiusM: number, steps = 48) {
@@ -40,15 +75,24 @@ function markerElement(src: string, className: string): HTMLElement {
 }
 
 /** Spawn marker: a pixel-font tag above a round icon (Stitch radar screen). */
-function spawnElement(src: string): HTMLElement {
+function spawnElement(creatureId: string): HTMLElement {
   const el = document.createElement("button");
   el.type = "button";
   el.className = "flex flex-col items-center gap-1 outline-none";
+  // Fades in once added (see the spawn effect); maplibre owns `transform`, so only opacity is animated here.
+  el.style.opacity = "0";
+  el.style.transition = `opacity ${FADE_MS}ms ease-out`;
   const tag = document.createElement("span");
   tag.dataset.role = "tag";
-  const icon = markerElement(src, "");
+  const icon = markerElement(wildkinIcon(creatureId), "");
   icon.dataset.role = "icon";
   icon.tabIndex = -1;
+  const img = icon.querySelector("img");
+  if (img) {
+    img.dataset.role = "art";
+    img.style.transition = "transform 150ms ease-out";
+    img.addEventListener("error", () => wildkinArtFallback(img, creatureId, "icon"));
+  }
   el.append(tag, icon);
   return el;
 }
@@ -84,7 +128,10 @@ export function RadarMap({ player, spawns, selectedId, onSelect, labelFor }: Pro
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const playerMarker = useRef<maplibregl.Marker | null>(null);
-  const spawnMarkers = useRef(new Map<string, maplibregl.Marker>());
+  const spawnMarkers = useRef(new Map<string, SpawnMarker>());
+  /** Markers fading out after their spawn left the list, with their removal timers. */
+  const leaving = useRef(new Map<maplibregl.Marker, number>());
+  const walkFrame = useRef<number | null>(null);
   const centered = useRef(false);
   /** Latest range ring to show, and whether the map still needs it. Survives map (re)creation. */
   const range = useRef<ReturnType<typeof circle> | null>(null);
@@ -134,6 +181,10 @@ export function RadarMap({ player, spawns, selectedId, onSelect, labelFor }: Pro
     return () => {
       syncRange.current = () => {};
       rangeDirty.current = true; // the next map needs the ring again
+      if (walkFrame.current !== null) cancelAnimationFrame(walkFrame.current);
+      walkFrame.current = null;
+      for (const timer of leaving.current.values()) clearTimeout(timer);
+      leaving.current.clear();
       m.remove();
       map.current = null;
       playerMarker.current = null;
@@ -162,34 +213,87 @@ export function RadarMap({ player, spawns, selectedId, onSelect, labelFor }: Pro
     syncRange.current();
   }, [player]);
 
-  // Spawn markers: add new, move existing, remove gone.
+  /** Advances every walking marker one frame; keeps itself scheduled while any is still moving. */
+  const walk = useCallback(() => {
+    walkFrame.current = null;
+    const now = performance.now();
+    let moving = false;
+    for (const sm of spawnMarkers.current.values()) {
+      if (!sm.walking) continue;
+      const p = positionAt(sm, now);
+      sm.marker.setLngLat([p.lng, p.lat]);
+      if (now - sm.start < WALK_MS) moving = true;
+      else sm.walking = false; // drawn exactly at `to`
+    }
+    if (moving) walkFrame.current = requestAnimationFrame(walk);
+  }, []);
+
+  // Spawn markers: fade in new, walk existing to their new position, fade out gone.
   useEffect(() => {
     const m = map.current;
     if (!m) return;
     const live = new Set(spawns.map((s) => s.id));
-    for (const [id, marker] of spawnMarkers.current) {
-      if (!live.has(id)) {
-        marker.remove();
-        spawnMarkers.current.delete(id);
-      }
+    for (const [id, sm] of spawnMarkers.current) {
+      if (live.has(id)) continue;
+      spawnMarkers.current.delete(id);
+      const el = sm.marker.getElement();
+      el.style.opacity = "0";
+      el.style.pointerEvents = "none";
+      const marker = sm.marker;
+      leaving.current.set(
+        marker,
+        window.setTimeout(() => {
+          marker.remove();
+          leaving.current.delete(marker);
+        }, FADE_MS),
+      );
     }
+    const now = performance.now();
+    const animate = !reducedMotion();
+    let startWalk = false;
     for (const s of spawns) {
-      let marker = spawnMarkers.current.get(s.id);
-      if (!marker) {
-        const el = spawnElement(wildkinIcon(s.creatureId));
+      let sm = spawnMarkers.current.get(s.id);
+      const target = { lat: s.lat, lng: s.lng };
+      if (!sm) {
+        const el = spawnElement(s.creatureId);
+        const id = s.id;
         el.addEventListener("click", (e) => {
           e.stopPropagation();
-          onSelectRef.current(s);
+          const current = spawnMarkers.current.get(id);
+          if (current) onSelectRef.current(current.spawn);
         });
-        marker = new maplibregl.Marker({ element: el }).setLngLat([s.lng, s.lat]).addTo(m);
-        spawnMarkers.current.set(s.id, marker);
+        const marker = new maplibregl.Marker({ element: el }).setLngLat([s.lng, s.lat]).addTo(m);
+        sm = { marker, spawn: s, from: target, to: target, start: now - WALK_MS, walking: false, facingLeft: false };
+        spawnMarkers.current.set(s.id, sm);
+        // Next frame, so the browser has painted opacity 0 and the transition runs.
+        requestAnimationFrame(() => {
+          el.style.opacity = "1";
+        });
+      } else if (sm.to.lat !== target.lat || sm.to.lng !== target.lng) {
+        // It wandered: walk from wherever it is drawn now (possibly mid-walk) to the new spot.
+        const here = positionAt(sm, now);
+        const dLng = target.lng - here.lng;
+        if (Math.abs(dLng) > 1e-7) sm.facingLeft = dLng < 0;
+        sm.from = here;
+        sm.to = target;
+        if (animate) {
+          sm.start = now;
+          sm.walking = true;
+          startWalk = true;
+        } else {
+          sm.start = now - WALK_MS;
+          sm.walking = false;
+          sm.marker.setLngLat([target.lng, target.lat]);
+        }
       }
-      const el = marker.getElement();
+      sm.spawn = s;
+      const el = sm.marker.getElement();
       const label = labelFor(s);
       const selected = s.id === selectedId;
       el.setAttribute("aria-label", `${label}${s.inRange ? ", in range" : ""}`);
       const tag = el.querySelector<HTMLElement>("[data-role=tag]");
       const icon = el.querySelector<HTMLElement>("[data-role=icon]");
+      const art = el.querySelector<HTMLElement>("[data-role=art]");
       if (tag) {
         tag.textContent = label;
         tag.className = [
@@ -203,8 +307,11 @@ export function RadarMap({ player, spawns, selectedId, onSelect, labelFor }: Pro
           selected ? "scale-125 border-field-gold" : s.inRange ? "border-primary-forest" : "border-white",
         ].join(" ");
       }
+      // Mirror the art itself (not the ring, which carries the selection scale) to face the walk.
+      if (art) art.style.transform = sm.facingLeft ? "scaleX(-1)" : "";
     }
-  }, [spawns, selectedId, labelFor]);
+    if (startWalk && walkFrame.current === null) walkFrame.current = requestAnimationFrame(walk);
+  }, [spawns, selectedId, labelFor, walk]);
 
   const recenter = () => {
     if (map.current && player) map.current.easeTo({ center: [player.lng, player.lat], zoom: 17 });

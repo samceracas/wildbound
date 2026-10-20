@@ -7,3 +7,4 @@ export * from "./movement.ts";
 export * from "./spawning.ts";
 export * from "./weather.ts";
 export * from "./capture.ts";
+export * from "./wandering.ts";

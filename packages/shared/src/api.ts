@@ -51,6 +51,9 @@ export const EditorWorldResponseSchema = z.object({
 });
 export type EditorWorldResponse = z.infer<typeof EditorWorldResponseSchema>;
 
+export const CreatureListResponseSchema = z.object({ creatures: z.array(CreatureDefinitionSchema) });
+export type CreatureListResponse = z.infer<typeof CreatureListResponseSchema>;
+
 export const SaveDraftResponseSchema = z.object({
   status: WorldStatusSchema,
   report: ValidationReportSchema,

@@ -79,3 +79,14 @@ export const ACTIVITY_PATTERNS = [
   "TBD",
 ] as const;
 export type ActivityPattern = (typeof ACTIVITY_PATTERNS)[number];
+
+/**
+ * How a spawned Wildkin wanders on the radar (see wanderStep in @wildbound/world).
+ * - still:   barely moves (rooted, resting, hiding)
+ * - skulker: short, cautious moves with long pauses
+ * - forager: slow meandering
+ * - roamer:  steady travel in one general direction
+ * - darter:  quick bursts with frequent stops
+ */
+export const MOVEMENT_STYLES = ["still", "skulker", "forager", "roamer", "darter"] as const;
+export type MovementStyleName = (typeof MOVEMENT_STYLES)[number];

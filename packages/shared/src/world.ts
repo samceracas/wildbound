@@ -3,6 +3,7 @@ import {
   ACTIVITY_PATTERNS,
   ENCOUNTER_WEIGHT_MAX,
   ENCOUNTER_WEIGHT_MIN,
+  MOVEMENT_STYLES,
   POI_TYPES,
   RARITIES,
   TIME_OF_DAY,
@@ -86,6 +87,8 @@ export const CreatureDefinitionSchema = z.object({
   activityPattern: ActivityPatternSchema.default("TBD"),
   spawnModifiers: SpawnModifiersSchema.default({ weather: {}, timeOfDay: {} }),
   skills: z.array(CreatureSkillSchema).max(8).default([]),
+  /** How spawns of this species wander on the radar. */
+  movementStyle: z.enum(MOVEMENT_STYLES).default("forager"),
 });
 export type CreatureDefinition = z.infer<typeof CreatureDefinitionSchema>;
 

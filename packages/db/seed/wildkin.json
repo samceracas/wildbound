@@ -1,0 +1,374 @@
+[
+  {
+    "id": "kawi",
+    "registryNumber": 1,
+    "name": "Kawi",
+    "classification": "Canopy Bird Wildkin",
+    "canonStatus": "Core identity and broad appearance ESTABLISHED; fine-grained anatomy and activity schedule PROPOSED/TBD.",
+    "identity": "A curious, compact canopy bird with dark-edged wings, a rust-colored breast, and long expressive tail feathers.",
+    "inspiration": "Small forest songbirds and other agile canopy-dwelling passerines. This is a visual/ecological reference, not a one-to-one species match.",
+    "habitat": "Forest canopy and bright woodland edges. Often heard before seen.",
+    "habitatTags": [
+      "canopy",
+      "woodland-edge",
+      "forest-edge"
+    ],
+    "habitatSummary": "Forest canopy and bright woodland edges.",
+    "diet": "Fruit, seeds, and small insects.",
+    "dietTags": [
+      "fruit",
+      "seeds",
+      "insects"
+    ],
+    "activityPattern": "diurnal",
+    "activityNotes": "TBD. Proposed: diurnal, most visibly active in the morning and late afternoon.",
+    "temperament": "Curious, alert, and quick-moving; generally investigates unfamiliar visitors from a safe distance rather than immediately fleeing.",
+    "temperamentTags": [
+      "curious",
+      "alert",
+      "quick"
+    ],
+    "rarity": "common",
+    "rarityNotes": "Common.",
+    "role": "Tutorial species for observation, first Registry entry, and first capture. Demonstrates that discovery begins with patience.",
+    "physicalDescription": "A small bird, smaller than a crow, with a compact rounded body, short hooked beak, dark-edged wings, a warm rust-colored breast patch, and long expressive tail feathers that flick when curious. The rust patch can blend into tree bark at a distance.",
+    "visualHook": "rust-colored breast and long expressive tail",
+    "visualDesignNotes": "Keep the silhouette readable at small sprite size: rounded torso, short hooked beak, and a tail that creates a distinctive gesture. Use the rust breast as the main color accent. Avoid oversized wings or a predatory silhouette. These detailed art choices are PROPOSED.",
+    "behavior": "Hops between branches, makes quick short flights, and may follow a person from branch to branch for several minutes. It tilts its head and inspects people as though the person is also an object of study.",
+    "movementStyle": "darter",
+    "ecology": "Likely contributes to seed dispersal and insect control; this ecological explanation is PROPOSED.",
+    "fieldSigns": "Chirps or rustling in the canopy; a quick silhouette crossing between branches; a small bird landing on a lower branch or fallen log. Best introduced through sound and movement before a clear portrait.",
+    "gameplayProfile": "Tutorial observation/capture species. Battle role, stats, passive, skills, and field ability are TBD; define these after shared gameplay systems stabilize.",
+    "assetNeeds": "Proposed: recognizable short call, idle head-tilt, tail-flick, hop, short-flight animation, portrait, battle sprite, and Registry icon.",
+    "openQuestions": [
+      "Exact call",
+      "Wing and tail pattern",
+      "Sex/age visual differences",
+      "Activity hours",
+      "Battle role and field ability"
+    ],
+    "spawnModifiers": {
+      "timeOfDay": {
+        "dawn": 1.3,
+        "day": 1.5,
+        "dusk": 1,
+        "night": 0.1
+      },
+      "weather": {
+        "clear": 1.2,
+        "cloudy": 1,
+        "rain": 0.5,
+        "storm": 0,
+        "fog": 0.7
+      }
+    },
+    "skills": [
+      {
+        "name": "Branch Hop",
+        "description": "Darts to a new perch, briefly raising its Speed.",
+        "canon": "proposed"
+      },
+      {
+        "name": "Curious Tilt",
+        "description": "Studies the opponent, revealing its next move.",
+        "canon": "proposed"
+      }
+    ]
+  },
+  {
+    "id": "mimu",
+    "registryNumber": 2,
+    "name": "Mimu",
+    "classification": "Forest Mouse Wildkin",
+    "canonStatus": "Broad anatomy, coloration, diet, and cautious temperament ESTABLISHED; detailed markings and active hours PROPOSED/TBD.",
+    "identity": "A cautious, elongated forest mouse whose muted green-brown coloration blends into leaf litter and moss.",
+    "inspiration": "Forest mice and other small rodents adapted to leaf litter and mossy ground.",
+    "habitat": "Forest floor, leaf litter, moss, roots, fallen timber, and sheltered undergrowth.",
+    "habitatTags": [
+      "forest-floor",
+      "leaf-litter",
+      "moss"
+    ],
+    "habitatSummary": "Leaf litter, moss, roots and sheltered undergrowth.",
+    "diet": "Small berries, fallen seeds, insects, and other tiny organisms.",
+    "dietTags": [
+      "berries",
+      "seeds",
+      "insects",
+      "tiny organisms"
+    ],
+    "activityPattern": "crepuscular",
+    "activityNotes": "TBD. Proposed: crepuscular, with brief periods of activity around dawn and dusk.",
+    "temperament": "Cautious but not especially aggressive.",
+    "temperamentTags": [
+      "cautious"
+    ],
+    "rarity": "common",
+    "rarityNotes": "TBD; treat as a common local species for opening design unless revised.",
+    "role": "A small, approachable species that makes the forest floor feel alive and rewards careful observation.",
+    "physicalDescription": "Resembles a small forest mouse but has a longer body, rounded ears, and subtle green-brown coloration that helps it disappear into leaf litter and moss.",
+    "visualHook": "elongated body with muted green-brown camouflage",
+    "visualDesignNotes": "Use a low, elongated silhouette, rounded ears, small feet, and a restrained moss/earth palette. The creature should be visible when moving but camouflaged when still. Keep the face gentle and alert rather than cartoonishly fierce. These detailed art choices are PROPOSED.",
+    "behavior": "Moves close to the ground and slips between leaves, roots, and small gaps. It pauses often, listening before crossing open patches. When startled, it retreats to cover. Specific movement details beyond cautious behavior are PROPOSED.",
+    "movementStyle": "skulker",
+    "ecology": "Likely acts as both seed/insect consumer and prey for larger forest species; PROPOSED.",
+    "fieldSigns": "Leaf litter shifting, tiny tracks in soft soil, a berry or seed being carried, or a quick movement beside a root. Observation should reward patience.",
+    "gameplayProfile": "Battle role, stats, passive, skills, and field ability are TBD. Do not add bespoke mechanics just to distinguish Mimu.",
+    "assetNeeds": "Proposed: leaf-rustle cue, sniff/listen idle, quick retreat, portrait, battle sprite, and Registry icon.",
+    "openQuestions": [
+      "Tail length and shape",
+      "Exact face markings",
+      "Burrow/nest behavior",
+      "Activity hours",
+      "Signature ability and battle role"
+    ],
+    "spawnModifiers": {
+      "timeOfDay": {
+        "dawn": 2,
+        "day": 0.5,
+        "dusk": 2,
+        "night": 1
+      },
+      "weather": {
+        "clear": 1,
+        "cloudy": 1.2,
+        "rain": 0.8,
+        "storm": 0.2,
+        "fog": 1.3
+      }
+    },
+    "skills": [
+      {
+        "name": "Leaf Litter Hide",
+        "description": "Vanishes into cover, raising its Defense.",
+        "canon": "proposed"
+      },
+      {
+        "name": "Seed Cache",
+        "description": "Eats a stored seed to restore a little HP.",
+        "canon": "proposed"
+      }
+    ]
+  },
+  {
+    "id": "lumae",
+    "registryNumber": 3,
+    "name": "Lumae",
+    "classification": "Plant-Associated Wildkin",
+    "canonStatus": "Four-legged form, leaf-like body, flower-like dorsal growth, sunny-clearing preference, and vegetation-indicator role ESTABLISHED.",
+    "identity": "A small four-legged Wildkin with a leaf-like body and a flower-like growth along its back.",
+    "inspiration": "A deliberate fantasy blend rather than a single confirmed animal. Possible references include small browsing mammals such as hares or muntjac combined with plant mimicry. Exact blend TBD.",
+    "habitat": "Sunny clearings where flowering plants are healthy; associated with vegetation conditions.",
+    "habitatTags": [
+      "clearing",
+      "flowering",
+      "sunny"
+    ],
+    "habitatSummary": "Sunny clearings with healthy flowering plants.",
+    "diet": "TBD. Do not assume it eats flowers simply because it is plant-associated.",
+    "dietTags": [],
+    "activityPattern": "diurnal",
+    "activityNotes": "TBD. Proposed: diurnal, especially active in warm, bright periods.",
+    "temperament": "TBD; current story presentation is calm and non-threatening.",
+    "temperamentTags": [
+      "calm",
+      "non-threatening"
+    ],
+    "rarity": "TBD",
+    "rarityNotes": "TBD.",
+    "role": "A living ecological indicator. Its presence, condition, or absence can lead the player to inspect plants and soil.",
+    "physicalDescription": "A small four-legged Wildkin with a leaf-like body and a flower-like growth along its back. The dorsal flower opens and closes as it moves. It is most at home among flowering plants in sunny clearings.",
+    "visualHook": "flower-like dorsal growth that opens and closes",
+    "visualDesignNotes": "The body should read as an animal first, not a potted plant: four clear legs, a small head, and a smooth leaf-inspired back line. The flower growth is the signature silhouette. Give the flower a simple open/closed state that can be reused for idle animation and condition feedback. Details are PROPOSED.",
+    "behavior": "Moves between flowers and pauses beside healthy blossoms. It may respond subtly to environmental conditions, but any direct sensing ability remains PROPOSED.",
+    "movementStyle": "forager",
+    "ecology": "Its population is a visible indicator of a functioning clearing. An unusual absence is a clue to investigate vegetation and soil, not definitive proof of a single cause.",
+    "fieldSigns": "A flower-like shape moving among blossoms; a dorsal bloom opening and closing; a healthy patch of flowers with a Lumae nearby. Use it to teach comparison between healthy plants and a nearby dry or damaged patch.",
+    "gameplayProfile": "Ecological observation role established. Battle role, stats, passive, skills, and field ability are TBD.",
+    "assetNeeds": "Proposed: simple petal-open/close animation, gentle movement, portrait, battle sprite, and Registry icon.",
+    "openQuestions": [
+      "Animal base silhouette",
+      "Flower species/shape",
+      "Body palette",
+      "Diet",
+      "Symbiotic relationship with plants",
+      "Battle role",
+      "Field ability"
+    ],
+    "spawnModifiers": {
+      "timeOfDay": {
+        "dawn": 0.8,
+        "day": 1.6,
+        "dusk": 0.6,
+        "night": 0
+      },
+      "weather": {
+        "clear": 1.5,
+        "cloudy": 0.8,
+        "rain": 0.3,
+        "storm": 0,
+        "fog": 0.5
+      }
+    },
+    "skills": [
+      {
+        "name": "Bloom",
+        "description": "Opens its dorsal flower, healing itself over time.",
+        "canon": "proposed"
+      },
+      {
+        "name": "Petal Veil",
+        "description": "Shields itself with a ring of petals.",
+        "canon": "proposed"
+      }
+    ]
+  },
+  {
+    "id": "kantar",
+    "registryNumber": 4,
+    "name": "Kantar",
+    "classification": "Centipede-Like Wildkin",
+    "canonStatus": "Segmented body, many legs, coloration range, sheltering behavior, diet, size variation, and defensive retreat response ESTABLISHED.",
+    "identity": "A segmented, many-legged Wildkin with dark armored plates and pale markings, usually found under sheltered surfaces.",
+    "inspiration": "Centipedes, particularly the segmented body plan and many-legged movement. Avoid copying a real species exactly.",
+    "habitat": "Beneath rocks, fallen branches, and sheltered surfaces; damp forest areas; larger individuals deeper in mature woodland.",
+    "habitatTags": [
+      "rocky",
+      "fallen-branches",
+      "sheltered"
+    ],
+    "habitatSummary": "Under rocks, fallen branches and damp forest floor.",
+    "diet": "Insects and other small creatures.",
+    "dietTags": [
+      "insects",
+      "small creatures"
+    ],
+    "activityPattern": "sheltering_by_day",
+    "activityNotes": "Hides beneath stones during the day and emerges to feed. Exact active hours TBD; proposed mostly nocturnal or dusk-active.",
+    "temperament": "Defensive when surprised, but generally prefers to retreat.",
+    "temperamentTags": [
+      "defensive",
+      "retreating"
+    ],
+    "rarity": "common",
+    "rarityNotes": "Small individuals are common in damp forest areas; larger individuals are found deeper in mature woodland.",
+    "role": "Supports environmental interaction: players investigate beneath rocks or respond to faint clicks and movement. Reinforces replacing disturbed cover carefully.",
+    "physicalDescription": "A long Wildkin with many armored body segments, each carrying a pair of short legs. Color ranges from dark brown to almost black, with pale markings along the sides. A pair of bright eyes sits near the front of the armored body.",
+    "visualHook": "dark armored segments with pale side markings",
+    "visualDesignNotes": "Keep the body segmented and low to the ground, with short legs and a strong dark silhouette. Pale side markings should remain readable in small art. Avoid making every individual huge or overtly monstrous; size variation is part of the species identity.",
+    "behavior": "Slips rapidly under rocks or fallen branches when disturbed. It may pause and re-emerge from another side once the observer backs away. It should be portrayed as defensive rather than malicious.",
+    "movementStyle": "skulker",
+    "ecology": "Predator of small invertebrates and other tiny creatures.",
+    "fieldSigns": "Faint clicking, movement beneath a stone, a disturbed leaf edge, or a long segmented shape disappearing into a crack. When inspecting cover, the researcher should restore the rock carefully.",
+    "gameplayProfile": "Environmental inspection species. Battle role, stats, passive, skills, and field ability are TBD.",
+    "assetNeeds": "Proposed: faint clicking cue, rapid retreat animation, several body-length variants if feasible, portrait, battle sprite, and Registry icon.",
+    "openQuestions": [
+      "Exact segment count",
+      "Whether pale markings glow or simply reflect light",
+      "Toxin status (recommend no special real-world hazard implication)",
+      "Battle role",
+      "Field ability"
+    ],
+    "spawnModifiers": {
+      "timeOfDay": {
+        "dawn": 0.8,
+        "day": 0.3,
+        "dusk": 1.5,
+        "night": 2
+      },
+      "weather": {
+        "clear": 0.8,
+        "cloudy": 1,
+        "rain": 1.4,
+        "storm": 0.6,
+        "fog": 1.2
+      }
+    },
+    "skills": [
+      {
+        "name": "Plate Curl",
+        "description": "Curls its armored segments, sharply raising Defense.",
+        "canon": "proposed"
+      },
+      {
+        "name": "Quick Retreat",
+        "description": "Slips under cover and re-emerges with a counter.",
+        "canon": "proposed"
+      }
+    ]
+  },
+  {
+    "id": "riverkin",
+    "registryNumber": 5,
+    "name": "Riverkin",
+    "classification": "Freshwater Wildkin",
+    "canonStatus": "Compact body, smooth shimmering coat/body, strong swimming tail, freshwater habitat preferences, and displaced-sighting story function ESTABLISHED.",
+    "identity": "A compact freshwater Wildkin with a thick body, short legs, a subtly shimmering surface, and a powerful swimming tail.",
+    "inspiration": "TBD. Potential reference blend: small semi-aquatic mammals, aquatic salamanders, and freshwater fish. Choose one dominant silhouette reference before final art to avoid an incoherent hybrid.",
+    "habitat": "Flowing water, shaded banks, and deeper pools; historically concentrated along Silayan Creek.",
+    "habitatTags": [
+      "freshwater",
+      "creek",
+      "riparian"
+    ],
+    "habitatSummary": "Flowing water, shaded banks and deeper pools.",
+    "diet": "TBD. Small aquatic invertebrates are one plausible option, not canon.",
+    "dietTags": [],
+    "activityPattern": "crepuscular",
+    "activityNotes": "TBD. Proposed: most visible around dawn/dusk or during cooler shaded periods.",
+    "temperament": "Not inherently hostile. The displaced Riverkin in the opening appears tired, not obviously injured.",
+    "temperamentTags": [
+      "not hostile"
+    ],
+    "rarity": "TBD",
+    "rarityNotes": "Not inherently rare in Mabunyi; survival depends heavily on continuous freshwater habitat.",
+    "role": "The inciting habitat-mismatch case. Its presence away from water tells Sam to investigate why it left, rather than immediately relocate it.",
+    "physicalDescription": "A compact, thick-bodied creature with short legs, a smooth coat or skin that shimmers faintly in the light, and a strong swimming tail. The displaced individual appears tired but not visibly injured.",
+    "visualHook": "subtly shimmering surface and powerful swimming tail",
+    "visualDesignNotes": "Choose one clear body plan: a semi-aquatic quadruped with a powerful tail, or a more amphibious streamlined body. Keep the shimmering quality subtle so it reads as wet skin/fur catching light rather than magical glitter. The silhouette should communicate swimming power.",
+    "behavior": "A strong swimmer that prefers shaded banks and deeper pools. When displaced, it may move over land toward the creek, appearing tired or uncertain. Do not assume the cause of displacement before evidence is gathered.",
+    "movementStyle": "roamer",
+    "ecology": "A freshwater-dependent species whose survival relies on continuous usable aquatic habitat. It can act as a visible indicator of waterway disruption.",
+    "fieldSigns": "Ripples in a shaded pool, a smooth glint beneath the water, tracks or a damp trail away from the bank, or a sighting on a forest trail where it would not normally be found. The first displaced encounter is an investigation, not a standard catch-first encounter.",
+    "gameplayProfile": "Story/investigation role established. Battle role, stats, passive, skills, and field ability are TBD.",
+    "assetNeeds": "Proposed: water-entry/exit motion, subtle wet-surface highlights, swimming loop, portrait, battle sprite, and Registry icon.",
+    "openQuestions": [
+      "Dominant silhouette reference",
+      "Body covering (fur, smooth skin, or both)",
+      "Gill/ear details",
+      "Diet",
+      "Exact size",
+      "Activity hours",
+      "Out-of-water survival",
+      "Battle role",
+      "Field ability"
+    ],
+    "spawnModifiers": {
+      "timeOfDay": {
+        "dawn": 1.8,
+        "day": 0.8,
+        "dusk": 1.8,
+        "night": 0.6
+      },
+      "weather": {
+        "clear": 0.9,
+        "cloudy": 1.1,
+        "rain": 1.5,
+        "storm": 1.2,
+        "fog": 1.2
+      }
+    },
+    "skills": [
+      {
+        "name": "Tail Surge",
+        "description": "A powerful tail-driven lunge.",
+        "canon": "proposed"
+      },
+      {
+        "name": "Cool Shade",
+        "description": "Rests in shade, cleansing one ailment.",
+        "canon": "proposed"
+      }
+    ]
+  }
+]

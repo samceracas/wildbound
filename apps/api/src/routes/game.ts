@@ -69,7 +69,7 @@ export function gameRoutes(deps: AppDeps): Router {
       db.spawn.update({ where: { id: spawn.id }, data: { observedAt: spawn.observedAt ?? now } }),
     ]);
 
-    const creature = (await listCreatures(db)).find((c) => c.id === spawn.creatureId)!;
+    const creature = (await listCreatures(db, { includeDeleted: true })).find((c) => c.id === spawn.creatureId)!;
     res.json({ entry: registryView(creature, entry), firstObservation: previous === null } satisfies ObserveResponse);
   });
 
@@ -107,11 +107,19 @@ export function gameRoutes(deps: AppDeps): Router {
     throw notImplemented("Capture");
   });
 
-  /** Every species, with fields unlocked according to the player's progress. */
+  /**
+   * Every species, with fields unlocked according to the player's progress.
+   * Species deleted in the Creature Manager stay listed only for players who already met them.
+   */
   router.get("/registry", async (_req, res) => {
     const playerId = res.locals.player.id;
-    const [creatures, entries] = await Promise.all([listCreatures(db), db.registryEntry.findMany({ where: { playerId } })]);
+    const [all, entries] = await Promise.all([
+      listCreatures(db, { includeDeleted: true }),
+      db.registryEntry.findMany({ where: { playerId } }),
+    ]);
     const byCreature = new Map(entries.map((e) => [e.creatureId, e]));
+    const live = new Set((await listCreatures(db)).map((c) => c.id));
+    const creatures = all.filter((c) => live.has(c.id) || byCreature.has(c.id));
     const views = creatures.map((c) => registryView(c, byCreature.get(c.id) ?? null));
     res.json({
       entries: views,
@@ -133,7 +141,7 @@ export function gameRoutes(deps: AppDeps): Router {
   router.get("/party", async (_req, res) => {
     const [rows, creatures] = await Promise.all([
       db.capturedWildkin.findMany({ where: { playerId: res.locals.player.id }, orderBy: { capturedAt: "asc" } }),
-      listCreatures(db),
+      listCreatures(db, { includeDeleted: true }),
     ]);
     const species = new Map(creatures.map((c) => [c.id, c]));
     const view = (r: (typeof rows)[number]): CapturedWildkinView => ({

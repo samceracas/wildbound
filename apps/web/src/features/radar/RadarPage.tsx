@@ -1,9 +1,10 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { GAME_RULES, type GameStateResponse, type SpawnView } from "@wildbound/shared";
 import { ConsoleButton } from "@/components/layout/Shell.tsx";
 import { ApiError } from "@/lib/api.ts";
-import { registryNo, wildkinIcon } from "@/lib/assets.ts";
+import { WildkinImage } from "@/components/WildkinImage.tsx";
+import { registryNo } from "@/lib/assets.ts";
 import { useCapture, useGameState, useObserve, useRegistry } from "@/lib/queries.ts";
 import { cn } from "@/lib/utils";
 import { useLocation, type Fix } from "../location/LocationProvider.tsx";
@@ -15,9 +16,32 @@ export function RadarPage() {
   const state = useGameState(status === "active");
   const registry = useRegistry();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** Short message over the map, e.g. when the selected Wildkin wanders off. */
+  const [notice, setNotice] = useState<string | null>(null);
+  /** Why a spawn will leave the list (capture result), so its exit is not reported as wandering off. */
+  const outcomes = useRef(new Map<string, string>());
 
   const spawns = state.data?.spawns ?? [];
   const selected = spawns.find((s) => s.id === selectedId) ?? null;
+
+  // Spawns wander server-side and despawn past the spawn radius: drop a selection
+  // whose spawn is gone instead of leaving a stale sheet open.
+  useEffect(() => {
+    const data = state.data;
+    if (!selectedId || !data || data.spawns.some((s) => s.id === selectedId)) return;
+    setSelectedId(null);
+    const outcome = outcomes.current.get(selectedId);
+    outcomes.current.delete(selectedId);
+    // With no usable position every spawn vanishes at once; the status line explains that.
+    if (outcome) setNotice(outcome);
+    else if (data.environment) setNotice("It wandered off.");
+  }, [selectedId, state.data]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 3500);
+    return () => clearTimeout(timer);
+  }, [notice]);
   // Show where the SERVER thinks you are; fall back to the raw fix until the first answer.
   const player = state.data?.position ?? fix;
 
@@ -54,10 +78,28 @@ export function RadarPage() {
             player={player}
             spawns={spawns}
             selectedId={selectedId}
-            onSelect={(s) => setSelectedId(s.id)}
+            onSelect={(s) => {
+              setSelectedId(s.id);
+              setNotice(null);
+            }}
             labelFor={labelFor}
           />
-          {selected && <SpawnSheet spawn={selected} name={labelFor(selected)} onClose={() => setSelectedId(null)} />}
+          {selected && (
+            <SpawnSheet
+              spawn={selected}
+              name={labelFor(selected)}
+              onClose={() => setSelectedId(null)}
+              onOutcome={(id, message) => outcomes.current.set(id, message)}
+            />
+          )}
+          {!selected && notice && (
+            <p
+              role="status"
+              className="absolute inset-x-2 bottom-2 z-20 rounded-md border-4 border-[#143224] bg-[#f8fbf4] px-3 py-2 font-vt text-lg leading-5 text-lcd-ink shadow-[3px_3px_0_#27533c]"
+            >
+              {notice}
+            </p>
+          )}
         </div>
 
         <div className="z-20 flex items-center justify-between gap-3 border-t border-ink/10 bg-screen-panel px-3 py-1.5">
@@ -104,7 +146,18 @@ function radarStatus(state: { isPending: boolean; error: Error | null; data?: Ga
 }
 
 /** Dialogue panel for one spawn: Observe and Capture. */
-function SpawnSheet({ spawn, name, onClose }: { spawn: SpawnView; name: string; onClose: () => void }) {
+function SpawnSheet({
+  spawn,
+  name,
+  onClose,
+  onOutcome,
+}: {
+  spawn: SpawnView;
+  name: string;
+  onClose: () => void;
+  /** Called when a capture attempt removes the spawn, with the message to show once it is gone. */
+  onOutcome: (spawnId: string, message: string) => void;
+}) {
   const registry = useRegistry();
   const observe = useObserve();
   const capture = useCapture();
@@ -125,7 +178,7 @@ function SpawnSheet({ spawn, name, onClose }: { spawn: SpawnView; name: string; 
       <div className="flex items-start gap-3">
         <div className="relative flex size-16 shrink-0 items-center justify-center rounded border-2 border-[#867c64] bg-screen-inset">
           <span aria-hidden className="absolute size-12 rounded-full bg-success/20" />
-          <img src={wildkinIcon(spawn.creatureId)} alt="" className={cn("pixelated relative size-14", !known && "silhouette")} />
+          <WildkinImage creatureId={spawn.creatureId} className={cn("pixelated relative size-14", !known && "silhouette")} />
         </div>
         <div className="min-w-0 flex-1">
           <p className="font-pixel text-[8px] text-ink-muted">{registryNo(spawn.registryNumber)}</p>
@@ -172,7 +225,19 @@ function SpawnSheet({ spawn, name, onClose }: { spawn: SpawnView; name: string; 
         <ConsoleButton face="X" className="px-3 py-2.5" disabled={!spawn.inRange || busy} onClick={() => observe.mutate(spawn.id)}>
           Observe
         </ConsoleButton>
-        <ConsoleButton face="A" className="px-3 py-2.5" disabled={!spawn.inRange || busy} onClick={() => capture.mutate(spawn.id)}>
+        <ConsoleButton
+          face="A"
+          className="px-3 py-2.5"
+          disabled={!spawn.inRange || busy}
+          onClick={() =>
+            capture.mutate(spawn.id, {
+              onSuccess: (r) => {
+                if (r.success) onOutcome(spawn.id, `Captured! ${r.capsulesLeft} capsules left.`);
+                else if (r.fled) onOutcome(spawn.id, `It slipped away. ${r.capsulesLeft} capsules left.`);
+              },
+            })
+          }
+        >
           Capture
         </ConsoleButton>
       </div>

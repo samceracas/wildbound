@@ -45,7 +45,11 @@ model Creature {
   spawnModifiers   Json     @default("{}") @map("spawn_modifiers")
   /// Unlocked only after a capture. See CreatureSkillSchema in @wildbound/shared.
   skills           Json     @default("[]")
+  /// How spawns wander on the radar. See MOVEMENT_STYLES in @wildbound/shared.
+  movementStyle    String   @default("forager") @map("movement_style")
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// Soft delete (Creature Manager). Deleted species never spawn and are hidden from the editor.
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(6)
 
   encounterEntries EncounterEntry[]
   spawns           Spawn[]
@@ -53,6 +57,53 @@ model Creature {
   captured         CapturedWildkin[]
 
   @@map("creatures")
+}
+
+// ------------------------------------------------------------------ encyclopedia (Creature Manager)
+
+enum WildkinEntryStatus {
+  draft
+  published
+
+  @@map("wildkin_entry_status")
+}
+
+/// Wildkin Bible entry for one species, authored in the Creature Manager.
+/// Publishing copies the game fields into `creatures` (same id).
+/// Prose lives in `content` (validated by WildkinEntryInputSchema in @wildbound/shared).
+model WildkinEntry {
+  /// Canonical ID; equals creatures.id once published.
+  id             String             @id
+  registryNumber Int                @unique @map("registry_number")
+  name           String
+  status         WildkinEntryStatus @default(draft)
+  /// Every other WildkinEntryInput field (prose, tags, modifiers, skills…).
+  content        Json               @default("{}")
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
+  publishedAt    DateTime?          @map("published_at") @db.Timestamptz(6)
+  deletedAt      DateTime?          @map("deleted_at") @db.Timestamptz(6)
+
+  art WildkinArt[]
+
+  @@map("wildkin_entries")
+}
+
+/// Generated (or imported) pixel art per entry. Served at /api/art/wildkin/:id/:kind.png.
+model WildkinArt {
+  entryId   String   @map("entry_id")
+  /// "icon" (64px) or "sprite" (128px).
+  kind      String
+  png       Bytes
+  /// Prompt sent to PixelLab, or "imported" for hand-placed art.
+  prompt    String   @default("")
+  model     String   @default("")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  entry WildkinEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@id([entryId, kind])
+  @@map("wildkin_art")
 }
 
 // ------------------------------------------------------------------ world (draft + published)
@@ -248,6 +299,10 @@ model Spawn {
   weather    String
   status     SpawnStatus @default(active)
   observedAt DateTime?   @map("observed_at") @db.Timestamptz(6)
+  /// Direction of travel in radians (wandering); null until the first move.
+  heading    Float?
+  /// Last time the server advanced this spawn's wandering.
+  movedAt    DateTime    @default(now()) @map("moved_at") @db.Timestamptz(6)
   createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   expiresAt  DateTime    @map("expires_at") @db.Timestamptz(6)
 

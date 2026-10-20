@@ -19,7 +19,7 @@ export async function resetTestData(handle: DbHandle): Promise<void> {
   await handle.db.$executeRawUnsafe(
     `TRUNCATE encounter_entries, encounter_tables, points_of_interest, habitats, world_regions, world_meta, publications,
       players, player_sessions, player_positions, spawns, registry_entries, inventory_items, captured_wildkin,
-      creatures RESTART IDENTITY CASCADE`,
+      wildkin_art, wildkin_entries, creatures RESTART IDENTITY CASCADE`,
   );
   await upsertCreatures(handle.db, seedCreatures());
 }

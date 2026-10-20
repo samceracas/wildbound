@@ -2,6 +2,7 @@ import { Router } from "express";
 import { getWorldStatus, listCreatures, loadWorld, publishDraft, saveDraft } from "@wildbound/db";
 import {
   ResolveQuerySchema,
+  type CreatureListResponse,
   type EditorWorldResponse,
   type PublishResponse,
   type PublishedWorldResponse,
@@ -22,12 +23,26 @@ export function editorRoutes({ db, config }: AppDeps): Router {
   const router = Router();
   router.use(requireEditor(config.editorToken));
 
+  /** Species that can be used in encounter tables (soft-deleted ones are left out). */
   const creatureIds = async () => new Set((await listCreatures(db)).map((c) => c.id));
+  /**
+   * Saving only needs structural integrity, so a draft that still lists a species
+   * deleted in the Creature Manager can be saved; validation then reports it.
+   */
+  const knownCreatureIds = async () => new Set((await listCreatures(db, { includeDeleted: true })).map((c) => c.id));
 
   /** Full editable draft plus reference data. */
   router.get("/world", async (_req, res) => {
     const [draft, creatures, status] = await Promise.all([loadWorld(db, "draft"), listCreatures(db), getWorldStatus(db)]);
     res.json({ draft, creatures, status } satisfies EditorWorldResponse);
+  });
+
+  /**
+   * Creature catalog only (non-deleted). The editor refetches it on window focus,
+   * so species published in the Creature Manager show up without a reload.
+   */
+  router.get("/creatures", async (_req, res) => {
+    res.json({ creatures: await listCreatures(db) } satisfies CreatureListResponse);
   });
 
   /** Read-only view of what players currently get (active regions only). */
@@ -65,12 +80,11 @@ export function editorRoutes({ db, config }: AppDeps): Router {
     const { doc, issues } = schemaIssues(req.body);
     if (!doc) throw new HttpError(400, "invalid_world", "World document is malformed", issues);
 
-    const ids = await creatureIds();
-    const integrity = checkIntegrity(doc, ids);
+    const integrity = checkIntegrity(doc, await knownCreatureIds());
     if (integrity.length > 0) throw new HttpError(400, "invalid_world", "World document has integrity errors", integrity);
 
     await saveDraft(db, doc);
-    res.json({ status: await getWorldStatus(db), report: validateWorld(doc, ids) } satisfies SaveDraftResponse);
+    res.json({ status: await getWorldStatus(db), report: validateWorld(doc, await creatureIds()) } satisfies SaveDraftResponse);
   });
 
   /** Validates a posted document (e.g. unsaved editor state) without saving. */

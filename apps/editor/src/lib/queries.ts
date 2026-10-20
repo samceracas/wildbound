@@ -20,6 +20,8 @@ export const editorKeys = {
   all: ["editor"] as const,
   /** Saved draft + creatures + publish status (GET /api/editor/world). */
   world: ["editor", "world"] as const,
+  /** Creature catalog (GET /api/editor/creatures), refreshed on window focus. */
+  creatures: ["editor", "creatures"] as const,
   /** Last validation report (from Validate, Save or Publish). Written by mutations, never fetched. */
   report: ["editor", "report"] as const,
   resolveAll: ["editor", "resolve"] as const,
@@ -45,9 +47,22 @@ export function useWorldQuery() {
   return useQuery(worldQueryOptions);
 }
 
-/** Creature catalog (for encounter tables and the preview's spawn modifiers). */
+/**
+ * Creature catalog (for encounter tables and the preview's spawn modifiers).
+ * Read from the database and refetched when the window regains focus, so
+ * Wildkin published (or deleted) in the Creature Manager appear here without
+ * reloading the editor. Falls back to the catalog loaded with the world.
+ */
 export function useCreatures() {
-  return useQuery({ ...worldQueryOptions, select: (d) => d.creatures }).data ?? [];
+  const fromWorld = useQuery({ ...worldQueryOptions, select: (d) => d.creatures }).data;
+  const live = useQuery({
+    queryKey: editorKeys.creatures,
+    queryFn: api.creatures,
+    select: (d) => d.creatures,
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
+  }).data;
+  return live ?? fromWorld ?? [];
 }
 
 export function useWorldStatus(): WorldStatus | null {
@@ -111,6 +126,7 @@ export function useSaveDraft() {
       patchStatus(qc, () => res.status);
       // The server's draft changed: refresh it, and any draft-stage Test results.
       void qc.invalidateQueries({ queryKey: editorKeys.world });
+      void qc.invalidateQueries({ queryKey: editorKeys.creatures });
       void qc.invalidateQueries({ queryKey: editorKeys.resolveAll });
       const errors = res.report.issues.filter((i) => i.severity === "error").length;
       useEditor
@@ -156,6 +172,7 @@ export function usePublish() {
       setReport(qc, res.report);
       patchStatus(qc, (s) => ({ ...s, lastPublishedAt: res.publishedAt, publishedVersion: res.version, hasUnpublishedChanges: false }));
       void qc.invalidateQueries({ queryKey: editorKeys.world });
+      void qc.invalidateQueries({ queryKey: editorKeys.creatures });
       void qc.invalidateQueries({ queryKey: editorKeys.resolveAll });
       useEditor.getState().notify("success", `Published version ${res.version}.`);
     },
