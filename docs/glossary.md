@@ -14,7 +14,7 @@ the software.
 | **Canon** | game | Officially decided facts about the world. Marked ESTABLISHED, PROPOSED or TBD in the Wildkin Bible |
 | **Capture** | game | Catching a Wildkin with a Field Capsule. Unlocks rarity, activity and skills; adds it to your Party (exercise #3) |
 | **Conditions / condition rules** | game | Time-of-day and weather lists on habitats, tables and entries. Empty = any |
-| **CORS** | tech | Browser rule controlling which websites may call an API. The editor and manager need it; the game avoids it via the proxy |
+| **CORS** | tech | Browser rule controlling which websites may call an API. The editor needs it; the game and the Creature Manager avoid it via their Vite proxies |
 | **Creature** | tech | A species' **game data** (`creatures` table): what the editor, spawning and the Registry use. Written by Publish in the Creature Manager (or the seed) |
 | **Creature Manager** | tech | The app (`apps/manager`, port 5175) for writing, publishing and illustrating Wildkin. See [13](13-creature-manager.md) |
 | **Draft** | tech | The work-in-progress copy of the world (Map Editor), or a Wildkin entry not yet published (Creature Manager). Players never see drafts |

@@ -219,7 +219,7 @@ or rules changed.
 | `DATABASE_URL_TEST must differ from DATABASE_URL` | Point the test URL at `wildbound_test` |
 | Editor shows a token prompt | `VITE_EDITOR_TOKEN` ≠ `EDITOR_TOKEN`; fix `.env` and restart Vite (or type the token) |
 | "Cannot reach the API" | `pnpm dev:api`; check `VITE_API_URL` (editor) or `API_PROXY_TARGET` (game) |
-| CORS error in the editor or manager | Add the origin to `CORS_ORIGINS`, restart the API |
+| CORS error in the editor | Add the origin to `CORS_ORIGINS`, restart the API (the game and manager use a Vite proxy) |
 | Manager: "AI assist is off" / "Art generation is off" | Set `GROQ_API_KEY` / `PIXELLAB_API_KEY` and restart the API. More in [13 · Troubleshooting](13-creature-manager.md#troubleshooting) |
 | Manager: "Groq returned 429" or "413" | Groq rate/token limit (free tier): wait, lower `LORE_MAX_CHARS`, or use a smaller `GROQ_MODEL` |
 | Editor map shows labels but no polygons | The Streets style failed to load (offline). Switch basemap to OSM or Satellite |

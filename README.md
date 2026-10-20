@@ -190,7 +190,7 @@ The Creature Manager's AI helpers are optional: add `GROQ_API_KEY` (free key at 
 
 If the Docker volume was created before `docker/initdb` existed, create the test database once: `docker exec -it wildbound-db createdb -U postgres wildbound_test`.
 
-**Upgrading from v0.1.0?** Run `pnpm install`, `pnpm db:migrate` (adds migration `2_wildkin_manager`) and `pnpm db:seed` (creates the five encyclopedia entries and imports their art; your world draft is kept). Add the new `.env` keys from `.env.example` (`CORS_ORIGINS` now includes `:5175`).
+**Upgrading from v0.1.0?** Run `pnpm install`, `pnpm db:migrate` (adds migration `2_wildkin_manager`) and `pnpm db:seed` (creates the five encyclopedia entries and imports their art; your world draft is kept). Add the new `.env` keys from `.env.example` (the manager reaches the API through its Vite proxy, so `CORS_ORIGINS` needs no change).
 
 **Upgrading from the Drizzle version?** Just run `pnpm db:migrate`. A database created by the old Drizzle migrations is detected and baselined (its world tables match the first Prisma migration), so your authored draft is kept. Then `pnpm db:seed` refreshes the Wildkin with their new Registry fields.
 
@@ -204,7 +204,7 @@ If the Docker volume was created before `docker/initdb` existed, create the test
 | `DATABASE_URL_TEST` | Separate database used by integration tests (must differ from `DATABASE_URL`) |
 | `API_PORT`, `API_HOST` | API bind address (default `4000`, `127.0.0.1`) |
 | `EDITOR_TOKEN` | Bearer token required by every `/api/editor/*` and `/api/manager/*` route |
-| `CORS_ORIGINS` | Comma-separated browser origins allowed to call the API (editor and manager; the game goes through the Vite proxy) |
+| `CORS_ORIGINS` | Comma-separated browser origins allowed to call the API (the editor; the game and the Creature Manager go through their Vite proxies) |
 | `WORLD_TIMEZONE` | Fallback time zone when neither the weather service nor the browser supplies one (default `Asia/Manila`) |
 | `WEATHER_API_URL` | Open-Meteo forecast endpoint (default `https://api.open-meteo.com/v1/forecast`). `off` = always clear (offline dev) |
 | `SECURE_COOKIES` | `true` to mark the session cookie `Secure` (behind HTTPS) |
@@ -454,7 +454,7 @@ AI tools (Groq, PixelLab) are used only for authoring in the Creature Manager. T
 - **"Cannot reach the API".** Run `pnpm dev:api` and check `VITE_API_URL` (editor) or the Vite proxy target (game, `API_PROXY_TARGET`).
 - **Integration tests fail to connect.** Run `pnpm db:up` and make sure `wildbound_test` exists (see Quick start).
 - **Base map is blank.** The tile servers need internet access. Try the OSM or Satellite option in the editor.
-- **CORS errors in the editor or manager.** Add your origin to `CORS_ORIGINS` (default includes `:5173`, `:5174`, `:5175`) and restart the API.
+- **CORS errors in the editor.** Add your origin to `CORS_ORIGINS` and restart the API. (The game and the Creature Manager use a Vite proxy and need no CORS entry.)
 - **The game says "No surveyed habitat here".** Your (real or simulated) location is outside every published region. Publish from the editor or run `pnpm db:seed --publish`, and set a location inside the region.
 - **The game stays on "Share your location".** Geolocation needs `https://` or `localhost`. On a phone, serve the game over HTTPS (e.g. a tunnel) or use desktop devtools Sensors.
 - **"That GPS jump looked impossible".** You moved the simulated location too far at once. Move in small steps or wait; after 3 jumps you are locked for 2 minutes.

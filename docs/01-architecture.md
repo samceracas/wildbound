@@ -122,7 +122,7 @@ flowchart LR
     TILES["Tile servers<br/>OpenFreeMap · OSM · Esri"]
 
     E -- "fetch + Authorization: Bearer EDITOR_TOKEN<br/>(CORS)" --> X
-    MG -- "fetch + Bearer EDITOR_TOKEN (CORS)<br/>/api/manager/*" --> X
+    MG -- "fetch + Bearer EDITOR_TOKEN<br/>/api/manager/* (Vite proxy)" --> X
     X -- "GROQ_API_KEY" --> GQ
     X -- "PIXELLAB_API_KEY" --> PL
     W -- "same-origin fetch + wb_session cookie" --> PX --> X
@@ -134,9 +134,10 @@ flowchart LR
 
 Key points:
 
-- **The editor and the Creature Manager call the API cross-origin** (`VITE_API_URL`, default
-  `http://localhost:4000`) with a bearer token, so the API enables CORS for the origins in `CORS_ORIGINS` (default
-  `:5173`, `:5174`, `:5175`).
+- **The editor calls the API cross-origin** (`VITE_API_URL`, default `http://localhost:4000`) with a bearer token, so
+  the API enables CORS for the origins in `CORS_ORIGINS` (default `:5173`, `:5174`, `:5175`).
+- **The Creature Manager calls `/api/*` on its own origin** with the bearer token; its Vite server proxies to the API
+  (`apps/manager/vite.config.ts`, target `API_PROXY_TARGET` or `VITE_API_URL`), so it works whatever `CORS_ORIGINS` says.
 - **The game calls the API same-origin.** Vite proxies `/api/*` from `:5174` to `:4000` (`apps/web/vite.config.ts`,
   override with `API_PROXY_TARGET`). That keeps the httpOnly `wb_session` cookie first-party with no CORS involved. In
   production you would serve the game and API under one domain (or a reverse proxy) for the same reason.

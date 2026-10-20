@@ -64,9 +64,9 @@ Settings come from the repo-root `.env` (copy `.env.example`):
 
 | Variable | Read by | Purpose |
 |---|---|---|
-| `VITE_API_URL` | manager | API base URL (default `http://localhost:4000`). The manager calls it directly with CORS, like the editor |
+| `VITE_API_URL` | manager | Where the manager's Vite server proxies `/api` (default `http://localhost:4000`; `API_PROXY_TARGET` overrides it). The browser only talks to `:5175`, so no CORS setup is needed |
 | `VITE_EDITOR_TOKEN` | manager | Token sent as `Authorization: Bearer …`. Must equal the API's `EDITOR_TOKEN`. Can be overridden in **Settings** (sidebar), stored in `localStorage` `wildbound.editorToken`, shared with the Map Editor |
-| `CORS_ORIGINS` | API | Must include `http://localhost:5175` (the default does) |
+| `VITE_MANAGER_API_URL` | manager | Optional: call an API on another origin directly instead of through the proxy (that origin then needs `http://localhost:5175` in `CORS_ORIGINS`) |
 | `GROQ_API_KEY` | API | Turns the AI assistant on. Free key at <https://console.groq.com/keys> |
 | `GROQ_MODEL` | API | Groq chat model with JSON mode. Default `llama-3.3-70b-versatile` |
 | `LORE_MAX_CHARS` | API | Characters of canon sent with each assistant request. Default `30000` |
@@ -377,7 +377,7 @@ Endpoints are documented in [04 · API reference](04-api-reference.md#creature-m
 |---|---|
 | "Cannot reach the API" / every request fails | Run `pnpm dev:api`; check `VITE_API_URL` |
 | 401 / token prompt | `VITE_EDITOR_TOKEN` must equal `EDITOR_TOKEN`, or set the token in **Settings** |
-| CORS error in the browser console | Add `http://localhost:5175` to `CORS_ORIGINS` and restart the API |
+| "Cannot reach the API at …" | The API is not running (`pnpm dev:api`), or the proxy target is wrong: check `VITE_API_URL` / `API_PROXY_TARGET` and restart `pnpm dev:manager` |
 | "AI assist is off" / "Art generation is off" | Set `GROQ_API_KEY` / `PIXELLAB_API_KEY` in `.env` and **restart the API** (Vite does not need a restart) |
 | "The assistant could not answer: Groq returned 429/413…" | Groq rate or token limit (common on the free tier). Wait a minute, lower `LORE_MAX_CHARS`, or choose a smaller model in `GROQ_MODEL` |
 | The assistant ignores a recent change to the Bible | The canon is cached: restart the API |

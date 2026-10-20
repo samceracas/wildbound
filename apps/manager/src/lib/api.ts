@@ -14,8 +14,15 @@ import {
 } from "@wildbound/shared";
 import { z } from "zod";
 
-export const API_URL =
-  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") || "http://localhost:4000";
+/**
+ * Requests go to the manager's own origin (`/api/...`) and the Vite server
+ * proxies them to the API (see vite.config.ts), so no CORS setup is needed.
+ * Set VITE_MANAGER_API_URL only to call an API on another origin directly
+ * (that origin must then allow this one in CORS_ORIGINS).
+ */
+export const API_URL = (import.meta.env.VITE_MANAGER_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+/** Where requests actually end up, for messages and the settings popover. */
+export const API_TARGET = API_URL || `${__API_PROXY_TARGET__} (via /api proxy)`;
 const TOKEN_KEY = "wildbound.editorToken";
 
 /** The editor token (shared with the Map Editor): localStorage first, then VITE_EDITOR_TOKEN. */
@@ -83,7 +90,7 @@ async function request<S extends z.ZodType>(schema: S, path: string, init: Reque
       },
     });
   } catch {
-    throw new ApiRequestError(`Cannot reach the API at ${API_URL}. Is it running (pnpm dev:api)?`, 0, "network");
+    throw new ApiRequestError(`Cannot reach the API at ${API_TARGET}. Is it running (pnpm dev:api)?`, 0, "network");
   }
   const body: unknown = res.status === 204 ? null : await res.json().catch(() => null);
   if (!res.ok) {

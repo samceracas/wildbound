@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { API_URL, getToken, setToken } from "@/lib/api";
+import { API_TARGET, getToken, setToken } from "@/lib/api";
 import { keys } from "@/lib/queries";
 
 /** Editor token (shared with the Map Editor via localStorage `wildbound.editorToken`). */
@@ -56,8 +56,8 @@ export function TokenSettings() {
               Stored in this browser and shared with the Map Editor. Falls back to <code>VITE_EDITOR_TOKEN</code>.
             </p>
           </div>
-          <p className="truncate text-xs text-faint" title={API_URL}>
-            API: {API_URL}
+          <p className="truncate text-xs text-faint" title={API_TARGET}>
+            API: {API_TARGET}
           </p>
           <div className="flex justify-end">
             <Button type="submit" size="sm">

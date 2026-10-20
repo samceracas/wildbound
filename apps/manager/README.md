@@ -22,14 +22,15 @@ pnpm test:unit      # includes src/lib/wildkin-form.test.ts
 
 | Variable | Where | Purpose |
 | --- | --- | --- |
-| `VITE_API_URL` | manager | API base URL (default `http://localhost:4000`). Called directly with CORS, like the Map Editor. |
+| `VITE_API_URL` | manager | Where the Vite server proxies `/api` (default `http://localhost:4000`; `API_PROXY_TARGET` overrides it). |
+| `VITE_MANAGER_API_URL` | manager | Optional: call an API on another origin directly (needs CORS) instead of through the proxy. |
 | `VITE_EDITOR_TOKEN` | manager | Default editor token. Can be overridden in **Settings** (sidebar); stored in localStorage `wildbound.editorToken`, shared with the editor. |
 | `GROQ_API_KEY` | API | Enables the AI assistant. Without it the "Generate with AI" button is disabled with a hint. |
 | `GROQ_MODEL` | API | Optional Groq model override (default `llama-3.3-70b-versatile`; any Groq chat model with JSON mode). |
 | `LORE_MAX_CHARS` | API | Characters of canon (`docs/WILDBOUND_*.docx`) sent with each assist request (default 30000). Lower it, or pick a smaller model, if Groq's free tier rate-limits you (429/413). |
 | `PIXELLAB_API_KEY` | API | Enables PixelLab art generation. Without it the art button is disabled with a hint. |
 
-`http://localhost:5175` must be in the API's allowed CORS origins (it is in the default `CORS_ORIGINS`). Restart the API after changing any API-side key; the sidebar shows whether the AI assistant and PixelLab art are on (`GET /api/manager/config`).
+The manager calls `/api/...` on its own origin and the Vite dev/preview server proxies it to the API (like the game), so `CORS_ORIGINS` does not need `:5175`. Restart the API after changing any API-side key; the sidebar shows whether the AI assistant and PixelLab art are on (`GET /api/manager/config`).
 
 ## Pages
 
