@@ -69,7 +69,8 @@ Settings come from the repo-root `.env` (copy `.env.example`):
 | `VITE_MANAGER_API_URL` | manager | Optional: call an API on another origin directly instead of through the proxy (that origin then needs `http://localhost:5175` in `CORS_ORIGINS`) |
 | `GROQ_API_KEY` | API | Turns the AI assistant on. Free key at <https://console.groq.com/keys> |
 | `GROQ_MODEL` | API | Groq chat model with JSON mode. Default `llama-3.3-70b-versatile` |
-| `LORE_MAX_CHARS` | API | Characters of canon sent with each assistant request. Default `30000` |
+| `LORE_SOURCE` | API | `brief` (default): send the condensed `docs/lore/assistant-brief.md` (~2,000 tokens). `full`: send the canon `.docx` files |
+| `LORE_MAX_CHARS` | API | Upper bound on lore characters per assistant request. Default `30000` (matters for `full`) |
 | `LORE_DOCS_DIR` | API | Folder with the canon documents. Default: the repo's `docs/` |
 | `PIXELLAB_API_KEY` | API | Turns art generation on. From <https://pixellab.ai> |
 
@@ -253,7 +254,7 @@ sequenceDiagram
     M->>A: { prompt, current: non-empty valid form values }
     A->>L: canon docs (read once, cached)
     A->>A: roster: every entry's No., name, id, status, classification, identity
-    A->>G: system: rules + field guide + canon (≤ LORE_MAX_CHARS)<br/>user: roster + current values + idea
+    A->>G: system: rules + field guide + lore brief (or canon, ≤ LORE_MAX_CHARS)<br/>user: roster + current values + idea
     G-->>A: { "entry": {…}, "notes": […] }
     A->>A: sanitizeSuggestion: validate each field, drop invalid ones
     A-->>M: { suggestion, notes, dropped, model }
@@ -263,12 +264,20 @@ sequenceDiagram
 
 ### How the context is built
 
-1. **Canon documents.** `apps/api/src/manager/lore.ts` reads every `WILDBOUND_*.docx` (with
-   [mammoth](https://github.com/mwilliamson/mammoth.js)) or `WILDBOUND_*.md` in `docs/`, in the Bible's **authority
-   order**: Wildkin Bible → First Field Survey → Biology & Ecology reference → anything else. The text is read once and
-   cached until the API restarts.
-2. **Budget.** `buildLoreContext` joins them into at most `LORE_MAX_CHARS` characters: the Bible is kept whole if it
-   fits, the rest share what is left and are cut at a paragraph boundary (`[…truncated]`).
+1. **Lore.** `apps/api/src/manager/lore.ts` picks the source with `LORE_SOURCE`:
+   - **`brief` (default):** [`docs/lore/assistant-brief.md`](lore/assistant-brief.md), a hand-condensed summary of
+     the three canon documents (~6,900 characters, ~2,000 tokens). It keeps what matters for designing a species: the
+     setting and central mystery (First Field Survey), the biology rules (lineage, reproduction, diet, intelligence,
+     abilities), the Bible's canon rules and design standards, and the open questions. It leaves out the story's
+     chapters and the per-species entries, because the existing Wildkin are sent separately (the roster, step 4).
+   - **`full`:** every `WILDBOUND_*.docx` (read with [mammoth](https://github.com/mwilliamson/mammoth.js)) or
+     `WILDBOUND_*.md` in `docs/`, in the Bible's **authority order** (Wildkin Bible → First Field Survey → Biology &
+     Ecology reference), about 68,000 characters before trimming.
+
+   Either is read once and cached until the API restarts. If the brief file is missing, the full documents are used.
+2. **Budget.** `buildLoreContext` caps the lore at `LORE_MAX_CHARS` characters (default 30,000). The brief is well
+   under it; with `full`, the Bible is kept whole if it fits and the rest share what is left, cut at a paragraph
+   boundary (`[…truncated]`).
 3. **Rules.** The system prompt repeats the Bible's design rules: Wildkin are living species, observation precedes
    capture, rarity is not strength, invented details are marked PROPOSED and unknowns stay TBD, no duplicates of an
    existing Wildkin's role, reusable mechanics only, a grounded field-research tone set in a tropical Philippine forest.
@@ -297,13 +306,16 @@ sequenceDiagram
 
 - `GROQ_API_KEY` turns it on; `GROQ_MODEL` picks the model (default `llama-3.3-70b-versatile`; other JSON-mode models
   such as `openai/gpt-oss-120b` or `openai/gpt-oss-20b` work too).
-- Each request sends roughly `LORE_MAX_CHARS` characters of canon (30,000 ≈ 7,500–8,000 tokens) plus the roster and
-  form. **On Groq's free tier this can hit the per-minute token limit** (the manager shows *The assistant could not
-  answer* with Groq's 413/429 message). Fixes, in order: wait a minute; lower `LORE_MAX_CHARS` (for example `12000`,
-  which keeps most of the Bible); or pick a smaller model in `GROQ_MODEL` (for example `openai/gpt-oss-20b`; each
-  model has its own limits, listed in the Groq console). Restart the API after changing `.env`.
-- Updating a canon document changes what the assistant knows after an API restart. Keep the file name prefix
-  `WILDBOUND_` (see [09 · Canon documents](09-wildkin-and-content.md#canon-documents-and-authority)).
+- **Request size.** With the default brief a request is about **3,300 tokens** (≈ 2,000 lore + 1,100 rules and field
+  guide + the roster, form and idea), comfortably inside Groq's free-tier limit (e.g. 8,000 tokens per minute for
+  `openai/gpt-oss-120b`). `LORE_SOURCE=full` with the default `LORE_MAX_CHARS=30000` is about **9,300 tokens** and
+  gets *Groq returned 413: Request too large … tokens per minute*. If you hit 413 or 429: make sure `LORE_SOURCE` is
+  `brief`; wait a minute (the limit is per minute); with `full`, lower `LORE_MAX_CHARS` (e.g. `12000`); or pick another
+  model in `GROQ_MODEL` (each has its own limits, listed in the Groq console). Restart the API after changing `.env`.
+- **Keeping the brief current.** The brief is a summary, so it does not update itself: when a canon document changes,
+  update [`docs/lore/assistant-brief.md`](lore/assistant-brief.md) too (the canon documents win if they disagree), then
+  restart the API. With `full`, keep the `WILDBOUND_` file name prefix (see
+  [09 · Canon documents](09-wildkin-and-content.md#canon-documents-and-authority)).
 
 ## PixelLab art
 
@@ -420,7 +432,7 @@ Endpoints are documented in [04 · API reference](04-api-reference.md#creature-m
 | 401 / token prompt | `VITE_EDITOR_TOKEN` must equal `EDITOR_TOKEN`, or set the token in **Settings** |
 | "Cannot reach the API at …" | The API is not running (`pnpm dev:api`), or the proxy target is wrong: check `VITE_API_URL` / `API_PROXY_TARGET` and restart `pnpm dev:manager` |
 | "AI assist is off" / "Art generation is off" | Set `GROQ_API_KEY` / `PIXELLAB_API_KEY` in `.env` and **restart the API** (Vite does not need a restart) |
-| "The assistant could not answer: Groq returned 429/413…" | Groq rate or token limit (common on the free tier). Wait a minute, lower `LORE_MAX_CHARS`, or choose a smaller model in `GROQ_MODEL` |
+| "The assistant could not answer: Groq returned 429/413…" | Groq rate or token limit (common on the free tier). Use `LORE_SOURCE=brief` (the default, ~3,300 tokens per request), wait a minute, lower `LORE_MAX_CHARS` when using `full`, or choose another model in `GROQ_MODEL` |
 | The assistant ignores a recent change to the Bible | The canon is cached: restart the API |
 | "Dropped invalid suggestions for: …" | The model returned values that do not fit the schema; those fields were skipped. Fill them by hand or ask again |
 | "Not enough PixelLab credits" (402) | Top up PixelLab or wait for the subscription to renew; the balance is shown in the dialog |

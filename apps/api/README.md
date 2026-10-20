@@ -37,7 +37,8 @@ src/
   manager/
     assistant.ts     WildkinAssistant interface, GroqAssistant, system/user prompts, sanitizeSuggestion
     art.ts           ArtGenerator interface, PixelLabArt (Pixen, transparent bg), artPrompt, canAfford
-    lore.ts          Reads docs/WILDBOUND_*.docx (Bible > First Field Survey > Biology), caches, trims to LORE_MAX_CHARS
+    lore.ts          Lore for the assistant: docs/lore/assistant-brief.md (LORE_SOURCE=brief, default) or
+                     docs/WILDBOUND_*.docx (full; Bible > First Field Survey > Biology); caches, trims to LORE_MAX_CHARS
     manager.test.ts  Unit tests (lore budget, art prompt, balance check, suggestion sanitizing)
   routes/
     auth.ts          login, logout, me
@@ -94,7 +95,7 @@ pnpm test:integration                        # needs the database (pnpm db:up)
 
 ## Configuration
 
-Read from the repo-root `.env` by `config.ts`: `DATABASE_URL`, `API_PORT`, `API_HOST`, `EDITOR_TOKEN`, `CORS_ORIGINS` (default `:5173,:5174,:5175`), `WORLD_TIMEZONE`, `WEATHER_API_URL`, `SECURE_COOKIES`, and for the Creature Manager `GROQ_API_KEY`, `GROQ_MODEL` (default `llama-3.3-70b-versatile`), `LORE_MAX_CHARS` (default 30000), `LORE_DOCS_DIR`, `PIXELLAB_API_KEY`, plus `GROQ_API_URL` / `PIXELLAB_API_URL` overrides. At startup the API logs whether the assistant and art generation are on. The canon documents are read once; restart the API after changing them. Details: [docs/13-creature-manager.md](../../docs/13-creature-manager.md).
+Read from the repo-root `.env` by `config.ts`: `DATABASE_URL`, `API_PORT`, `API_HOST`, `EDITOR_TOKEN`, `CORS_ORIGINS` (default `:5173,:5174,:5175`), `WORLD_TIMEZONE`, `WEATHER_API_URL`, `SECURE_COOKIES`, and for the Creature Manager `GROQ_API_KEY`, `GROQ_MODEL` (default `llama-3.3-70b-versatile`), `LORE_SOURCE` (`brief` default, or `full`), `LORE_MAX_CHARS` (default 30000), `LORE_DOCS_DIR`, `PIXELLAB_API_KEY`, plus `GROQ_API_URL` / `PIXELLAB_API_URL` overrides. At startup the API logs whether the assistant and art generation are on. The lore (brief or canon documents) is read once; restart the API after changing it. Details: [docs/13-creature-manager.md](../../docs/13-creature-manager.md).
 
 ## Notes
 

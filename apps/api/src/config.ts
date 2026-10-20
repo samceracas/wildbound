@@ -23,6 +23,11 @@ export interface ApiConfig {
   pixellabApiUrl: string;
   /** Folder with the canon documents (.docx/.md) fed to the assistant as lore context. */
   loreDocsDir: string;
+  /**
+   * "brief" (default): send the condensed docs/lore/assistant-brief.md (~2k tokens).
+   * "full": send the canon .docx files themselves, trimmed to loreMaxChars.
+   */
+  loreSource: "brief" | "full";
   /** Upper bound on lore characters sent per assistant request (keeps prompts within model limits). */
   loreMaxChars: number;
 }
@@ -46,6 +51,7 @@ export function loadConfig(overrides: Partial<ApiConfig> = {}): ApiConfig {
     pixellabApiKey: process.env.PIXELLAB_API_KEY ?? "",
     pixellabApiUrl: process.env.PIXELLAB_API_URL || "https://api.pixellab.ai/v2",
     loreDocsDir: process.env.LORE_DOCS_DIR || fileURLToPath(new URL("../../../docs", import.meta.url)),
+    loreSource: process.env.LORE_SOURCE === "full" ? "full" : "brief",
     loreMaxChars: Number(process.env.LORE_MAX_CHARS ?? 30_000),
     ...overrides,
   };

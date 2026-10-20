@@ -27,7 +27,8 @@ pnpm test:unit      # includes src/lib/wildkin-form.test.ts
 | `VITE_EDITOR_TOKEN` | manager | Default editor token. Can be overridden in **Settings** (sidebar); stored in localStorage `wildbound.editorToken`, shared with the editor. |
 | `GROQ_API_KEY` | API | Enables the AI assistant. Without it the "Generate with AI" button is disabled with a hint. |
 | `GROQ_MODEL` | API | Optional Groq model override (default `llama-3.3-70b-versatile`; any Groq chat model with JSON mode). |
-| `LORE_MAX_CHARS` | API | Characters of canon (`docs/WILDBOUND_*.docx`) sent with each assist request (default 30000). Lower it, or pick a smaller model, if Groq's free tier rate-limits you (429/413). |
+| `LORE_SOURCE` | API | `brief` (default): the condensed `docs/lore/assistant-brief.md` (~3,300 tokens per request in total). `full`: the canon `.docx` files (~9,300 tokens, too big for Groq's free tier). |
+| `LORE_MAX_CHARS` | API | Upper bound on lore characters per assist request (default 30000; matters for `full`). |
 | `PIXELLAB_API_KEY` | API | Enables PixelLab art generation. Without it the art button is disabled with a hint. |
 
 The manager calls `/api/...` on its own origin and the Vite dev/preview server proxies it to the API (like the game), so `CORS_ORIGINS` does not need `:5175`. Restart the API after changing any API-side key; the sidebar shows whether the AI assistant and PixelLab art are on (`GET /api/manager/config`).

@@ -139,10 +139,12 @@ The creative canon lives in [`docs/`](./) as Word files, next to this documentat
 
 Authority order (from the Bible): the Bible for species canon, then the First Field Survey, then other references.
 
-These files are also the **lore context of the Creature Manager's AI assistant**: the API reads every
-`docs/WILDBOUND_*.docx` (and `.md`) file in this order and sends the text (up to `LORE_MAX_CHARS`) with each request,
-so updating a document here updates what the assistant knows after an API restart. Keep the `WILDBOUND_` prefix and
-the words `Wildkin_Bible`, `First_Field_Survey`, `Biology_and_Ecology` in the file names, which set the order. See
+These files are also the source of the **lore context of the Creature Manager's AI assistant**. By default the API
+sends a condensed summary of them, [`docs/lore/assistant-brief.md`](lore/assistant-brief.md) (~2,000 tokens, small
+enough for Groq's free tier); **when you change a canon document, update the brief too**. With `LORE_SOURCE=full` the
+API reads every `docs/WILDBOUND_*.docx` (and `.md`) file in this order instead and sends the text (up to
+`LORE_MAX_CHARS`); keep the `WILDBOUND_` prefix and the words `Wildkin_Bible`, `First_Field_Survey`,
+`Biology_and_Ecology` in the file names, which set the order. See
 [13 · AI assistant](13-creature-manager.md#ai-assistant).
 
 Design rules from these documents that the code (and the assistant's instructions) follow:

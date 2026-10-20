@@ -15,6 +15,7 @@ export const testConfig = (over: Partial<ApiConfig> = {}): ApiConfig => ({
   pixellabApiKey: "",
   pixellabApiUrl: "http://pixellab.invalid",
   loreDocsDir: "",
+  loreSource: "brief",
   loreMaxChars: 10_000,
   ...over,
 });

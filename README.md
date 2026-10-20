@@ -210,7 +210,8 @@ If the Docker volume was created before `docker/initdb` existed, create the test
 | `SECURE_COOKIES` | `true` to mark the session cookie `Secure` (behind HTTPS) |
 | `GROQ_API_KEY` | Enables the Creature Manager AI assistant (empty = off) |
 | `GROQ_MODEL` | Groq chat model with JSON mode (default `llama-3.3-70b-versatile`) |
-| `LORE_MAX_CHARS` | Characters of canon (`docs/WILDBOUND_*.docx`) sent per assistant request (default `30000`). Lower it, or pick a smaller model, if Groq's free tier rate-limits you |
+| `LORE_SOURCE` | Lore sent to the AI assistant: `brief` (default, the condensed `docs/lore/assistant-brief.md`, ~2,000 tokens) or `full` (the canon `docs/WILDBOUND_*.docx`) |
+| `LORE_MAX_CHARS` | Upper bound on lore characters per assistant request (default `30000`; matters for `LORE_SOURCE=full`) |
 | `PIXELLAB_API_KEY` | Enables PixelLab art generation in the Creature Manager (empty = off) |
 | `VITE_API_URL` | API base URL for the editor and the manager |
 | `VITE_EDITOR_TOKEN` | Token the editor and manager send. The web game never reads it |
@@ -449,7 +450,7 @@ AI tools (Groq, PixelLab) are used only for authoring in the Creature Manager. T
 
 - **Editor shows a token prompt.** `VITE_EDITOR_TOKEN` must equal `EDITOR_TOKEN`. Restart Vite after editing `.env`.
 - **Creature Manager: "AI assist is off" / "Art generation is off".** Set `GROQ_API_KEY` / `PIXELLAB_API_KEY` in `.env` and restart the API.
-- **Creature Manager: "Groq returned 429" (or 413).** Groq's rate/token limit, common on the free tier. Wait a minute, lower `LORE_MAX_CHARS` (e.g. `12000`), or set a smaller `GROQ_MODEL`.
+- **Creature Manager: "Groq returned 429" (or 413).** Groq's rate/token limit, common on the free tier. Keep `LORE_SOURCE=brief` (the default; ~3,300 tokens per request instead of ~9,300 with `full`), wait a minute, or set another `GROQ_MODEL`.
 - **A new Wildkin is missing from the editor.** Publish it in the manager (drafts are not game data), then focus the editor tab.
 - **"Cannot reach the API".** Run `pnpm dev:api` and check `VITE_API_URL` (editor) or the Vite proxy target (game, `API_PROXY_TARGET`).
 - **Integration tests fail to connect.** Run `pnpm db:up` and make sure `wildbound_test` exists (see Quick start).

@@ -3,9 +3,19 @@ import { join } from "node:path";
 import mammoth from "mammoth";
 
 /**
- * Lore context for the Creature Manager assistant: the canon documents in
- * `docs/` (Word files), in the Bible's authority order. Read once and cached.
+ * Lore context for the Creature Manager assistant. Two sources:
+ *
+ * - brief (default): `docs/lore/assistant-brief.md`, a hand-condensed summary of
+ *   the three canon documents (~7k characters, ~2k tokens). Small enough for
+ *   free-tier token limits; the existing species are sent separately (roster).
+ * - full: the canon documents in `docs/` (Word files) in the Bible's authority
+ *   order, trimmed to LORE_MAX_CHARS.
+ *
+ * Read once per source and cached until the API restarts.
  */
+
+/** The condensed brief, relative to the docs folder. */
+export const LORE_BRIEF_PATH = "lore/assistant-brief.md";
 
 export interface LoreDocument {
   name: string;
@@ -60,12 +70,22 @@ export function buildLoreContext(docs: readonly LoreDocument[], maxChars: number
 
 let cache: { key: string; value: Promise<LoreDocument[]> } | null = null;
 
-export function loreDocuments(dir: string): Promise<LoreDocument[]> {
-  if (cache?.key !== dir) {
-    const value = readLoreDocuments(dir);
+async function readSource(dir: string, source: "brief" | "full"): Promise<LoreDocument[]> {
+  const brief = dir ? join(dir, LORE_BRIEF_PATH) : "";
+  if (source === "brief" && brief && existsSync(brief)) {
+    return [{ name: "WILDBOUND lore brief", text: readFileSync(brief, "utf8").trim() }];
+  }
+  // No brief (or "full" asked for): fall back to the canon documents.
+  return readLoreDocuments(dir);
+}
+
+export function loreDocuments(dir: string, source: "brief" | "full" = "brief"): Promise<LoreDocument[]> {
+  const key = `${source}:${dir}`;
+  if (cache?.key !== key) {
+    const value = readSource(dir, source);
     // Do not cache failures.
     value.catch(() => (cache = null));
-    cache = { key: dir, value };
+    cache = { key, value };
   }
   return cache.value;
 }

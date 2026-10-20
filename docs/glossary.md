@@ -30,7 +30,7 @@ the software.
 | **Heartbeat** | tech | The game re-sending your last GPS fix every 30 s so a still player stays "current" |
 | **Integration test** | tech | A test that runs the real API against a real database |
 | **Interact radius** | game | 60 m: how close you must be to observe or capture |
-| **Lore context** | tech | The text of the canon `.docx` files sent with each AI assistant request (up to `LORE_MAX_CHARS`), Bible first |
+| **Lore context** | tech | The lore sent with each AI assistant request: by default the condensed `docs/lore/assistant-brief.md`; with `LORE_SOURCE=full` the canon `.docx` files (up to `LORE_MAX_CHARS`), Bible first |
 | **Migration** | tech | A versioned SQL script that changes the database structure |
 | **Monorepo** | tech | One repository containing several programs and libraries |
 | **Movement style** | game | How a species' spawns wander on the radar: `still`, `skulker`, `forager`, `roamer` or `darter`. Set per species in the Creature Manager |

@@ -81,7 +81,8 @@ All in the repo-root `.env` (read by the API and DB scripts via `process.loadEnv
 | `SECURE_COOKIES` | api | `true` behind HTTPS | `false` |
 | `GROQ_API_KEY` | api | Creature Manager AI assistant; empty = off | unset |
 | `GROQ_MODEL` | api | Groq chat model (JSON mode) | `llama-3.3-70b-versatile` |
-| `LORE_MAX_CHARS` | api | Canon characters sent per assistant request; lower it on Groq's free tier | `30000` |
+| `LORE_SOURCE` | api | Assistant lore: `brief` (condensed `docs/lore/assistant-brief.md`) or `full` (canon `.docx`) | `brief` |
+| `LORE_MAX_CHARS` | api | Upper bound on lore characters per assistant request (matters for `full`) | `30000` |
 | `LORE_DOCS_DIR` | api (optional) | Folder with the `WILDBOUND_*.docx` canon | repo `docs/` |
 | `GROQ_API_URL`, `PIXELLAB_API_URL` | api (optional) | Override the service base URLs | Groq / PixelLab v2 |
 | `PIXELLAB_API_KEY` | api, and `.mcp.json` (shell env) | Creature Manager art generation; empty = off. Also used by the PixelLab MCP tool | unset |
@@ -221,7 +222,7 @@ or rules changed.
 | "Cannot reach the API" | `pnpm dev:api`; check `VITE_API_URL` (editor) or `API_PROXY_TARGET` (game) |
 | CORS error in the editor | Add the origin to `CORS_ORIGINS`, restart the API (the game and manager use a Vite proxy) |
 | Manager: "AI assist is off" / "Art generation is off" | Set `GROQ_API_KEY` / `PIXELLAB_API_KEY` and restart the API. More in [13 · Troubleshooting](13-creature-manager.md#troubleshooting) |
-| Manager: "Groq returned 429" or "413" | Groq rate/token limit (free tier): wait, lower `LORE_MAX_CHARS`, or use a smaller `GROQ_MODEL` |
+| Manager: "Groq returned 429" or "413" | Groq rate/token limit (free tier): keep `LORE_SOURCE=brief`, wait a minute, or use another `GROQ_MODEL` |
 | Editor map shows labels but no polygons | The Streets style failed to load (offline). Switch basemap to OSM or Satellite |
 | Base map blank | Tile servers unreachable; harmless for development |
 | Game stuck on "Enable location?" | Needs `https://` or `localhost`; check browser site permissions |

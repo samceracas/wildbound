@@ -115,7 +115,7 @@ export function managerRoutes(deps: AppDeps): Router {
     if (!assistant) throw new HttpError(503, "assistant_unavailable", "The AI assistant is not configured (set GROQ_API_KEY)");
     const request = parseOr400(AssistRequestSchema, req.body, "Invalid assist request");
 
-    const [docs, roster] = await Promise.all([loreDocuments(config.loreDocsDir), listWildkin(db)]);
+    const [docs, roster] = await Promise.all([loreDocuments(config.loreDocsDir, config.loreSource), listWildkin(db)]);
     const identities: Record<string, string> = {};
     for (const w of roster) identities[w.id] = (await getWildkin(db, w.id)).identity;
 

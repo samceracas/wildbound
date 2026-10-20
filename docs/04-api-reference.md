@@ -501,6 +501,7 @@ published), 404 otherwise. No auth: players see this art. With `?v=<art.version>
 | `GROQ_MODEL` | `groqModel` | `llama-3.3-70b-versatile` |
 | `GROQ_API_URL` | `groqApiUrl` | `https://api.groq.com/openai/v1` |
 | `LORE_DOCS_DIR` | `loreDocsDir` | the repo's `docs/` folder |
+| `LORE_SOURCE` | `loreSource` | `brief` |
 | `LORE_MAX_CHARS` | `loreMaxChars` | `30000` |
 | `PIXELLAB_API_KEY` | `pixellabApiKey` | empty = art generation off |
 | `PIXELLAB_API_URL` | `pixellabApiUrl` | `https://api.pixellab.ai/v2` |

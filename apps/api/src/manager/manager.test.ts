@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { WildkinEntryInputSchema } from "@wildbound/shared";
 import { artPrompt, canAfford, faceDetails, pickPose, poseOf, SPRITE_POSES } from "./art.ts";
 import { sanitizeSuggestion } from "./assistant.ts";
-import { buildLoreContext } from "./lore.ts";
+import { fileURLToPath } from "node:url";
+import { buildLoreContext, loreDocuments } from "./lore.ts";
 
 describe("buildLoreContext", () => {
   const docs = [
@@ -21,6 +22,23 @@ describe("buildLoreContext", () => {
 
   it("returns everything when it fits", () => {
     expect(buildLoreContext(docs, 100_000)).not.toContain("truncated");
+  });
+});
+
+describe("loreDocuments", () => {
+  const docsDir = fileURLToPath(new URL("../../../../docs", import.meta.url));
+
+  it("sends the condensed brief by default, small enough for free-tier limits", async () => {
+    const docs = await loreDocuments(docsDir, "brief");
+    expect(docs).toHaveLength(1);
+    expect(docs[0]!.text).toMatch(/Mabunyi Forest Reserve/);
+    expect(docs[0]!.text.length).toBeLessThan(10_000);
+  });
+
+  it("can send the full canon documents in authority order", async () => {
+    const docs = await loreDocuments(docsDir, "full");
+    expect(docs.map((d) => d.name)[0]).toMatch(/Wildkin_Bible/);
+    expect(docs.length).toBe(3);
   });
 });
 
