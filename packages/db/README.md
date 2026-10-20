@@ -18,6 +18,7 @@ prisma/
     0_init/             The original world schema (identical to the old Drizzle migration)
     1_players/          Registry fields on creatures, player tables, hand-written CHECKs
     2_wildkin_manager/  v0.2.0: wildkin_entries, wildkin_art, creatures.movement_style/deleted_at, spawns.heading/moved_at
+    3_registry_description/  v0.2.0: backfills registryDescription in wildkin_entries.content
 seed/
   creatures.json        Kawi, Mimu, Lumae, Kantar, Riverkin with Registry data, spawn modifiers and movement style
   wildkin.json          Their full Wildkin Bible entries for the Creature Manager (validated by WildkinEntryInputSchema)

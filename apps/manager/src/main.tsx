@@ -16,7 +16,7 @@ createRoot(document.getElementById("root")!).render(
         <RouterProvider router={router} />
       </TooltipProvider>
       {/* Stripped from production builds automatically. */}
-      <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-right" />
+      <ReactQueryDevtools initialIsOpen={false} buttonPosition="bottom-left" />
     </QueryClientProvider>
   </StrictMode>,
 );

@@ -70,7 +70,8 @@ flowchart LR
 4. **Review.** Go through the eight sections. Keep `TBD` where canon is undecided (rarity, activity), mark invented
    details as PROPOSED in *Canon status*, pick a **movement style** that matches the behaviour, and make sure the
    **Physical description** and **Visual hook** describe a readable silhouette (they drive the art). Required to publish:
-   Name, Identity, Physical description, Habitat summary.
+   Name, Registry description (what players read), Habitat summary. Fields marked **IN GAME** reach the game; check
+   them in the **In-game preview** on the right.
 5. **Save draft.** The canonical id (e.g. `luntay`) is fixed from now on.
 6. **Art.** **Generate sprites with PixelLab** → check the balance shown → generate icon (64 px) and sprite (128 px).
    Not happy? Improve the Appearance section or add extra direction and generate again (each image costs one

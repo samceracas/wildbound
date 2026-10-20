@@ -104,20 +104,26 @@ The entry follows the Wildkin Bible's structure in eight numbered sections, with
 
 | § | Section | Fields |
 |---|---|---|
-| 1 | Identity | Canonical ID, Registry number, **Name\***, Classification, **Identity\*** (one line), Canon status, Inspiration |
-| 2 | Habitat | Habitat tags (combobox: suggested tags or your own slugs), **Habitat summary\*** (the Registry line), Habitat & distribution |
+| 1 | Identity | 🎮 Canonical ID, 🎮 Registry number, 🎮 **Name\***, Classification, Identity (one line), 🎮 **Registry description\*** (what players read in the Registry), Canon status, Inspiration |
+| 2 | Habitat | 🎮 Habitat tags (combobox: suggested tags or your own slugs), 🎮 **Habitat summary\*** (the Registry line), Habitat & distribution |
 | 3 | Diet & temperament | Diet, Temperament, Diet tags, Temperament tags |
-| 4 | Activity & rarity | Activity pattern (select), Rarity (select), Activity notes, Rarity notes |
-| 5 | Appearance | Visual hook, **Physical description\***, Visual design notes. These three feed the art prompt |
-| 6 | Behaviour | Movement style (select: still, skulker, forager, roamer, darter), Behaviour |
+| 4 | Activity & rarity | 🎮 Activity pattern (select), 🎮 Rarity (select), Activity notes, Rarity notes |
+| 5 | Appearance | Visual hook, Physical description, Visual design notes. These three feed the art prompt |
+| 6 | Behaviour | 🎮 Movement style (select: still, skulker, forager, roamer, darter), Behaviour |
 | 7 | Ecology & field | Role, Ecology, Field signs |
-| 8 | Game | Gameplay profile, Asset needs, Spawn modifiers (0–10 per time of day and weather, blank = ×1), Skills (name, description, canon status), Open questions |
+| 8 | Game | Gameplay profile, Asset needs, 🎮 Spawn modifiers (0–10 per time of day and weather, blank = ×1), 🎮 Skills (name, description, canon status), Open questions |
 
 | Section 4–5 | Section 8 |
 |---|---|
 | ![Activity and appearance](images/screenshots/manager-4-entry-sections.png) | ![Game section](images/screenshots/manager-5-entry-game.png) |
 
-- Fields marked **\*** are required to publish; a draft may leave anything empty or `TBD`.
+- Fields marked **\*** are required to publish (Name, Registry description, Habitat summary); a draft may leave
+  anything empty or `TBD`.
+- Fields marked 🎮 carry an **IN GAME** chip on the form: publishing copies them into the game (`GAME_FIELDS` in
+  `@wildbound/shared`). Unmarked fields are **encyclopedia only**: Bible prose for people, the AI assistant and the art
+  prompt.
+- **Registry description** is the text players read in the in-game Registry after observing the Wildkin. It is its
+  own field (it used to be taken from the identity line); the AI assistant always writes one that matches your idea.
 - Every property with fixed choices is a **select** (activity pattern, rarity, movement style, skill canon status), and
   habitat tags use a **combobox** with the suggested tags (`SUGGESTED_HABITAT_TAGS`), so values always match what the
   game understands.
@@ -127,7 +133,24 @@ The entry follows the Wildkin Bible's structure in eight numbered sections, with
 - The action bar at the bottom shows the status and has **Delete**, **Save draft** and **Publish** (or **Save &
   publish** when there are unsaved changes). Leaving the page with unsaved changes asks first.
 - On top: the [AI field assistant](#ai-assistant) panel. On the right: the [art panel](#pixellab-art) ("Field
-  sketches").
+  sketches") and the **in-game preview**.
+
+#### In-game preview
+
+| Registry entry | Registry list · Radar |
+|---|---|
+| ![In-game preview: Registry entry](images/screenshots/manager-6-game-preview.png) | ![In-game preview: Registry list and radar](images/screenshots/manager-7-game-preview-tabs.png) |
+
+`GamePreview.tsx` draws the Wildkin the way the game does (same paper "Field Nav" colours and pixel fonts), live from
+the form as you type plus the saved art:
+
+- **Registry entry**: the dossier card (number, name, sprite, habitat summary, registry description) and the part
+  unlocked after capture (rarity, activity pattern, skills).
+- **Registry list**: the row after observing, and the silhouette row before.
+- **Radar**: the map marker with its name tag.
+
+Missing game text shows in red ("no registry description yet"). The note under the preview says whether players see
+this version already, or still the last published one.
 
 ### Sidebar
 
@@ -169,7 +192,7 @@ flowchart LR
 | Entry field | → `creatures` column |
 |---|---|
 | `id`, `registryNumber`, `name` | same |
-| `identity` (or `physicalDescription` if identity is empty) | `description` (the Registry text) |
+| `registryDescription` | `description` (the Registry text) |
 | `habitatTags` | `habitat_affinity` |
 | `habitatSummary`, `rarity`, `activityPattern`, `spawnModifiers`, `skills`, `movementStyle` | same |
 
@@ -250,7 +273,8 @@ sequenceDiagram
    capture, rarity is not strength, invented details are marked PROPOSED and unknowns stay TBD, no duplicates of an
    existing Wildkin's role, reusable mechanics only, a grounded field-research tone set in a tropical Philippine forest.
    A field guide lists every form field with its allowed values (activity patterns, rarities, movement styles,
-   suggested habitat tags, spawn modifier keys, skill shape).
+   habitat tags, spawn modifier keys, skill shape). The **registry description** must match the author's idea and the
+   lore (kept and polished if the idea already contains one, written otherwise) and is always returned.
 4. **Roster.** Every existing entry (drafts too) with its registry number, name, id, status, classification and
    identity, so the model avoids duplicates and can point out overlaps in `notes`.
 5. **Current form.** The non-empty, valid values already in the form, so the assistant refines rather than starts over
@@ -263,6 +287,9 @@ sequenceDiagram
 - Each field is validated on its own (`WildkinSuggestionSchema`); small slips are fixed first (ids and habitat tags
   are slugified, `"Nocturnal"` becomes `nocturnal`, comma lists become arrays, skills default to `proposed`). Fields
   that still fail are **dropped** and listed, instead of failing the whole answer.
+- **Habitat tags only come from the dropdown's list** (`SUGGESTED_HABITAT_TAGS`). Tags the model invents are removed
+  and named in the notes ("Left out habitat tags that are not in the list: …"). You can still type your own tag in the
+  combobox by hand.
 - The registry number is never suggested, and on an existing entry the id is never overwritten.
 - **Nothing is saved.** The suggestion only fills the form; you review it, then Save draft.
 
@@ -398,7 +425,7 @@ Endpoints are documented in [04 · API reference](04-api-reference.md#creature-m
 | "Dropped invalid suggestions for: …" | The model returned values that do not fit the schema; those fields were skipped. Fill them by hand or ask again |
 | "Not enough PixelLab credits" (402) | Top up PixelLab or wait for the subscription to renew; the balance is shown in the dialog |
 | "Art generation failed: PixelLab returned …" | PixelLab error or timeout (3 min). Try again; check the API log |
-| "Cannot publish yet" | Fill the fields marked `*` (Name, Identity, Physical description, Habitat summary) |
+| "Cannot publish yet" | Fill the fields marked `*` (Name, Registry description, Habitat summary) |
 | "Registry number N is already used by …" | Pick another number (the dashboard shows the next free one) |
 | A new species does not appear in the Map Editor | It must be **published** (drafts are not in `creatures`). Then focus the editor tab; it refetches |
 | A published species never spawns | It must also be in an encounter table of a **published** world (Map Editor), and the conditions/modifiers must allow it |

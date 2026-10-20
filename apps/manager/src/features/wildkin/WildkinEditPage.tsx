@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ACTIVITY_PATTERNS,
+  GAME_FIELDS,
   MOVEMENT_STYLES,
   PUBLISH_REQUIRED_FIELDS,
   RARITIES,
@@ -15,6 +16,7 @@ import {
 import {
   ArrowLeftIcon,
   CircleDotIcon,
+  GamepadIcon,
   Loader2Icon,
   RotateCcwIcon,
   SaveIcon,
@@ -67,6 +69,7 @@ import {
 } from "@/lib/wildkin-form";
 import { ArtPanel } from "./ArtPanel";
 import { AssistPanel } from "./AssistPanel";
+import { GamePreview } from "./GamePreview";
 import { asErrorInfo, ErrorNotice, StatusBadge } from "./common";
 import {
   EnumSelect,
@@ -130,6 +133,7 @@ const SECTIONS = [
 ] as const;
 
 const REQUIRED = new Set<string>(PUBLISH_REQUIRED_FIELDS);
+const IN_GAME = new Set<string>(GAME_FIELDS);
 
 // ---------------------------------------------------------------- page
 
@@ -347,13 +351,19 @@ function WildkinForm({ entry, initial }: { entry: WildkinEntry | null; initial: 
 
             <AssistPanel getValues={getValues} onApply={applySuggestion} />
 
-            <p className="text-xs text-faint">
-              <span className="text-gold">*</span> required to publish. Everything else may stay empty or TBD in a draft.
-            </p>
+            <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-faint">
+              <span>
+                <span className="text-gold">*</span> required to publish. Everything else may stay empty or TBD in a draft.
+              </span>
+              <span className="flex items-center gap-1.5">
+                <InGameChip /> copied to the game when you publish (see the in-game preview). Unmarked fields are
+                encyclopedia only.
+              </span>
+            </div>
 
             <Section id="identity" number={1} title="Identity">
               <Field
-                label="Canonical ID"
+                label={<FieldLabel name="id" label="Canonical ID" />}
                 error={errors.id?.message}
                 hint={isNew ? "Derived from the name until you edit it. Cannot change after creation." : "Immutable after creation."}
               >
@@ -367,7 +377,11 @@ function WildkinForm({ entry, initial }: { entry: WildkinEntry | null; initial: 
                   />
                 )}
               </Field>
-              <Field label="Registry number" error={errors.registryNumber?.message} hint="Shown as “No. 001” in the Registry.">
+              <Field
+                label={<FieldLabel name="registryNumber" label="Registry number" />}
+                error={errors.registryNumber?.message}
+                hint="Shown as “No. 001” in the Registry."
+              >
                 {(id) => (
                   <Input
                     id={id}
@@ -382,12 +396,13 @@ function WildkinForm({ entry, initial }: { entry: WildkinEntry | null; initial: 
               </Field>
               <TextField name="name" label="Name" />
               <TextField name="classification" label="Classification" placeholder="e.g. Canopy Bird Wildkin" />
+              <TextField name="identity" label="Identity" multiline wide hint="One-line identity for the encyclopedia." />
               <TextField
-                name="identity"
-                label="Identity"
+                name="registryDescription"
+                label="Registry description"
                 multiline
                 wide
-                hint="One-line identity. Also the Registry description when there is no physical description."
+                hint="What players read in the in-game Registry after observing this Wildkin. The AI assistant writes one to match your idea."
               />
               <TextField
                 name="canonStatus"
@@ -405,7 +420,7 @@ function WildkinForm({ entry, initial }: { entry: WildkinEntry | null; initial: 
                 name="habitatTags"
                 render={({ field }) => (
                   <Field
-                    label="Habitat tags"
+                    label={<FieldLabel name="habitatTags" label="Habitat tags" />}
                     className="md:col-span-2"
                     error={errorAt(errors, "habitatTags")}
                     hint="Used by the game to match habitats (habitatAffinity)."
@@ -430,7 +445,7 @@ function WildkinForm({ entry, initial }: { entry: WildkinEntry | null; initial: 
                 control={control}
                 name="activityPattern"
                 render={({ field }) => (
-                  <Field label="Activity pattern">
+                  <Field label={<FieldLabel name="activityPattern" label="Activity pattern" />}>
                     {(id) => (
                       <EnumSelect id={id} value={field.value} onChange={field.onChange} options={ACTIVITY_OPTIONS} />
                     )}
@@ -441,7 +456,7 @@ function WildkinForm({ entry, initial }: { entry: WildkinEntry | null; initial: 
                 control={control}
                 name="rarity"
                 render={({ field }) => (
-                  <Field label="Rarity" hint="Rarity is not strength.">
+                  <Field label={<FieldLabel name="rarity" label="Rarity" />} hint="Rarity is not strength.">
                     {(id) => <EnumSelect id={id} value={field.value} onChange={field.onChange} options={RARITY_OPTIONS} />}
                   </Field>
                 )}
@@ -461,7 +476,7 @@ function WildkinForm({ entry, initial }: { entry: WildkinEntry | null; initial: 
                 control={control}
                 name="movementStyle"
                 render={({ field }) => (
-                  <Field label="Movement style" hint="How spawns wander on the radar.">
+                  <Field label={<FieldLabel name="movementStyle" label="Movement style" />} hint="How spawns wander on the radar.">
                     {(id) => (
                       <EnumSelect id={id} value={field.value} onChange={field.onChange} options={MOVEMENT_OPTIONS} />
                     )}
@@ -485,12 +500,16 @@ function WildkinForm({ entry, initial }: { entry: WildkinEntry | null; initial: 
                 control={control}
                 name="spawnModifiers"
                 render={({ field }) => (
-                  <Field label="Spawn modifiers" className="md:col-span-2" error={errorAt(errors, "spawnModifiers")}>
+                  <Field
+                    label={<FieldLabel name="spawnModifiers" label="Spawn modifiers" />}
+                    className="md:col-span-2"
+                    error={errorAt(errors, "spawnModifiers")}
+                  >
                     {() => <SpawnModifiersEditor value={field.value} onChange={field.onChange} />}
                   </Field>
                 )}
               />
-              <Field label="Skills" className="md:col-span-2" error={errorAt(errors, "skills")}>
+              <Field label={<FieldLabel name="skills" label="Skills" />} className="md:col-span-2" error={errorAt(errors, "skills")}>
                 {() => <SkillsEditor control={control} errors={errors} />}
               </Field>
               <Controller
@@ -515,6 +534,13 @@ function WildkinForm({ entry, initial }: { entry: WildkinEntry | null; initial: 
 
           <aside className="space-y-6">
             <ArtPanel entry={entry} dirty={dirty} ensureSaved={ensureSaved} />
+            <GamePreview
+              control={control}
+              id={entry?.id ?? null}
+              art={entry?.art ?? null}
+              publishedAt={entry?.publishedAt ?? null}
+              edited={!!entry?.hasUnpublishedChanges || dirty}
+            />
             <nav className="rounded-lg border border-line bg-panel p-4 xl:sticky xl:top-6">
               <p className="mb-2 text-xs font-medium tracking-wide text-muted uppercase">Contents</p>
               <ol className="space-y-0.5 text-sm">
@@ -637,11 +663,25 @@ type TextKey = {
 }[keyof WildkinEntryData];
 type TagKey = "dietTags" | "temperamentTags";
 
-function RequiredLabel({ name, label }: { name: string; label: string }): ReactNode {
+/** Small marker for fields that publishing copies into the game. */
+function InGameChip() {
+  return (
+    <span
+      title="Copied to the game when you publish"
+      className="inline-flex items-center gap-1 rounded border border-accent/40 bg-accent/10 px-1 py-px text-[10px] font-medium tracking-wide text-accent uppercase"
+    >
+      <GamepadIcon className="size-3" /> In game
+    </span>
+  );
+}
+
+/** Field label with the "required to publish" star and the "In game" marker. */
+function FieldLabel({ name, label }: { name: string; label: string }): ReactNode {
   return (
     <>
       {label}
       {REQUIRED.has(name) ? <span className="text-gold">*</span> : null}
+      {IN_GAME.has(name) ? <InGameChip /> : null}
     </>
   );
 }
@@ -665,7 +705,7 @@ function TextField({
   const { register, formState } = useFormContext<WildkinEntryData>();
   const error = formState.errors[name]?.message;
   return (
-    <Field label={<RequiredLabel name={name} label={label} />} hint={hint} error={error} className={cn(wide && "md:col-span-2")}>
+    <Field label={<FieldLabel name={name} label={label} />} hint={hint} error={error} className={cn(wide && "md:col-span-2")}>
       {(id) =>
         multiline ? (
           <Textarea id={id} placeholder={placeholder} aria-invalid={!!error || undefined} {...register(name)} />

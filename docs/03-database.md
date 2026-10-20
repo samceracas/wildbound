@@ -28,7 +28,7 @@
 | Databases | `wildbound` (dev), `wildbound_test` (integration tests, created by `docker/initdb/01-test-db.sql`) |
 | Access library | Prisma 7, `prisma-client` generator, `@prisma/adapter-pg` driver adapter (pool of 10) |
 | Schema file | `packages/db/prisma/schema.prisma` |
-| Migrations | `packages/db/prisma/migrations/{0_init,1_players,2_wildkin_manager}/migration.sql` |
+| Migrations | `packages/db/prisma/migrations/{0_init,1_players,2_wildkin_manager,3_registry_description}/migration.sql` |
 | Generated client | `packages/db/src/generated/prisma/` (gitignored; `pnpm install` runs `prisma generate`) |
 | Entry point | `createDb(url)` → `{ db: PrismaClient, url, close }` in `packages/db/src/client.ts` |
 | SRID | 4326 (WGS84 lon/lat) for every geometry |
@@ -356,7 +356,7 @@ flowchart LR
 | `wildkinStats(db)` | Dashboard counts and `nextRegistryNumber` (max over entries and creatures + 1) | `GET /api/manager/stats` |
 | `saveWildkinArt` / `loadWildkinArt` | Upsert / read PNG bytes (`load` returns null for deleted entries) | art routes, seed |
 | `seedWildkinEntries(db, list)` | Insert entries that do not exist yet (never overwrites authored work); marked published when the creature already exists | seed |
-| `creatureFromEntry(data)` | The game projection: `description` = identity (or physical description), `habitatAffinity` = habitat tags, plus rarity, activity, modifiers, skills, movement style | publish |
+| `creatureFromEntry(data)` | The game projection: `description` = registry description, `habitatAffinity` = habitat tags, plus rarity, activity, modifiers, skills, movement style | publish |
 
 `WildkinRepoError` codes map to HTTP in `apps/api/src/routes/manager.ts`: `not_found` 404, `conflict` 409, `deleted`
 409, `publish_incomplete` 400. The full flow is in [13 · Creature Manager](13-creature-manager.md#encyclopedia-vs-creatures).
@@ -438,6 +438,7 @@ The **GiST indexes** on every `geom` column make "which shapes contain this poin
 | `0_init` | `CREATE EXTENSION postgis`; the world tables, enums, composite keys, GiST indexes, `ST_IsValid` and weight CHECKs. Identical to the old Drizzle schema |
 | `1_players` | Registry columns on `creatures` (backfills `registry_number` alphabetically, then `NOT NULL`), `spawn_status` enum, all player tables, hand-written CHECKs |
 | `2_wildkin_manager` | v0.2.0: `wildkin_entry_status` enum, `wildkin_entries`, `wildkin_art` (+ kind CHECK), `creatures.movement_style` (default `forager`) and `creatures.deleted_at`, `spawns.heading` and `spawns.moved_at` |
+| `3_registry_description` | v0.2.0: fills the new `registryDescription` in `wildkin_entries.content` from `creatures.description` (or the identity line for drafts) |
 
 `runMigrations(url)` (`packages/db/src/migrate.ts`):
 

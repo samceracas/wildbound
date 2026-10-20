@@ -89,7 +89,7 @@ export function creatureFromEntry(data: WildkinEntryData): CreatureDefinition {
     id: data.id,
     registryNumber: data.registryNumber,
     name: data.name,
-    description: (data.identity || data.physicalDescription).slice(0, 2000),
+    description: data.registryDescription,
     habitatAffinity: data.habitatTags,
     habitatSummary: data.habitatSummary.slice(0, 2000),
     rarity: data.rarity,

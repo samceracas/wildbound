@@ -66,6 +66,7 @@ const draft = (over: Record<string, unknown> = {}) => ({
   name: "Lampyra",
   classification: "Glowing Moth Wildkin",
   identity: "A soft-winged moth Wildkin whose wing spots glow faintly at dusk.",
+  registryDescription: "A soft-winged moth whose two pale wing spots glow faintly at dusk. Often found where night flowers open.",
   physicalDescription: "A palm-sized moth with dusty violet wings and two pale glowing eye-spots.",
   habitatTags: ["forest-edge", "flowering"],
   habitatSummary: "Flowering forest edges at dusk.",
@@ -122,7 +123,7 @@ describe("encyclopedia CRUD + publish", () => {
     const creature = (await listCreatures(handle.db)).find((c) => c.id === "lampyra");
     expect(creature).toMatchObject({
       registryNumber: 6,
-      description: draft().identity,
+      description: draft().registryDescription,
       habitatAffinity: ["forest-edge", "flowering"],
       movementStyle: "darter",
       rarity: "uncommon",
@@ -145,7 +146,7 @@ describe("encyclopedia CRUD + publish", () => {
   it("rejects duplicate ids/registry numbers, id changes and incomplete publishes", async () => {
     expect((await api("post", "/wildkin").send(draft({ id: "kawi" }))).status).toBe(409);
     expect((await api("post", "/wildkin").send(draft({ registryNumber: 1 }))).status).toBe(409);
-    await api("post", "/wildkin").send(draft({ physicalDescription: "", habitatSummary: "" }));
+    await api("post", "/wildkin").send(draft({ registryDescription: "", habitatSummary: "" }));
     expect((await api("put", "/wildkin/lampyra").send(draft({ id: "other" }))).status).toBe(400);
     const res = await api("post", "/wildkin/lampyra/publish");
     expect(res.status).toBe(400);
@@ -180,7 +181,8 @@ describe("AI assistant", () => {
         name: "Lampyra",
         rarity: "Uncommon",
         activityPattern: "sheltering by day",
-        habitatTags: ["Forest Edge", "flowering"],
+        habitatTags: ["Forest Edge", "flowering", "moonlit-glade"],
+        registryDescription: "A shy moth whose wing spots glow at dusk.",
         movementStyle: "teleporter",
         spawnModifiers: { timeOfDay: { night: 2 }, weather: { rain: 0.5 } },
         skills: [{ name: "Dust Veil", description: "Raises evasion." }],
@@ -197,11 +199,14 @@ describe("AI assistant", () => {
       rarity: "uncommon",
       activityPattern: "sheltering_by_day",
       habitatTags: ["forest-edge", "flowering"],
+      registryDescription: "A shy moth whose wing spots glow at dusk.",
       skills: [{ name: "Dust Veil", canon: "proposed" }],
     });
+    // Invented tags never reach the form; the author is told.
+    expect(body.notes.some((n) => n.includes("moonlit-glade"))).toBe(true);
     expect(body.suggestion.movementStyle).toBeUndefined();
     expect(body.dropped).toEqual(expect.arrayContaining(["movementStyle", "bogus"]));
-    expect(body.notes).toHaveLength(1);
+    expect(body.notes).toHaveLength(2);
     expect(body.model).toBe("fake-model");
     expect(assistant.last?.context.roster.map((r) => r.id)).toContain("kawi");
     expect(assistant.last?.context.identities.kawi).toMatch(/canopy bird/i);

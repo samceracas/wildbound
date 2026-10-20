@@ -48,8 +48,13 @@ export const WildkinEntryInputSchema = z.object({
   classification: Line.default(""),
   /** Canon status summary: what is ESTABLISHED vs PROPOSED/TBD. */
   canonStatus: Prose.default(""),
-  /** One-line identity. Also the creature's Registry description when no physical description exists. */
+  /** One-line identity (encyclopedia). */
   identity: Prose.default(""),
+  /**
+   * What players read in the in-game Registry after observing this Wildkin
+   * (creatures.description). Written in the game's field-research voice.
+   */
+  registryDescription: z.string().max(2000).default(""),
   inspiration: Prose.default(""),
   /** Free-form habitat and distribution prose. */
   habitat: Prose.default(""),
@@ -138,7 +143,26 @@ export const WildkinStatsSchema = z.object({
 export type WildkinStats = z.infer<typeof WildkinStatsSchema>;
 
 /** Fields the publish step insists on (the rest may stay empty / TBD). */
-export const PUBLISH_REQUIRED_FIELDS = ["name", "identity", "physicalDescription", "habitatSummary"] as const;
+export const PUBLISH_REQUIRED_FIELDS = ["name", "registryDescription", "habitatSummary"] as const;
+
+/**
+ * Entry fields that publishing copies into the game (the `creatures` table).
+ * Everything else is encyclopedia-only (Bible prose for people and for the AI/art prompts).
+ */
+export const GAME_FIELDS = [
+  "id",
+  "registryNumber",
+  "name",
+  "registryDescription",
+  "habitatTags",
+  "habitatSummary",
+  "rarity",
+  "activityPattern",
+  "movementStyle",
+  "spawnModifiers",
+  "skills",
+] as const satisfies readonly (keyof WildkinEntryData)[];
+export type GameField = (typeof GAME_FIELDS)[number];
 
 // ---------------------------------------------------------------- AI assistant
 

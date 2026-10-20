@@ -6,6 +6,7 @@
     "classification": "Canopy Bird Wildkin",
     "canonStatus": "Core identity and broad appearance ESTABLISHED; fine-grained anatomy and activity schedule PROPOSED/TBD.",
     "identity": "A curious, compact canopy bird with dark-edged wings, a rust-colored breast, and long expressive tail feathers.",
+    "registryDescription": "A curious, compact canopy bird with dark-edged wings, a rust-colored breast and long expressive tail feathers that flick when it is curious. Often heard before it is seen.",
     "inspiration": "Small forest songbirds and other agile canopy-dwelling passerines. This is a visual/ecological reference, not a one-to-one species match.",
     "habitat": "Forest canopy and bright woodland edges. Often heard before seen.",
     "habitatTags": [
@@ -82,6 +83,7 @@
     "classification": "Forest Mouse Wildkin",
     "canonStatus": "Broad anatomy, coloration, diet, and cautious temperament ESTABLISHED; detailed markings and active hours PROPOSED/TBD.",
     "identity": "A cautious, elongated forest mouse whose muted green-brown coloration blends into leaf litter and moss.",
+    "registryDescription": "A cautious, elongated forest mouse whose muted green-brown coloration blends into leaf litter and moss. It pauses often, listening before crossing open patches.",
     "inspiration": "Forest mice and other small rodents adapted to leaf litter and mossy ground.",
     "habitat": "Forest floor, leaf litter, moss, roots, fallen timber, and sheltered undergrowth.",
     "habitatTags": [
@@ -157,6 +159,7 @@
     "classification": "Plant-Associated Wildkin",
     "canonStatus": "Four-legged form, leaf-like body, flower-like dorsal growth, sunny-clearing preference, and vegetation-indicator role ESTABLISHED.",
     "identity": "A small four-legged Wildkin with a leaf-like body and a flower-like growth along its back.",
+    "registryDescription": "A small four-legged Wildkin with a leaf-like body and a flower-like growth along its back that opens and closes as it moves. Its presence is a sign of a healthy clearing.",
     "inspiration": "A deliberate fantasy blend rather than a single confirmed animal. Possible references include small browsing mammals such as hares or muntjac combined with plant mimicry. Exact blend TBD.",
     "habitat": "Sunny clearings where flowering plants are healthy; associated with vegetation conditions.",
     "habitatTags": [
@@ -230,6 +233,7 @@
     "classification": "Centipede-Like Wildkin",
     "canonStatus": "Segmented body, many legs, coloration range, sheltering behavior, diet, size variation, and defensive retreat response ESTABLISHED.",
     "identity": "A segmented, many-legged Wildkin with dark armored plates and pale markings, usually found under sheltered surfaces.",
+    "registryDescription": "A segmented, many-legged Wildkin with dark armored plates and pale markings along its sides. It hides beneath stones by day and slips away when surprised.",
     "inspiration": "Centipedes, particularly the segmented body plan and many-legged movement. Avoid copying a real species exactly.",
     "habitat": "Beneath rocks, fallen branches, and sheltered surfaces; damp forest areas; larger individuals deeper in mature woodland.",
     "habitatTags": [
@@ -304,6 +308,7 @@
     "classification": "Freshwater Wildkin",
     "canonStatus": "Compact body, smooth shimmering coat/body, strong swimming tail, freshwater habitat preferences, and displaced-sighting story function ESTABLISHED.",
     "identity": "A compact freshwater Wildkin with a thick body, short legs, a subtly shimmering surface, and a powerful swimming tail.",
+    "registryDescription": "A compact freshwater Wildkin with a thick body, short legs, a subtly shimmering surface and a powerful swimming tail. Its survival depends on continuous freshwater habitat.",
     "inspiration": "TBD. Potential reference blend: small semi-aquatic mammals, aquatic salamanders, and freshwater fish. Choose one dominant silhouette reference before final art to avoid an incoherent hybrid.",
     "habitat": "Flowing water, shaded banks, and deeper pools; historically concentrated along Silayan Creek.",
     "habitatTags": [

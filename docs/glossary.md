@@ -45,6 +45,8 @@ the software.
 | **Radar** | game | The map screen showing you and nearby Wildkin |
 | **Region** | game | A named WILDBOUND area drawn over a real place (Mabunyi Nature Reserve) |
 | **Registry** | game | The field guide of all species (like a Pokédex). Entries are unknown, observed or captured |
+| **Registry description** | content | The text players read in a species' Registry entry after observing it (`creatures.description`). Written in the Creature Manager (`registryDescription`), separate from the encyclopedia's identity line |
+| **In game (field marker)** | tech | Creature Manager chip on the fields that publishing copies into the game (`GAME_FIELDS`); unmarked fields are encyclopedia only |
 | **Registry number** | game | A species' number, shown as "No. 001" |
 | **Resolve** | tech | Turning a coordinate into a `WorldContext` (region, habitat, Wildkin…) |
 | **Satchel** | game | The inventory screen |

@@ -414,11 +414,11 @@ default (empty text, `TBD`, `forager`, `[]`), so a half-written draft is valid.
 
 Copies the entry's game fields into `creatures` (insert or update, same id) and marks it published, in one transaction.
 
-- 400 `publish_incomplete` with `issues` when any of `name`, `identity`, `physicalDescription`, `habitatSummary` is
+- 400 `publish_incomplete` with `issues` when any of `name`, `registryDescription`, `habitatSummary` is
   empty (`PUBLISH_REQUIRED_FIELDS`).
 - 409 `deleted` for a deleted entry; 409 `conflict` if the registry number is taken by another creature.
 
-Field mapping (`creatureFromEntry`): `description` ← `identity` (or `physicalDescription` if identity is empty),
+Field mapping (`creatureFromEntry`): `description` ← `registryDescription`,
 `habitatAffinity` ← `habitatTags`, and `habitatSummary`, `rarity`, `activityPattern`, `spawnModifiers`, `skills`,
 `movementStyle` as-is. The prose never reaches the game.
 

@@ -38,16 +38,23 @@ export interface WildkinAssistant {
 
 export class AssistantError extends Error {}
 
+/** The habitat tags the manager's dropdown offers; the assistant may only pick these. */
+const ALLOWED_HABITAT_TAGS: ReadonlySet<string> = new Set(SUGGESTED_HABITAT_TAGS);
+
 const FIELD_GUIDE = `
 Fields of "entry" (all optional; omit what you would not change):
 - id: canonical id, lowercase slug (letters, digits, single hyphens), usually the name lowercased.
 - name: short, pronounceable species name that fits the existing roster (Kawi, Mimu, Lumae, Kantar, Riverkin; Filipino-flavoured sounds are welcome).
 - classification: header line, e.g. "Canopy Bird Wildkin".
 - canonStatus: what is ESTABLISHED vs PROPOSED/TBD for this species. New species are PROPOSED until approved.
-- identity: one-line identity (one sentence).
+- identity: one-line identity (one sentence, encyclopedia).
+- registryDescription: the text players read in the in-game Registry after observing it. 1-3 sentences in the
+  game's grounded field-research voice (like "A curious, compact canopy bird ... Often heard before it is seen."),
+  consistent with the lore above and with the author's idea. If the author's request contains a description,
+  keep its meaning and facts and only polish it; otherwise write one. Never contradict the other fields.
 - inspiration: real-world design reference (a reference, not a claim it is that animal).
 - habitat: habitat and distribution prose.
-- habitatTags: array of lowercase slug tags. Prefer: ${SUGGESTED_HABITAT_TAGS.join(", ")}.
+- habitatTags: 1-4 tags chosen ONLY from this list (no other tags are allowed): ${SUGGESTED_HABITAT_TAGS.join(", ")}.
 - habitatSummary: short habitat line for the in-game Registry (max ~80 chars).
 - diet (prose) and dietTags (short lowercase words).
 - activityPattern: one of ${ACTIVITY_PATTERNS.join(", ")}. activityNotes: prose (mark proposals).
@@ -89,7 +96,7 @@ export function userPrompt(request: AssistRequest, context: AssistContext): stri
     .map((w) => `- No. ${w.registryNumber} ${w.name} (${w.id}, ${w.status}): ${w.classification}. ${context.identities[w.id] ?? ""}`.trim())
     .join("\n");
   const current = request.current ? JSON.stringify(request.current, null, 1) : "(empty form: create a new species)";
-  return `Existing Wildkin roster:\n${roster || "(none)"}\n\nCurrent form values:\n${current}\n\nAuthor's idea / request:\n${request.prompt}\n\nReturn the JSON object now. Fill every field you can for a new species; for an existing one, return only fields that should change plus any that are empty.`;
+  return `Existing Wildkin roster:\n${roster || "(none)"}\n\nCurrent form values:\n${current}\n\nAuthor's idea / request:\n${request.prompt}\n\nReturn the JSON object now. Fill every field you can for a new species; for an existing one, return only fields that should change plus any that are empty. Always include registryDescription, matching the idea above and the lore.`;
 }
 
 const slugify = (s: string) =>
@@ -133,6 +140,19 @@ export function sanitizeSuggestion(raw: RawSuggestion): { suggestion: WildkinSug
     else dropped.push(key);
   }
   const notes = Array.isArray(raw.notes) ? raw.notes.filter((n): n is string => typeof n === "string") : [];
+
+  // Habitat tags must come from the editor's list (the manager's dropdown); drop invented ones.
+  if (Array.isArray(suggestion.habitatTags)) {
+    const tags = suggestion.habitatTags as string[];
+    const allowed = tags.filter((t) => ALLOWED_HABITAT_TAGS.has(t));
+    const invented = tags.filter((t) => !ALLOWED_HABITAT_TAGS.has(t));
+    if (invented.length) notes.push(`Left out habitat tags that are not in the list: ${invented.join(", ")}.`);
+    if (allowed.length) suggestion.habitatTags = allowed;
+    else {
+      delete suggestion.habitatTags;
+      dropped.push("habitatTags");
+    }
+  }
   return { suggestion: suggestion as WildkinSuggestion, notes, dropped };
 }
 
