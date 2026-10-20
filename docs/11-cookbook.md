@@ -9,6 +9,9 @@
 - [General workflow for any feature](#general-workflow-for-any-feature)
 - [Add a new Wildkin](#add-a-new-wildkin)
 - [Change a Wildkin's stats, text or spawn modifiers](#change-a-wildkins-stats-text-or-spawn-modifiers)
+- [Retire (delete) a Wildkin](#retire-delete-a-wildkin)
+- [Add a field to the Wildkin encyclopedia](#add-a-field-to-the-wildkin-encyclopedia)
+- [Tune or switch off wandering](#tune-or-switch-off-wandering)
 - [Add an inventory item](#add-an-inventory-item)
 - [Tune a game rule](#tune-a-game-rule)
 - [Add a weather state or time-of-day band](#add-a-weather-state-or-time-of-day-band)
@@ -28,9 +31,11 @@
 |---|---|---|
 | Move a boundary, add a habitat or POI | Map Editor → Save → Publish | No |
 | Which Wildkin live in a habitat, weights, time/weather-only entries | Map Editor (encounter tables) | No |
-| Wildkin description, rarity, modifiers, skills | `packages/db/seed/creatures.json` → `pnpm db:seed` | Data only |
-| A new Wildkin | `creatures.json` + two PNGs → `pnpm db:seed` → editor | Data + art (+2 test numbers) |
-| Spawn radius, interact range, anti-cheat limits | `GAME_RULES` | One constant |
+| Wildkin description, rarity, modifiers, skills, movement style | Creature Manager → Save draft → Publish | No |
+| A new Wildkin (entry, AI-assisted lore, art) | Creature Manager → Publish → Map Editor encounter table → Publish | No |
+| Retire a Wildkin | Creature Manager → Delete (restorable) | No |
+| Change the five *seed* Wildkin for fresh databases | `packages/db/seed/creatures.json` / `wildkin.json` → `pnpm db:seed` | Data only |
+| Spawn radius, interact range, anti-cheat limits, wandering step | `GAME_RULES` | One constant |
 | New item, weather state, POI type, endpoint, screen | See recipes | Yes |
 
 ## General workflow for any feature
@@ -45,38 +50,107 @@ other place that needs updating. Finish with `pnpm typecheck && pnpm test && pnp
 
 ## Add a new Wildkin
 
-1. **Data.** Append to `packages/db/seed/creatures.json`:
-   ```json
-   {
-     "id": "tilapo",
-     "registryNumber": 6,
-     "name": "Tilapo",
-     "description": "…from the Wildkin Bible…",
-     "habitatAffinity": ["freshwater", "creek"],
-     "habitatSummary": "Slow pools under overhanging roots.",
-     "rarity": "uncommon",
-     "activityPattern": "nocturnal",
-     "spawnModifiers": { "timeOfDay": { "night": 2, "day": 0.3 }, "weather": { "rain": 1.5 } },
-     "skills": [{ "name": "Mud Veil", "description": "…", "canon": "proposed" }]
-   }
-   ```
-   `id` must be a slug and unique; `registryNumber` unique and positive. Use `TBD` rather than inventing canon.
-2. **Art.** Add `apps/web/public/wildkin/icons/tilapo.png` (64 px face) and `…/sprites/tilapo.png` (128 px). File name
-   = `id`.
-3. **Load it.** `pnpm db:seed` (upserts creatures, keeps your draft).
-4. **Place it.** In the editor, add it to encounter tables (it appears in the Wildkin picker), Save, Publish.
-5. **Tests.** `apps/api/test/game.test.ts` (`registry.total` = 5) and `apps/api/test/world.test.ts` (5 creatures)
-   count the seed roster; update them to 6.
-6. Regenerate charts: `node docs/images/generate-charts.mjs` (a 6th series colour needs adding to `SERIES`), and
-   update [09](09-wildkin-and-content.md).
+Since v0.2.0 this needs **no code and no files**: everything happens in the
+[Creature Manager](13-creature-manager.md) and the Map Editor.
 
-**What can break:** missing art shows a broken image (no fallback); a duplicate `registryNumber` fails the seed (unique
-constraint). The Registry, radar and party pick the new species up automatically.
+```mermaid
+flowchart LR
+    a["Manager: New Wildkin"] --> b["AI assistant:<br/>describe the idea"] --> c["Review & edit<br/>the 8 sections"] --> d["Save draft"]
+    d --> e["Generate sprites<br/>with PixelLab"] --> f["Publish"]
+    f --> g["Map Editor:<br/>add to encounter tables"] --> h["Save · Validate · Publish"]
+    h --> i["🦎 It spawns in the game"]
+```
+
+1. **Start the apps.** `pnpm dev` (or `pnpm dev:api` + `pnpm dev:manager` + `pnpm dev:editor`). For the AI helpers set
+   `GROQ_API_KEY` and `PIXELLAB_API_KEY` in `.env` (optional).
+2. **Create.** Manager → **New Wildkin**. The registry number is pre-filled with the next free one.
+3. **Brainstorm (optional).** In the *AI field assistant* panel describe the idea, e.g. *"a shy moth that pollinates
+   night-blooming vines by the creek"*, and press **Generate with AI**. The form fills in; read the notes (canon
+   conflicts, overlaps with existing Wildkin) and the list of dropped fields.
+4. **Review.** Go through the eight sections. Keep `TBD` where canon is undecided (rarity, activity), mark invented
+   details as PROPOSED in *Canon status*, pick a **movement style** that matches the behaviour, and make sure the
+   **Physical description** and **Visual hook** describe a readable silhouette (they drive the art). Required to publish:
+   Name, Identity, Physical description, Habitat summary.
+5. **Save draft.** The canonical id (e.g. `luntay`) is fixed from now on.
+6. **Art.** **Generate sprites with PixelLab** → check the balance shown → generate icon (64 px) and sprite (128 px).
+   Not happy? Improve the Appearance section or add extra direction and generate again (each image costs one
+   generation).
+7. **Publish.** The species is copied into `creatures`. It is not spawning yet: no habitat lists it.
+8. **Place it.** Open (or focus) the Map Editor; the new species is in the Wildkin picker. Add it to one or more
+   encounter tables with a weight (and conditions if needed), **Save draft**, **Validate**, **Publish**.
+9. **Check.** In the editor's Test mode drop the player in that habitat: the new Wildkin is in *Available Wildkin*. In
+   the game it appears on the radar and in the Registry (as a silhouette until observed).
+
+**What can break / gotchas:**
+
+- **Not in the editor's picker** → it is still a draft: Publish it in the manager.
+- **Never spawns** → not in a *published* encounter table, or its conditions/spawn modifiers rule it out at this
+  time/weather (×0).
+- **Duplicate id or registry number** → the manager refuses (409); ids and numbers are shared with the seeded
+  creatures.
+- **No art** → the game shows a neutral "?" placeholder until you generate art; nothing breaks.
+- **Tests that count the roster** (`registry.total`, 5 creatures) only use the seed data, so a species created in the
+  manager does not affect them. Adding a sixth species to the *seed files* does (see below).
+
+### Adding a Wildkin to the seed data (rare)
+
+Only when the species should exist in every fresh database (and in tests):
+
+1. Append it to `packages/db/seed/creatures.json` (game fields, incl. `movementStyle`) **and**
+   `packages/db/seed/wildkin.json` (the full entry, validated by `WildkinEntryInputSchema`). Easiest: author it in the
+   manager, then copy the values from `GET /api/manager/wildkin/<id>`.
+2. Optionally add `apps/web/public/wildkin/icons/<id>.png` and `…/sprites/<id>.png` (imported into the DB by the seed,
+   and the game's offline fallback).
+3. `pnpm db:seed`. Update the tests that count the seed roster (`apps/api/test/game.test.ts`, `world.test.ts`), the
+   charts (`node docs/images/generate-charts.mjs`, a new series colour in `SERIES`) and
+   [09](09-wildkin-and-content.md).
 
 ## Change a Wildkin's stats, text or spawn modifiers
 
-Edit `creatures.json`, run `pnpm db:seed`. Modifier values must be 0–10 (`SpawnModifiersSchema`); missing keys mean ×1.
-Renaming an `id` is a **new** species (old rows stay; encounter entries reference ids). Avoid it, or write a migration.
+Open it in the Creature Manager, edit, **Save draft** (the game is unchanged; the entry shows *Published · edited*),
+then **Publish**. Modifier values must be 0–10 (`SpawnModifiersSchema`); blank means ×1. The canonical id cannot be
+changed (encounter entries, spawns, Registry and art reference it); create a new species instead.
+
+> `pnpm db:seed` resets the five **seed** species' game fields from `creatures.json`. If you changed one of them in the
+> manager, publish it again after seeding (or update the JSON too).
+
+## Retire (delete) a Wildkin
+
+Creature Manager → **Delete** (confirm). It is a soft delete: the species stops spawning immediately, disappears from
+the editor's pickers and the manager list, and stays in the Registry/Party of players who already met it. **Restore**
+undoes it (Wildkin list → *Show deleted*).
+
+**What can break:** a published world whose encounter table still lists the species keeps working (the species just
+never spawns), but the next editor **Publish** reports it as an unknown Wildkin. Remove the entry from the table (Save
+still works, so you do not lose edits).
+
+## Add a field to the Wildkin encyclopedia
+
+- **Prose only (stays in the manager):** add it with a default to `WildkinEntryInputSchema`
+  (`packages/shared/src/wildkin.ts`) and a field in the right section of
+  `apps/manager/src/features/wildkin/WildkinEditPage.tsx`. No migration (it is stored in `wildkin_entries.content`).
+  Add a line to `FIELD_GUIDE` in `apps/api/src/manager/assistant.ts` if the AI should fill it, and a label in
+  `wildkin-form.ts` (`fieldLabel`).
+- **A game field (reaches `creatures`):** all of the above, plus a column in `schema.prisma` + migration, the field in
+  `CreatureDefinitionSchema` (`world.ts`), `creatureFromEntry` (`wildkin-repo.ts`), `listCreatures`/`upsertCreatures`
+  (`world-repo.ts`), the seed `creatures.json`, and whatever uses it (`views.ts`, spawning…).
+
+**What can break:** forgetting the default makes old entries fail to parse (`toEntry` validates `content` on every
+read).
+
+## Tune or switch off wandering
+
+Wandering is experimental (see [07 · Wandering](07-game-systems.md#wandering-spawns-experimental)).
+
+- **Per species:** change the movement style in the Creature Manager and publish.
+- **Globally:** speeds and pause chances in `WANDER_PROFILES` / `INACTIVE_SPEED_FACTOR`
+  (`packages/world/src/wandering.ts`); step interval and catch-up cap in `GAME_RULES.spawnWanderStepMs` /
+  `spawnWanderMaxSteps`.
+- **Off:** remove the `wanderSpawns(...)` call in `gameState()` (`apps/api/src/game/service.ts`), keeping the active
+  spawns list as it was. The radar's walking animation then simply never triggers.
+
+**What can break:** `wandering.test.ts` and the wandering case in `apps/api/test/game.test.ts` assert the current
+behaviour; update them with the change.
 
 ## Add an inventory item
 
@@ -232,12 +306,15 @@ If you change the thing in the left column, check everything in the right column
 | A Zod schema in `shared` | API parsing (`parseOr400`), both clients' response parsing, DB mapping, seed JSON, tests |
 | `GAME_RULES` | Server checks, radar ring and accuracy hint, tests, charts |
 | `ITEMS` | Inventory endpoint, Satchel icons/filters, starter inventory |
-| `creatures.json` | Registry total, tests counting species, art files, charts |
+| `creatures.json` / `wildkin.json` (seed) | Registry total, tests counting species, seed art import, charts |
+| `WildkinEntryInputSchema` | Stored `content` of every entry (needs defaults), manager form, assistant `FIELD_GUIDE`/sanitizing, seed `wildkin.json` |
+| `listCreatures` deleted filter | Spawning, editor pickers, save integrity, Registry/Party history |
+| `/api/art/...` path (`wildkinArtPath`) | Game images and fallbacks, manager art panel, cache headers |
 | `WEATHER` / `TIME_OF_DAY` | Weather mapping, web labels/icons, editor chips (auto), modifiers |
 | A world DB column | `loadWorld`, `saveDraft`, `publishDraft`, maybe `findSpatialContext` |
 | `assembleWorldContext` | Editor Test panel, game spawning, `context.test.ts`, integration tests |
 | `checkMovement` | Every player's ability to play; `movement.test.ts`, `game.test.ts` |
-| Route paths | `apps/web/src/lib/api.ts`, `apps/editor/src/lib/api.ts`, docs |
+| Route paths | `apps/web/src/lib/api.ts`, `apps/editor/src/lib/api.ts`, `apps/manager/src/lib/api.ts`, docs |
 | `editor-map.ts` layers | Selection by click (`queryRenderedFeatures` layer ids), styles in `styles.css` |
 
 Next: [12 · Exercises and roadmap](12-exercises-and-roadmap.md).

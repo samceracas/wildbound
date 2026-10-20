@@ -2,7 +2,7 @@
 
 A location-aware 2D creature-collecting and field-research game. Where you are in the real world decides which part of the fictional WILDBOUND world you are exploring, which habitat you are standing in, and which Wildkin can appear.
 
-This repository holds **v0.1.0**: a developer-facing **Map Editor**, the **API** behind it, and the first playable **web game** (username login, live location, radar with spawning Wildkin, Observe, Registry, Satchel and Party). Parts of v0.1.0 are deliberately left as **fill-in-the-blank exercises**: see [Exercises](#exercises-fill-in-the-blanks).
+This repository holds **v0.2.0**: a developer-facing **Map Editor**, a **Creature Manager** (an editable Wildkin encyclopedia with an AI assistant and PixelLab art generation), the **API** behind them, and the playable **web game** (username login, live location, radar with spawning and wandering Wildkin, Observe, Registry, Satchel and Party). Parts of the game are deliberately left as **fill-in-the-blank exercises**: see [Exercises](#exercises-fill-in-the-blanks).
 
 ```
 Real location (lat/lng)
@@ -20,6 +20,7 @@ WILDBOUND region  ->  Habitat  ->  Conditions (time, weather)  ->  Encounter tab
 
 - [The idea](#the-idea)
 - [Why a map editor first](#why-a-map-editor-first)
+- [The Creature Manager (apps/manager)](#the-creature-manager-appsmanager)
 - [Three separate representations of the world](#three-separate-representations-of-the-world)
 - [Tech stack](#tech-stack)
 - [The game (apps/web)](#the-game-appsweb)
@@ -49,7 +50,7 @@ The player experience combines three things:
 
 The real-world geography is an implementation layer. The player-facing fiction stays WILDBOUND: the real park in Quezon City is "Mabunyi Nature Reserve" in the game.
 
-The first test world has five Wildkin with simple ecological ties:
+The first test world has five Wildkin with simple ecological ties (more are written in the [Creature Manager](#the-creature-manager-appsmanager)):
 
 | Wildkin | Environment |
 |---|---|
@@ -72,6 +73,21 @@ Everything location-aware depends on authored data: where regions and habitats a
 
 It deliberately is **not** a general GIS product. It supports only the operations WILDBOUND content needs.
 
+## The Creature Manager (apps/manager)
+
+Wildkin themselves are authored in a second internal tool, the **Creature Manager** (http://localhost:5175). It is the Wildkin Bible as an app:
+
+- **Dashboard** with stat cards (Wildkin, published, drafts, unpublished changes, with art, deleted), rarity breakdown and the next registry number.
+- **Wildkin list** with icon, registry number and name; Create, Edit, Delete (soft delete) and Restore.
+- **Entry page**: the Bible entry in eight sections (identity, habitat, diet and temperament, activity and rarity, appearance, behaviour, ecology, game), with selects and comboboxes for every property that has fixed choices.
+- **Save draft / Publish.** Entries live in their own encyclopedia table (`wildkin_entries`). Publishing copies only the game fields (name, Registry description, habitat tags and summary, rarity, activity, spawn modifiers, skills, movement style) into the `creatures` table the editor and game read.
+- **AI assistant.** Describe an idea in a sentence; the API asks a Groq LLM, which is given the canon documents in `docs/` (Bible first) and the existing roster, and fills in the form for you to review. Needs `GROQ_API_KEY`.
+- **PixelLab art.** Generates a 64 px icon and a 128 px sprite from the entry's physical description, visual hook and design notes, with the cheapest model (Pixen), after checking the credit balance. The art is stored in the database and served by the API, so the game shows it without a rebuild. Needs `PIXELLAB_API_KEY`.
+
+Full guide: [`docs/13-creature-manager.md`](docs/13-creature-manager.md).
+
+![Creature Manager entry page](docs/images/screenshots/manager-3-entry.png)
+
 ## Three separate representations of the world
 
 These are kept apart on purpose. Do not couple them.
@@ -93,11 +109,11 @@ The app stack is standardized on React, Node.js + Express, Prisma, PostgreSQL, T
 | Language | TypeScript 5.9 | Strict mode, `noUncheckedIndexedAccess` |
 | Runtime | Node.js 22+ | Uses the built-in `process.loadEnvFile` |
 | Monorepo | pnpm 10 workspaces | `apps/*` and `packages/*` |
-| Frontend | React 19 + Vite 7 | Editor and web game |
-| Routing (web) | React Router 7 | `/` login → `/location` → `/play/*` |
-| Styling | Tailwind CSS 4 (+ shadcn/ui in the web game) | Web: handheld "field nav" look from the Stitch mockups (`patches/0.1.0/mockups/`); editor: its original dark theme as `@theme` tokens |
-| Server state | TanStack Query 5 | Editor and web: all API calls go through query/mutation hooks |
-| Forms | react-hook-form + Zod resolver | Editor inspectors and web forms use the same Zod schemas the API validates with |
+| Frontend | React 19 + Vite 7 | Editor, Creature Manager and web game |
+| Routing (web, manager) | React Router 7 | Web: `/` login → `/location` → `/play/*`; manager: `/`, `/wildkin`, `/wildkin/:id` |
+| Styling | Tailwind CSS 4 (+ shadcn/ui in the web game and manager) | Web: handheld "field nav" look from the Stitch mockups (`patches/0.1.0/mockups/`); editor: its original dark theme as `@theme` tokens; manager: dark "field research" theme |
+| Server state | TanStack Query 5 | Editor, manager and web: all API calls go through query/mutation hooks |
+| Forms | react-hook-form + Zod resolver | Editor inspectors, manager entry form and web forms use the same Zod schemas the API validates with |
 | Map | MapLibre GL JS 5 | Open-source WebGL maps, no API key needed |
 | Editor state | Zustand 5 | Local editing only: the world being edited, selection, tool, undo/redo |
 | Client geometry | Turf.js 7 | Convenience only; PostGIS is authoritative |
@@ -106,7 +122,8 @@ The app stack is standardized on React, Node.js + Express, Prisma, PostgreSQL, T
 | DB access | Prisma 7 (`@prisma/adapter-pg`) | Prisma schema + migrations; PostGIS queries via `$queryRaw` |
 | Validation and contracts | Zod 4 | One schema set shared by editor, API and web |
 | Weather | Open-Meteo | Free, key-free; fetched by the server for the player's position |
-| Art | PixelLab (generated offline) | Wildkin icons/sprites and the player head in `apps/web/public` |
+| AI assistant | Groq API (chat completions, JSON mode) | Creature Manager only, optional (`GROQ_API_KEY`). Default model `llama-3.3-70b-versatile`; canon `.docx` read with mammoth |
+| Art | PixelLab API v2 (Pixen) | Creature Manager generates Wildkin icons/sprites (optional, `PIXELLAB_API_KEY`), stored in the DB and served at `/api/art/...`. Seed art and the player head in `apps/web/public` |
 | Tests | Vitest 3 + supertest | Unit, exercises, and integration tests against real PostGIS |
 | Local DB | Docker Compose (`postgis/postgis:16-3.4`) | Also creates a separate test database |
 | Geographic interchange | GeoJSON (RFC 7946) | `[lng, lat]` order everywhere |
@@ -117,26 +134,30 @@ The app stack is standardized on React, Node.js + Express, Prisma, PostgreSQL, T
 ```
 wildbound/
   apps/
-    api/        Express API: editor authoring/publish/preview, player auth, game (position, spawns, registry…)
+    api/        Express API: editor authoring/publish/preview, Creature Manager (+ Groq, PixelLab), player auth, game, art
     editor/     React + MapLibre Map Editor (developer tool)
+    manager/    React Creature Manager: Wildkin encyclopedia, draft/publish, AI assistant, PixelLab art (developer tool)
     web/        React game: login, location gate, radar, Registry, Satchel, Party
   packages/
     shared/     Zod schemas and TypeScript types: the data contract used everywhere
-    world/      Pure domain logic: validation, conditions, encounters, movement checks, spawning, weather
-    db/         Prisma schema + migrations, PostGIS queries, seed data, test helpers
+    world/      Pure domain logic: validation, conditions, encounters, movement checks, spawning, wandering, weather
+    db/         Prisma schema + migrations, PostGIS queries, Wildkin encyclopedia repo, seed data, test helpers
     game/       (later) battle and game systems
     assets/     (later) tile, creature and effect asset metadata
   patches/0.1.0/  v0.1.0 instructions, Stitch mockups + design tokens, handover notes, exercises
-  documents/      Game canon: Wildkin Bible, First Field Survey, Biology & Ecology reference
+  patches/0.2.0/  v0.2.0 instructions (Creature Manager, wandering spawns)
+  docs/           Documentation + game canon (WILDBOUND_*.docx: Wildkin Bible, First Field Survey,
+                  Biology & Ecology reference), also the AI assistant's lore context
   docker/         Postgres init scripts (creates the test database)
 ```
 
 Dependency direction (arrows mean "depends on"):
 
 ```
-apps/editor ---> packages/shared, packages/world
-apps/web    ---> packages/shared
-apps/api    ---> packages/db, packages/world, packages/shared
+apps/editor  ---> packages/shared, packages/world
+apps/manager ---> packages/shared
+apps/web     ---> packages/shared
+apps/api     ---> packages/db, packages/world, packages/shared
 packages/db ---> packages/world, packages/shared
 packages/world ---> packages/shared
 ```
@@ -154,18 +175,22 @@ pnpm install                    # also generates the Prisma client
 cp .env.example .env            # Windows: copy .env.example .env
 pnpm db:up                      # PostGIS 16 on localhost:5432
 pnpm db:migrate                 # apply Prisma migrations
-pnpm db:seed --publish          # 5 Wildkin + sample Mabunyi world, published so the game has data
-pnpm dev                        # API on :4000 and editor on :5173
-pnpm dev:web                    # the game on :5174 (separate terminal)
+pnpm db:seed --publish          # 5 Wildkin (+ encyclopedia entries and art) + sample Mabunyi world, published
+pnpm dev                        # API :4000, editor :5173, game :5174, Creature Manager :5175
 ```
 
 | URL | What |
 |---|---|
 | http://localhost:5173 | Map Editor |
 | http://localhost:5174 | The game (open on your phone via your LAN IP + HTTPS, or use browser devtools "Sensors" to fake a location) |
+| http://localhost:5175 | Creature Manager |
 | http://localhost:4000/api/health | API health check |
 
+The Creature Manager's AI helpers are optional: add `GROQ_API_KEY` (free key at https://console.groq.com/keys) and `PIXELLAB_API_KEY` (https://pixellab.ai) to `.env` and restart the API. Without them the manager works and the two buttons are disabled with a hint.
+
 If the Docker volume was created before `docker/initdb` existed, create the test database once: `docker exec -it wildbound-db createdb -U postgres wildbound_test`.
+
+**Upgrading from v0.1.0?** Run `pnpm install`, `pnpm db:migrate` (adds migration `2_wildkin_manager`) and `pnpm db:seed` (creates the five encyclopedia entries and imports their art; your world draft is kept). Add the new `.env` keys from `.env.example` (`CORS_ORIGINS` now includes `:5175`).
 
 **Upgrading from the Drizzle version?** Just run `pnpm db:migrate`. A database created by the old Drizzle migrations is detected and baselined (its world tables match the first Prisma migration), so your authored draft is kept. Then `pnpm db:seed` refreshes the Wildkin with their new Registry fields.
 
@@ -178,17 +203,23 @@ If the Docker volume was created before `docker/initdb` existed, create the test
 | `DATABASE_URL` | Dev database connection string |
 | `DATABASE_URL_TEST` | Separate database used by integration tests (must differ from `DATABASE_URL`) |
 | `API_PORT`, `API_HOST` | API bind address (default `4000`, `127.0.0.1`) |
-| `EDITOR_TOKEN` | Bearer token required by every `/api/editor/*` route |
-| `CORS_ORIGINS` | Comma-separated browser origins allowed to call the API (the editor; the game goes through the Vite proxy) |
+| `EDITOR_TOKEN` | Bearer token required by every `/api/editor/*` and `/api/manager/*` route |
+| `CORS_ORIGINS` | Comma-separated browser origins allowed to call the API (editor and manager; the game goes through the Vite proxy) |
 | `WORLD_TIMEZONE` | Fallback time zone when neither the weather service nor the browser supplies one (default `Asia/Manila`) |
 | `WEATHER_API_URL` | Open-Meteo forecast endpoint (default `https://api.open-meteo.com/v1/forecast`). `off` = always clear (offline dev) |
 | `SECURE_COOKIES` | `true` to mark the session cookie `Secure` (behind HTTPS) |
-| `VITE_API_URL` | API base URL for the editor |
-| `VITE_EDITOR_TOKEN` | Token the editor sends. Only the editor reads it; the web game never does |
+| `GROQ_API_KEY` | Enables the Creature Manager AI assistant (empty = off) |
+| `GROQ_MODEL` | Groq chat model with JSON mode (default `llama-3.3-70b-versatile`) |
+| `LORE_MAX_CHARS` | Characters of canon (`docs/WILDBOUND_*.docx`) sent per assistant request (default `30000`). Lower it, or pick a smaller model, if Groq's free tier rate-limits you |
+| `PIXELLAB_API_KEY` | Enables PixelLab art generation in the Creature Manager (empty = off) |
+| `VITE_API_URL` | API base URL for the editor and the manager |
+| `VITE_EDITOR_TOKEN` | Token the editor and manager send. The web game never reads it |
 
-The editor token is a single shared secret meant for local development. Replace it with real accounts before exposing the editor anywhere public.
+The editor token is a single shared secret meant for local development. Replace it with real accounts before exposing the editor or manager anywhere public.
 
 ## Typical workflow
+
+New species first: in the **Creature Manager**, create the Wildkin (optionally with the AI assistant and PixelLab), **Save draft**, then **Publish**. It then appears in the editor's Wildkin picker (refetched when the editor tab regains focus). Then, in the editor:
 
 1. Start everything (see Quick start) and open the editor.
 2. Pick the **Region** tool (`R`), click points around the real area, then double-click or press Enter. Rename it in the side panel.
@@ -215,7 +246,14 @@ World (authored in the editor, draft + published):
 | `PointOfInterest` | regionId, slug (unique per region), type, Point, interactionId, unlockCondition |
 | `EncounterTable` | regionId, habitatId (null means region-wide), conditionRules, active, entries |
 | `EncounterEntry` | creatureId, weight (1 to 1000), conditions |
-| `Creature` | id (slug), registryNumber, name, description, habitatAffinity, habitatSummary, rarity, activityPattern, spawnModifiers, skills |
+| `Creature` | id (slug), registryNumber, name, description, habitatAffinity, habitatSummary, rarity, activityPattern, spawnModifiers, skills, movementStyle, deletedAt (soft delete) |
+
+Wildkin encyclopedia (authored in the Creature Manager):
+
+| Entity | Key fields |
+|---|---|
+| `WildkinEntry` | id (= creature id once published), registryNumber (unique), name, status (`draft`/`published`), content (every other Bible field, JSON validated by `WildkinEntryInputSchema`), publishedAt, deletedAt |
+| `WildkinArt` | entryId + kind (`icon` 64 px / `sprite` 128 px), PNG bytes, prompt, model |
 
 Players:
 
@@ -224,7 +262,7 @@ Players:
 | `Player` | username (lowercased, unique), displayName |
 | `PlayerSession` | sha256 of the session token, expiresAt |
 | `PlayerPosition` | the server's view of where the player is: lat, lng, accuracy, recordedAt, strikes, lockedUntil, timeZone |
-| `Spawn` | one Wildkin placed near one player: creature, lat/lng, environment at spawn time, status, expiresAt |
+| `Spawn` | one Wildkin placed near one player: creature, lat/lng (changes as it wanders), heading, movedAt, environment at spawn time, status, expiresAt |
 | `RegistryEntry` | per player and species: first observed/captured, counts |
 | `InventoryItem` | per player and item id (items are defined in code: `ITEMS` in `@wildbound/shared`) |
 | `CapturedWildkin` | one captured individual, optional nickname, party slot 0–5 or storage |
@@ -237,7 +275,7 @@ Players:
 
 1. **Login** (`/`): pick a researcher name. That name is the save slot; using it again resumes your progress. There is no password yet.
 2. **Location** (`/location`): the game cannot be entered without location sharing. Once the first GPS fix arrives you move on automatically.
-3. **Radar** (`/play`): your position is a PixelLab player head; nearby Wildkin are face icons. Tap one for **Observe** or **Capture** (both need you within 60 m).
+3. **Radar** (`/play`): your position is a PixelLab player head; nearby Wildkin are face icons that **wander** around (experimental, may be removed by v0.3.0). Tap one for **Observe** or **Capture** (both need you within 60 m).
    - *Observe* unlocks the Registry basics: name, registry number, description, habitat.
    - *Capture* (exercise) also unlocks rarity, activity pattern and skills, and adds the Wildkin to your Party.
 4. **Registry**: a Pokédex-style grid. Unknown species are silhouettes with only their number.
@@ -247,7 +285,11 @@ If location sharing is turned off (or the signal is lost) mid-game, the game is 
 
 **Time and weather.** The status bar shows the device's local time, the time-of-day band and live weather. Both feed spawning: encounter-table conditions decide *whether* a species can appear, and per-species `spawnModifiers` decide *how often* (the modifiers are one of the exercises).
 
-**Spawning.** Each `GET /api/game/state` (polled every 10 s on the radar) expires old spawns, drops ones you walked far away from, and tops you up to 6 spawns (at most 2 new per tick) within 120 m, chosen by weight from the published encounter tables at your server-side position.
+**Spawning.** Each `GET /api/game/state` (polled every 10 s on the radar) expires old spawns, drops ones you walked far away from, lets the rest wander, and tops you up to 6 spawns (at most 2 new per tick) within 120 m, chosen by weight from the published encounter tables at your server-side position. Species deleted in the Creature Manager never spawn.
+
+**Wandering (experimental).** Spawns take one step per 10 s since they last moved (at most 6 per poll), in the style of their species' `movementStyle` (`still`, `skulker`, `forager`, `roamer`, `darter`), slower outside their activity period. A spawn that wanders more than `spawnRadiusM` (120 m) from you is despawned. On the radar markers walk smoothly between polls, face their direction and fade in and out; "It wandered off." shows if the selected one leaves. Code: `packages/world/src/wandering.ts`. This may be removed by v0.3.0 after testing.
+
+**Art.** Wildkin images load from the API (`/api/art/wildkin/<id>/<icon|sprite>.png`, stored in the database), falling back to the static PNGs in `apps/web/public/wildkin/` and then a placeholder.
 
 ## Location security (anti-teleport)
 
@@ -282,7 +324,7 @@ Every world table has a composite primary key `(id, stage)` where stage is `draf
 
 ## API
 
-Editor routes need `Authorization: Bearer $EDITOR_TOKEN`. Game routes need the `wb_session` cookie from `POST /api/auth/login`.
+Editor and Creature Manager routes need `Authorization: Bearer $EDITOR_TOKEN`. Game routes need the `wb_session` cookie from `POST /api/auth/login`. Full reference: [`docs/04-api-reference.md`](docs/04-api-reference.md).
 
 | Method | Path | Access | Notes |
 |---|---|---|---|
@@ -300,11 +342,24 @@ Editor routes need `Authorization: Bearer $EDITOR_TOKEN`. Game routes need the `
 | PUT | `/api/game/party` | session | **Exercise** (501) |
 | PATCH | `/api/game/wildkin/:id` | session | **Exercise** (501): nickname |
 | GET | `/api/editor/world` | editor | Draft + creatures + status |
+| GET | `/api/editor/creatures` | editor | Creature catalogue (no deleted species); the editor refetches it on window focus |
 | GET | `/api/editor/published` | editor | The published world (active regions only) |
 | GET | `/api/editor/resolve?lat&lng[&radius&timeOfDay&weather&stage]` | editor | Coordinate → world context (draft or published) |
 | PUT | `/api/editor/draft` | editor | Save the whole draft. 400 on malformed or structurally broken documents |
 | POST | `/api/editor/validate` | editor | Validate a posted document without saving |
 | POST | `/api/editor/publish` | editor | 409 with issues if validation fails |
+| GET | `/api/manager/config` | editor | Whether the AI assistant and PixelLab art are configured |
+| GET | `/api/manager/stats` | editor | Dashboard counts, next registry number |
+| GET | `/api/manager/wildkin?deleted=exclude\|include\|only` | editor | Encyclopedia list |
+| GET / PUT | `/api/manager/wildkin/:id` | editor | Read / replace an entry (id is immutable) |
+| POST | `/api/manager/wildkin` | editor | Create a draft (409 on duplicate id or registry number) |
+| POST | `/api/manager/wildkin/:id/publish` | editor | Copy game fields into `creatures` (400 `publish_incomplete` if required fields are empty) |
+| DELETE | `/api/manager/wildkin/:id` | editor | Soft delete (entry + creature) |
+| POST | `/api/manager/wildkin/:id/restore` | editor | Undo the soft delete |
+| POST | `/api/manager/assist` | editor | `{ prompt, current? }` → lore-aligned suggestion from Groq (503 without `GROQ_API_KEY`) |
+| GET | `/api/manager/art/balance` | editor | PixelLab balance |
+| POST | `/api/manager/wildkin/:id/art` | editor | `{ kinds?, extraPrompt? }` → generate icon/sprite (balance checked first, 402 if too low) |
+| GET | `/api/art/wildkin/:id/:kind.png` | public | Wildkin art from the database (non-deleted entries) |
 
 The old public `GET /api/world/resolve`, `GET /api/world/published` and `GET /api/creatures` are gone: they let anyone look up any coordinate or read the whole world. See [Location security](#location-security-anti-teleport).
 
@@ -335,7 +390,7 @@ PostGIS does the spatial lookups; `@wildbound/world` applies the game rules.
 | Self-intersecting boundary | POI outside its region | Overlapping habitats (smaller wins) |
 | Missing parent region or habitat | Active encounter table with no Wildkin | Region with no habitats |
 | Table habitat in a different region | | Habitat with no encounter table |
-| Unknown Wildkin | | Same Wildkin listed twice |
+| Unknown Wildkin (a species deleted in the Creature Manager can still be saved, but blocks publishing) | | Same Wildkin listed twice |
 | Duplicate ids, or duplicate slugs within their scope | | No active region |
 
 The database enforces the same invariants as a backstop: `ST_IsValid` checks, composite foreign keys that keep draft and published rows separate, unique constraints and a weight range check.
@@ -350,8 +405,8 @@ pnpm test:exercises    # the fill-in-the-blank exercises (fail until implemented
 pnpm typecheck         # all packages
 ```
 
-- **Unit:** schemas, conditions and time of day, encounter weighting, movement checks, spawn planning, validation rules, context assembly, geometry helpers, editor edit operations.
-- **Integration (real PostGIS, Express via supertest):** point-in-polygon, habitat selection, nearby POIs, draft/published isolation, publish gating, editor auth, payload validation, the authoring-to-resolve workflow, and the game: login, teleport rejection and lockout, spawn ownership, range checks, Registry unlocking.
+- **Unit:** schemas, conditions and time of day, encounter weighting, movement checks, spawn planning, wandering, validation rules, context assembly, geometry helpers, editor edit operations, manager form helpers, lore budget, art prompt, suggestion sanitizing.
+- **Integration (real PostGIS, Express via supertest):** point-in-polygon, habitat selection, nearby POIs, draft/published isolation, publish gating, editor auth, payload validation, the authoring-to-resolve workflow, the game (login, teleport rejection and lockout, spawn ownership, wandering and despawning, deleted species, range checks, Registry unlocking) and the Creature Manager (CRUD, publish, soft delete, AI assistant and art with fake providers, so no network or credits are used).
 
 Integration tests run against `wildbound_test`, never your dev data.
 
@@ -359,13 +414,13 @@ Integration tests run against `wildbound_test`, never your dev data.
 
 | Command | What it does |
 |---|---|
-| `pnpm dev` | API and editor together |
-| `pnpm dev:api` / `pnpm dev:editor` | One at a time |
-| `pnpm dev:web` | The game |
-| `pnpm build` | Production build of the editor and web game |
+| `pnpm dev` | API, editor, game and Creature Manager together |
+| `pnpm dev:api` / `pnpm dev:editor` / `pnpm dev:web` / `pnpm dev:manager` | One at a time |
+| `pnpm build` | Production build of the editor, web game and Creature Manager |
+| `pnpm build:manager` | Production build of the Creature Manager only |
 | `pnpm db:up` / `pnpm db:down` | Start or stop the PostGIS container |
 | `pnpm db:migrate` | Apply Prisma migrations (baselines an old Drizzle database first) |
-| `pnpm db:seed` | Seed Wildkin and the sample draft (skips the draft if it has content) |
+| `pnpm db:seed` | Seed Wildkin (creatures, plus encyclopedia entries and art if missing) and the sample draft (skips the draft if it has content). Resets the five seed creatures' game fields |
 | `pnpm db:seed --force` | Replace the draft with the sample world |
 | `pnpm db:seed --publish` | Seed and publish |
 | `pnpm db:reset` | Drop all WILDBOUND tables and re-run migrations |
@@ -382,19 +437,24 @@ The boundary is a **placeholder** near Ninoy Aquino Parks and Wildlife Center in
 
 Done in v0.1.0: the Map Editor, the PostGIS-backed resolver, draft/publish, Express + Prisma API, username sessions, live location with server-side movement checks, live weather and local time, server-authoritative spawns, Observe, the Registry, Satchel and Party views, PixelLab placeholder art, and automated tests.
 
+Done in v0.2.0: the Creature Manager (Wildkin encyclopedia, dashboard, draft/publish into `creatures`, soft delete and restore, Groq AI assistant fed with the canon documents, PixelLab art generation with balance checks), Wildkin art stored in the database and served by the API, the editor's creature list following the database live, and wandering spawns on the radar (experimental: keep, tune or remove by v0.3.0).
+
 Left as exercises: capture, party editing, renaming, the weather-code mapping, species spawn modifiers, and the capture-only Registry section.
 
-Not in v0.1.0: the editor's move to Tailwind/TanStack Query/react-hook-form (planned, see `patches/0.1.0/HANDOVER-pass-1.md`), Phaser field exploration, battles, passwords/real accounts, offline/PWA, social features.
+Not yet: Phaser field exploration, battles, passwords/real accounts, offline/PWA, social features.
 
-AI-assisted tools produce art (PixelLab) but are never a runtime dependency and never the source of geographic truth. Generated art is placeholder until approved against the Wildkin Bible.
+AI tools (Groq, PixelLab) are used only for authoring in the Creature Manager. They are never a runtime dependency of the game and never the source of geographic truth; AI suggestions are reviewed by a person before saving. Generated art is placeholder until approved against the Wildkin Bible.
 
 ## Troubleshooting
 
 - **Editor shows a token prompt.** `VITE_EDITOR_TOKEN` must equal `EDITOR_TOKEN`. Restart Vite after editing `.env`.
+- **Creature Manager: "AI assist is off" / "Art generation is off".** Set `GROQ_API_KEY` / `PIXELLAB_API_KEY` in `.env` and restart the API.
+- **Creature Manager: "Groq returned 429" (or 413).** Groq's rate/token limit, common on the free tier. Wait a minute, lower `LORE_MAX_CHARS` (e.g. `12000`), or set a smaller `GROQ_MODEL`.
+- **A new Wildkin is missing from the editor.** Publish it in the manager (drafts are not game data), then focus the editor tab.
 - **"Cannot reach the API".** Run `pnpm dev:api` and check `VITE_API_URL` (editor) or the Vite proxy target (game, `API_PROXY_TARGET`).
 - **Integration tests fail to connect.** Run `pnpm db:up` and make sure `wildbound_test` exists (see Quick start).
 - **Base map is blank.** The tile servers need internet access. Try the OSM or Satellite option in the editor.
-- **CORS errors in the editor.** Add your origin to `CORS_ORIGINS` and restart the API.
+- **CORS errors in the editor or manager.** Add your origin to `CORS_ORIGINS` (default includes `:5173`, `:5174`, `:5175`) and restart the API.
 - **The game says "No surveyed habitat here".** Your (real or simulated) location is outside every published region. Publish from the editor or run `pnpm db:seed --publish`, and set a location inside the region.
 - **The game stays on "Share your location".** Geolocation needs `https://` or `localhost`. On a phone, serve the game over HTTPS (e.g. a tunnel) or use desktop devtools Sensors.
 - **"That GPS jump looked impossible".** You moved the simulated location too far at once. Move in small steps or wait; after 3 jumps you are locked for 2 minutes.

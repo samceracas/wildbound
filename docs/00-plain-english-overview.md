@@ -20,29 +20,47 @@ flowchart LR
     E --> F["🦎 A Wildkin appears<br/>near you on the radar"]
 ```
 
-## The three pieces of software
+## The four pieces of software
 
-The repository (one folder holding all the code, called a **monorepo**) contains three programs that work together:
+The repository (one folder holding all the code, called a **monorepo**) contains four programs that work together:
 
 | Program | Who uses it | What it is like |
 |---|---|---|
 | **Map Editor** (`apps/editor`) | The game's developers and designers | A drawing tool on top of a real map. You draw the borders of fictional regions and habitats, pin landmarks, and decide which Wildkin live where. |
+| **Creature Manager** (`apps/manager`) | The game's designers and writers | An editable Wildkin encyclopedia, like the Wildkin Bible as an app. Write a species' entry, let an AI assistant suggest lore-friendly details, generate its pixel art, and **publish** it into the game. See [13 · Creature Manager](13-creature-manager.md). |
 | **Web game** (`apps/web`) | Players | The game itself, styled like a handheld "field navigator" device. Login, location sharing, radar, Registry, Satchel (bag) and Party. |
-| **API server** (`apps/api`) | The two programs above (never people directly) | The "back office". It stores everything in a database, checks every request, decides what spawns, and keeps players honest. |
+| **API server** (`apps/api`) | The three programs above (never people directly) | The "back office". It stores everything in a database, checks every request, decides what spawns and how it moves, and keeps players honest. |
 
 ```mermaid
 flowchart LR
     Designer(["🧑‍🎨 Designer"]) -- draws the world --> Editor["Map Editor<br/>(browser app)"]
+    Designer -- writes Wildkin --> Manager["Creature Manager<br/>(browser app)"]
     Player(["🧑 Player"]) -- plays --> Game["Web game<br/>(phone browser)"]
     Editor -- "save / publish" --> API["API server"]
+    Manager -- "save / publish Wildkin" --> API
     Game -- "where am I? what's here?" --> API
     API <--> DB[("Database<br/>(PostgreSQL + PostGIS)")]
     API -- "what's the weather there?" --> Weather["Open-Meteo<br/>weather service"]
+    API -. "ideas & pixel art<br/>(manager only)" .-> AI["Groq AI · PixelLab"]
 ```
 
 An **API** (Application Programming Interface) is a set of addresses a program can call to ask for data or ask for
-something to happen, like a restaurant's order window. The editor and the game never touch the database directly; they
-always go through the API, which checks that every request is allowed and makes sense.
+something to happen, like a restaurant's order window. The editor, the manager and the game never touch the database
+directly; they always go through the API, which checks that every request is allowed and makes sense.
+
+### Where Wildkin come from
+
+A new species starts life in the **Creature Manager** as an encyclopedia entry. While it is a **draft**, only the
+manager sees it. **Publish** copies the game-relevant parts (name, Registry description, habitat, rarity, activity,
+spawn modifiers, skills, how it moves) into the game's creature list. From then on the Map Editor can put it into
+habitats, and players can meet it. **Delete** retires a species without destroying anything: it stops appearing, but
+players who already met it keep it in their Registry, and it can be restored.
+
+The manager has two optional AI helpers, both only used while *writing* content, never while playing:
+
+- an **AI assistant** (a language model from Groq) that has read the WILDBOUND story documents and turns a one-line idea
+  ("a shy moth that pollinates night-blooming vines by the creek") into a filled-in entry for you to review;
+- a **PixelLab** button that draws the creature's icon and sprite from its written physical description.
 
 ## How the world is described
 
@@ -114,7 +132,9 @@ sequenceDiagram
    That is a known gap; see [Security](08-security.md).)
 2. **Location.** The game will not start without location sharing. If you turn it off mid-game, the game pauses with a
    "Survey paused" screen until it comes back.
-3. **Radar.** A map centred on you (shown as a little pixel-art head) with nearby Wildkin as icons.
+3. **Radar.** A map centred on you (shown as a little pixel-art head) with nearby Wildkin as icons. Wildkin **wander
+   around** a little, each in its own way (a bird darts, a burrower skulks, a river creature roams); if one wanders too
+   far it is gone ("It wandered off."). *This movement is experimental and may be removed in v0.3.0.*
 4. **Observe** (within 60 metres): unlocks the Wildkin's name, description and habitat in your Registry.
 5. **Capture** (within 60 metres, uses a Field Capsule): also unlocks rarity, activity pattern and skills, and adds the
    Wildkin to your Party. *Capture is one of the unfinished "exercises" in v0.1.0.*
@@ -145,11 +165,13 @@ this in plain ways:
 A determined cheater with a GPS-spoofing app who "walks" slowly can still fool any browser game; this is plausibility
 checking, not proof. Details in [Security model](08-security.md).
 
-## What is finished and what is not (v0.1.0)
+## What is finished and what is not (v0.2.0)
 
 | Area | Status |
 |---|---|
 | Map Editor: draw, edit, validate, publish, test any spot | ✅ Done |
+| Creature Manager: encyclopedia, draft/publish, soft delete, AI assistant, PixelLab art | ✅ Done (v0.2.0) |
+| Wandering Wildkin on the radar | 🧪 Experimental (v0.2.0); decision by v0.3.0 |
 | Login, location gate, radar, live weather and time, spawning, Observe, Registry, Satchel, Party views | ✅ Done |
 | Server-side anti-teleport checks | ✅ Done |
 | Capture, renaming, rearranging the party, real weather mapping, spawn modifiers, captured Registry details, POI editor form | 🧩 Left as learning **exercises** (marked `TODO(you)` in the code) |
@@ -163,14 +185,14 @@ Express, Prisma and friends by filling in the gaps. See [Exercises and roadmap](
 | Folder | What's inside |
 |---|---|
 | `apps/editor` | The Map Editor |
+| `apps/manager` | The Creature Manager |
 | `apps/web` | The player game |
 | `apps/api` | The server |
 | `packages/shared` | The "dictionary" all programs agree on: what a region, a Wildkin, a request looks like |
 | `packages/world` | The game rules (time of day, encounter odds, movement checks, validation), with no screens and no database |
 | `packages/db` | Database layout, the sample world and the five starting Wildkin |
-| `documents/` | The game's creative canon (Wildkin Bible etc., Word files) |
-| `patches/0.1.0/` | The brief for this version, UI mockups, notes between work sessions |
-| `docs/` | This documentation |
+| `patches/0.1.0/`, `patches/0.2.0/` | The brief for each version, UI mockups, notes between work sessions |
+| `docs/` | This documentation, plus the game's creative canon (Wildkin Bible etc., Word files `WILDBOUND_*.docx`) |
 
 Next: [01 · Architecture](01-architecture.md) (technical) or [09 · Wildkin and world content](09-wildkin-and-content.md)
 (creative).

@@ -13,12 +13,19 @@ The WILDBOUND **Map Editor**: an internal developer tool for authoring the world
 - **Test mode**: drop a simulated player and see the exact context the API resolves (`/api/editor/resolve`, token required), for the draft or the published world, under any time of day and weather. Players cannot do this: the game only resolves their server-tracked position. The Available Wildkin list also runs the result through `applySpawnModifiers` from `@wildbound/world` (exercise #2), so it shows the odds after species spawn modifiers; until that exercise is done it shows raw weights and a hint.
 - The encounter-table inspector shows each Wildkin's species spawn modifiers (e.g. `rain ×0.5 · night ×0.1`).
 
+## Wildkin come from the database
+
+The Wildkin you can pick are the `creatures` rows in the database, which the [Creature Manager](../manager/README.md) writes when you **Publish** a species there. The catalogue is a separate query (`GET /api/editor/creatures`, key `['editor','creatures']`) that is **refetched when the editor window regains focus**, so a species published in the manager appears in the pickers without a reload.
+
+- Species **deleted** (soft-deleted) in the manager are excluded from the pickers.
+- A draft that still references a deleted species can still be **saved**; **Validate** and **Publish** report it as an unknown Wildkin until you remove it from the table (or restore the species).
+
 ## Tech
 
 Same stack as `apps/web` where it overlaps:
 
 - React 19, Vite 7, TypeScript, **Tailwind CSS 4** (`@tailwindcss/vite`, design tokens in `@theme` in `src/styles.css`, `@` alias to `src/`, shadcn `components.json` ready for `npx shadcn add`)
-- **TanStack Query 5** for server state: the saved draft, creatures, publish status, validation report and Test-mode resolve results
+- **TanStack Query 5** for server state: the saved draft, the creature catalogue (refetched on window focus), publish status, validation report and Test-mode resolve results
 - **Zustand 5** for local editing state only: the world being edited, selection, tool, undo/redo history, UI flags
 - **react-hook-form 7 + zodResolver** for the inspectors, validated with the `@wildbound/shared` schemas
 - MapLibre GL JS 5, Turf.js 7 (client-side geometry helpers), `@wildbound/world` (the same validation, condition and spawning rules as the server)
@@ -31,7 +38,7 @@ src/
   store.ts                 Zustand store: edited world, selection, tool, history, Test-panel inputs, toasts
   lib/
     api.ts                 Typed API client (Zod-validated responses, bearer token)
-    queries.ts             Query keys, queries (world, report, resolve) and mutations (save, validate, publish) with invalidation
+    queries.ts             Query keys, queries (world, creatures, report, resolve) and mutations (save, validate, publish) with invalidation
     query-client.ts        QueryClient; central error handling (401 opens the token dialog, toasts)
     spawn-preview.ts       Pure helpers: format spawn modifiers, preview odds through applySpawnModifiers
     utils.ts               cn() (clsx + tailwind-merge, aware of the custom tokens)
@@ -73,7 +80,7 @@ Design notes:
 
 ## Configuration
 
-Read from the repo-root `.env`: `VITE_API_URL` and `VITE_EDITOR_TOKEN` (must match the API's `EDITOR_TOKEN`). If the token is wrong the editor shows a prompt and remembers the value in local storage.
+Read from the repo-root `.env`: `VITE_API_URL` and `VITE_EDITOR_TOKEN` (must match the API's `EDITOR_TOKEN`). If the token is wrong the editor shows a prompt and remembers the value in local storage (`wildbound.editorToken`, shared with the Creature Manager).
 
 ## Scripts
 

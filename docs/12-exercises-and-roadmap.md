@@ -2,7 +2,8 @@
 
 > **In plain English:** v0.1.0 deliberately leaves nine features unfinished so they can be built by hand as practice.
 > The app works around them (for example the Capture button explains that it isn't built yet). This page lists them,
-> how they connect, and what is planned after v0.1.0.
+> how they connect, and what is planned next. (v0.2.0 added the Creature Manager and wandering spawns but no new
+> exercises; the nine below are still open.)
 
 Every gap is marked `TODO(you)` in the code with step-by-step instructions right where it lives. The canonical list is
 [`patches/0.1.0/EXERCISES.md`](../patches/0.1.0/EXERCISES.md).
@@ -86,7 +87,9 @@ From the project brief, the package READMEs and the handover notes:
 | Stage | Items |
 |---|---|
 | **v0.1.0 (done)** | Map Editor, PostGIS resolver, draft/publish, Express + Prisma API, username sessions, live location with server-side movement checks, live weather and local time, server-authoritative spawns, Observe, Registry, Satchel, Party views, placeholder pixel art, tests |
+| **v0.2.0 (done)** | Creature Manager (`apps/manager`): Wildkin encyclopedia with draft/publish into `creatures`, soft delete/restore, dashboard, Groq AI assistant fed with the canon documents, PixelLab art stored in the database and served by the API; the editor's Wildkin list follows the database live; wandering spawns on the radar |
 | **Exercises** | The nine above |
+| **v0.3.0 decision** | Keep, tune or remove **wandering spawns** after play-testing ([07](07-game-systems.md#wandering-spawns-experimental)). The dashboard is expected to grow more cards |
 | **Next (planned, not started)** | Phaser 3 top-down field view consuming the same `WorldContext` (`apps/web`); `packages/game` battle systems; `packages/assets` tile/creature/effect metadata |
 | **Before going public** | Real accounts (players and editors), HTTPS deployment, rate limiting, CSRF protection, cleanup jobs ([08](08-security.md#checklist-before-a-public-deployment)) |
 | **Later** | Story gating (`unlockCondition`, `storyStateRequirements` are already in the data), POI interactions (`interactionId`), content version history, offline/PWA, social features, "Wildkin outside its habitat" story events |
@@ -94,10 +97,11 @@ From the project brief, the package READMEs and the handover notes:
 Rules for future work, from the brief and READMEs:
 
 - The battle system (`packages/game`) **must consume `WorldContext`** and must not introduce a second world model.
-- Generated art is a content-production step, never a runtime dependency or a source of geographic truth.
+- Generated art and AI text are content-production steps (Creature Manager), never a runtime dependency of the game
+  or a source of geographic truth. AI suggestions are reviewed by a person before they are saved.
 - Keep the editor a small game-world authoring tool, not a general GIS product.
 
-## Project history (how v0.1.0 came together)
+## Project history
 
 | Step | What happened |
 |---|---|
@@ -105,6 +109,7 @@ Rules for future work, from the brief and READMEs:
 | v0.1.0 pass 1 | Moved to Express 5 + Prisma 7 (old Drizzle DBs are baselined automatically), anti-teleport, the player game, PixelLab art, exercises |
 | v0.1.0 pass 2 | Restyled the game to the Stitch mockups, moved the editor to Tailwind 4 + TanStack Query + react-hook-form, added exercise #9, regenerated the Kantar sprite |
 | Fixes | Readable DB script errors, radar diagnostics, `maxAccuracyM` raised to 200 m for desktop testing, range ring fixes |
+| v0.2.0 | Creature Manager app, `wildkin_entries` / `wildkin_art` tables and soft-deleted creatures (migration `2_wildkin_manager`), Groq assistant and PixelLab art in the API, DB-served art with fallbacks in the game, wandering spawns, live creature list in the editor. Brief: [`patches/0.2.0/instructions.md`](../patches/0.2.0/instructions.md) |
 
 Details: [`patches/0.1.0/HANDOVER-pass-1.md`](../patches/0.1.0/HANDOVER-pass-1.md) and
 [`HANDOVER-pass-2.md`](../patches/0.1.0/HANDOVER-pass-2.md).

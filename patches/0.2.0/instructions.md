@@ -1,4 +1,4 @@
-# State: Not Implemented
+# State: Implemented
 # Overview
 On this update, we will be adding a creature manager app which will help us brainstorm and add new creatures to wildbound that fit the lore and theme. This app will be AI assisted using one of the llms from groq to read context on what wildbound is (refer files from `docs` folder to give context) and assist in creating these new wildkin.
 
