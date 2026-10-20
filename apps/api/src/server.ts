@@ -1,17 +1,22 @@
 import { createDb } from "@wildbound/db";
-import { buildApp } from "./app.ts";
+import { createApp } from "./app.ts";
 import { loadConfig } from "./config.ts";
+import { OpenMeteoWeather, StaticWeather } from "./weather.ts";
 
 const config = loadConfig();
 const handle = createDb(config.databaseUrl);
-const app = await buildApp({ db: handle.db, config }, { logger: { level: process.env.LOG_LEVEL ?? "info" } });
+const weather = config.weatherApiUrl === "off" ? new StaticWeather() : new OpenMeteoWeather(config.weatherApiUrl);
+const app = createApp({ db: handle.db, config, weather });
 
-const shutdown = async () => {
-  await app.close();
-  await handle.close();
-  process.exit(0);
+const server = app.listen(config.port, config.host, () => {
+  console.log(`WILDBOUND API listening on http://${config.host}:${config.port}`);
+});
+
+const shutdown = () => {
+  server.close(async () => {
+    await handle.close();
+    process.exit(0);
+  });
 };
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
-
-await app.listen({ port: config.port, host: config.host });

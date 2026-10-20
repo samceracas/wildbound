@@ -11,6 +11,11 @@ export default defineConfig({
   },
   // Read VITE_* variables from the repo-root .env shared with the API and editor.
   envDir: fileURLToPath(new URL("../..", import.meta.url)),
-  server: { port: 5174, strictPort: true },
+  server: {
+    port: 5174,
+    strictPort: true,
+    // Same-origin API calls: the session cookie is first-party and no CORS is involved.
+    proxy: { "/api": { target: process.env.API_PROXY_TARGET ?? "http://localhost:4000", changeOrigin: false } },
+  },
   build: { chunkSizeWarningLimit: 2000 },
 });

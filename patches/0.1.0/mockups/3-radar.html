@@ -1,0 +1,394 @@
+<!DOCTYPE html><html class="h-full" lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Pokénav Field Navigation Radar — WILDBOUND EXPEDITION SP-24</title>
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- Google Fonts: DM Serif Display, Inter & JetBrains Mono -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500;700&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&amp;family=VT323&amp;display=swap" rel="stylesheet" class=""><style> .font-pixel { font-family: 'Press Start 2P', monospace; image-rendering: pixelated; } .font-vt { font-family: 'VT323', monospace; } .pixel-shadow { text-shadow: 1px 1px 0px #000; } .pixel-border { box-shadow: inset -2px -2px 0px rgba(0,0,0,0.5), inset 2px 2px 0px rgba(255,255,255,0.4); } </style>
+<!-- MapLibre GL JS -->
+<link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#1F6B57',
+            'primary-dark': '#183F36',
+            'primary-hover': '#267E68',
+            'chassis-deep': '#0D1E19',
+            'chassis-base': '#132B24',
+            'chassis-border': '#1B3B32',
+            'chassis-slate': '#264A40',
+            canvas: '#F6F0E3',
+            surface: '#FFFDF7',
+            'surface-dim': '#DFDACD',
+            'surface-muted': '#E8E1D2',
+            'surface-container': '#ECE5D5',
+            ink: '#24302D',
+            'ink-muted': '#64706A',
+            tertiary: '#D5A84C',
+            secondary: '#6F8F5F',
+            water: '#4D93A6',
+            alert: '#C96A5B',
+            success: '#4F8A68',
+            locked: '#7C827E',
+          },
+          fontFamily: {
+            serif: ['"DM Serif Display"', 'Georgia', 'serif'],
+            sans: ['Inter', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    body, html {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      user-select: none;
+      background-color: #08110e;
+    }
+    .maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right {
+      display: none !important;
+    }
+    /* CRT Scanline / GBA LCD pixel matrix overlay */
+    .crt-overlay {
+      background: linear-gradient(rgba(18, 42, 36, 0) 50%, rgba(18, 42, 36, 0.08) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.015), rgba(0, 255, 0, 0.015), rgba(0, 0, 255, 0.015));
+      background-size: 100% 3px, 6px 100%;
+      pointer-events: none;
+    }
+    /* Bezel screw head styling */
+    .chassis-screw {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #3c5e53, #152721);
+      box-shadow: inset 0 1px 1px rgba(255,255,255,0.25), 0 1px 2px rgba(0,0,0,0.8);
+      position: relative;
+    }
+    .chassis-screw::after {
+      content: '';
+      position: absolute;
+      top: 4.5px;
+      left: 2px;
+      width: 6px;
+      height: 1px;
+      background: #091310;
+      box-shadow: 0 0.5px 0 rgba(255,255,255,0.2);
+    }
+    /* Radar pulsing beacons */
+    @keyframes ping-slow {
+      0% { transform: scale(0.95); opacity: 0.9; }
+      50% { transform: scale(1.35); opacity: 0.25; }
+      100% { transform: scale(0.95); opacity: 0.9; }
+    }
+    .radar-beacon {
+      animation: ping-slow 2.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+    /* GBA Cartridge Tab bevel */
+    .tab-cartridge {
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), 0 2px 4px rgba(0,0,0,0.3);
+    }
+  </style>
+</head>
+<body class="min-h-screen w-full bg-[#08110e] flex flex-col items-center justify-start p-0 overflow-x-hidden font-sans select-none">
+<!-- ========================================================================= -->
+<!-- RUGGED HANDHELD CONSOLE CHASSIS (Pokénav SP-24 / Field Expedition Unit)  -->
+<!-- ========================================================================= -->
+<div class="relative w-full max-w-[430px] min-h-screen bg-chassis-deep p-2.5 pb-4 flex flex-col justify-between overflow-x-hidden shadow-2xl border-x border-[#1c382f]">
+<!-- Hardware Screws (4 Corner Anchors) -->
+<div class="absolute top-3 left-4 chassis-screw z-30"></div>
+<div class="absolute top-3 right-4 chassis-screw z-30"></div>
+<div class="absolute bottom-3 left-4 chassis-screw z-30"></div>
+<div class="absolute bottom-3 right-4 chassis-screw z-30"></div>
+<!-- Shoulder Button Hints (Left & Right top chassis bumpers) -->
+<div class="absolute -top-1.5 left-24 w-28 h-2.5 bg-chassis-slate/80 rounded-t-md border-t border-white/20 shadow-inner flex items-center justify-center">
+<span class="text-[8px] font-mono font-bold text-white/40 tracking-wider">L-TRIGGER</span>
+</div>
+<div class="absolute -top-1.5 right-24 w-28 h-2.5 bg-chassis-slate/80 rounded-t-md border-t border-white/20 shadow-inner flex items-center justify-center">
+<span class="text-[8px] font-mono font-bold text-white/40 tracking-wider">R-TRIGGER</span>
+</div>
+<!-- ======================================================================= -->
+<!-- 1. TOP HARDWARE STATUS STRIP                                            -->
+<!-- ======================================================================= -->
+<div class="px-2 pt-1 pb-2 flex flex-col gap-2 text-white shrink-0 border-b border-chassis-border/80"><div class="flex items-center justify-between font-mono"><div class="flex items-center gap-2"><div class="w-6 h-6 rounded bg-[#102c23] border-2 border-[#337a63] flex items-center justify-center shadow-inner"><span class="text-[10px] text-tertiary font-bold font-pixel">★</span></div><div><div class="text-[9px] font-bold tracking-widest text-emerald-300 uppercase font-pixel leading-tight pixel-shadow">POKÉNAV SP-24</div><div class="text-[9px] text-[#71a392] tracking-wider font-vt uppercase">MABUNYI CARTOGRAPHY • V2.4</div></div></div><div class="flex items-center gap-1.5 bg-[#0b1d17] border border-[#275345] px-2 py-0.5 rounded shadow-sm"><div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div><span class="text-[8px] font-pixel text-[#a8f1d8] pixel-shadow">● SAM [R-1]</span></div></div><div class="flex items-center justify-between text-[9px] font-pixel bg-[#06120e] px-2 py-1 rounded border border-[#1b3d32] shadow-inner"><div class="flex items-center gap-2.5"><div class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]"></span><span class="text-[#52937e] text-[7px]">PWR</span></div><div class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-tertiary shadow-[0_0_6px_#D5A84C]"></span><span class="text-tertiary text-[7px]">GPS: ON</span></div><div class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-[#a8f1d8] shadow-[0_0_6px_#34d399]"></span><span class="text-[#a8f1d8] text-[7px]">98%</span></div></div><div class="flex items-center gap-2 font-mono"><span class="text-white/90 text-[8px] font-pixel">☀️ CLEAR • 24°C</span><span class="text-[#71a392] text-[8px] font-vt">• D-03 • 14:20</span><div class="flex items-center gap-1 text-[8px]"><span class="text-emerald-400 font-pixel text-[7px]">BAT</span><span class="tracking-tighter text-emerald-400 font-vt text-sm leading-none">▮▮▮▯</span><span class="text-[7px] text-white/70 font-pixel">84%</span></div></div></div></div>
+<!-- ======================================================================= -->
+<!-- 2. HANDHELD DISPLAY SCREEN CONTAINER (Bezel + LCD Monitor Frame)         -->
+<!-- ======================================================================= -->
+<div class="flex-1 my-1.5 bg-canvas rounded-2xl border-2 sm:border-4 border-[#1c382f] shadow-[inset_0_0_12px_rgba(0,0,0,0.35)] flex flex-col overflow-visible relative">
+<!-- TOP POKÉNAV TACTILE CARTRIDGE TABS (Ruby / Sapphire Console Mode Switcher) -->
+<div class="bg-primary-dark px-3 py-1.5 flex items-center justify-between border-b border-black/30 shrink-0 z-20"><div class="w-full flex items-center justify-between gap-1 overflow-x-auto no-scrollbar"><button class="flex-1 py-1.5 px-1 rounded-t-md bg-[#f6f0e3] text-[#132b24] text-[8px] font-pixel font-bold flex items-center justify-center gap-1 border-t-2 border-x border-[#1c382f] shadow-sm cursor-pointer select-none"><span class="text-[#005240]">▶</span><span class="">RADAR</span><span class="w-1.5 h-1.5 rounded-full bg-[#ba1a1a] animate-ping shrink-0"></span></button><button class="flex-1 py-1.5 px-1 rounded-t-md bg-[#132b24]/90 hover:bg-[#264a40] active:scale-95 text-white/70 hover:text-white text-[8px] font-pixel flex items-center justify-center gap-1 border-t border-[#275345] truncate cursor-pointer select-none transition-all"><span class="">REGISTRY</span><span class="text-[#d5a84c] text-[8px]">48</span></button><button class="flex-1 py-1.5 px-1 rounded-t-md bg-[#132b24]/90 hover:bg-[#264a40] active:scale-95 text-white/70 hover:text-white text-[8px] font-pixel flex items-center justify-center gap-1 border-t border-[#275345] truncate cursor-pointer select-none transition-all"><span class="">SATCHEL</span><span class="text-white/50 text-[8px]">4kg</span></button><button class="flex-1 py-1.5 px-1 rounded-t-md bg-[#132b24]/90 hover:bg-[#264a40] active:scale-95 text-white/70 hover:text-white text-[8px] font-pixel flex items-center justify-center gap-1 border-t border-[#275345] truncate cursor-pointer select-none transition-all"><span class="">PARTY</span><span class="text-emerald-400 text-[8px]">4/6</span></button></div></div>
+<!-- MAIN SPLIT WORKSPACE: RADAR MAP VIEW (LEFT) + REGISTRY & INVENTORY (RIGHT) -->
+<div class="flex-1 flex flex-col gap-3 p-2.5 overflow-visible">
+<!-- ===================================================================== -->
+<!-- LEFT/CENTER: EMBEDDED MAP VIEWPORT (RETRO CARTOGRAPHY CONSOLE)        -->
+<!-- ===================================================================== -->
+<div class="w-full flex flex-col bg-surface rounded-xl border border-ink/15 shadow-sm overflow-hidden relative flex-1 h-full">
+<!-- Map Subheader / Pokenav Reticle Header -->
+<div class="bg-surface-container px-3 py-1.5 border-b border-ink/10 flex items-center justify-between shrink-0 z-20"><div class="flex items-center gap-2"><span class="w-3.5 h-3.5 rounded bg-primary text-white flex items-center justify-center text-[8px] font-pixel font-bold">+</span><h2 class="text-[8px] font-pixel text-[#1d1c14] tracking-tight uppercase">SECTOR: ZIGZAG TRAILHEAD</h2></div><div class="flex items-center gap-2 text-[9px] font-vt text-[#3f4945]"><span class="text-[#1f6b57] font-bold">LAT: 14.580°N</span><span class="">|</span><span class="text-[#1f6b57] font-bold">LON: 121.230°E</span></div></div>
+<!-- Embedded MapLibre Container -->
+<div class="relative flex-1 w-full h-full min-h-0 bg-[#dbe8d8]">
+<div class="w-full h-full maplibregl-map" id="map"><div class="maplibregl-canvas-container maplibregl-interactive maplibregl-touch-drag-pan maplibregl-touch-zoom-rotate"><canvas class="maplibregl-canvas" tabindex="0" aria-label="Map" role="region" width="400" height="300" style="width: 400px; height: 300px;"></canvas><div class="flex flex-col items-center cursor-pointer group maplibregl-marker maplibregl-marker-anchor-center" style="transform: translate(-50%, -50%) translate(282px, 116px) rotateX(0deg) rotateZ(0deg);">
+        <div class="bg-primary text-white text-[9px] font-mono font-bold px-2 py-0.5 rounded-md shadow-md mb-1 border border-white/25 whitespace-nowrap">
+          🐦 Kawi Sight #14
+        </div>
+        <div class="relative w-7 h-7 rounded-full bg-primary border-2 border-white flex items-center justify-center shadow-lg">
+          <span class="text-xs">🐦</span>
+          <span class="absolute inset-0 rounded-full border-2 border-primary radar-beacon"></span>
+        </div>
+      </div><div class="flex flex-col items-center cursor-pointer group maplibregl-marker maplibregl-marker-anchor-center" style="transform: translate(-50%, -50%) translate(116px, 170px) rotateX(0deg) rotateZ(0deg);">
+        <div class="bg-secondary text-white text-[9px] font-mono font-bold px-2 py-0.5 rounded-md shadow-md mb-1 border border-white/25 whitespace-nowrap">
+          🦊 Mimu Underbrush
+        </div>
+        <div class="relative w-6 h-6 rounded-full bg-secondary border-2 border-white flex items-center justify-center shadow-lg">
+          <span class="text-xs">🦊</span>
+        </div>
+      </div><div class="flex flex-col items-center maplibregl-marker maplibregl-marker-anchor-center" style="transform: translate(-50%, -50%) translate(200px, 150px) rotateX(0deg) rotateZ(0deg);">
+        <div class="bg-tertiary text-ink text-[10px] font-mono font-bold px-2 py-0.5 rounded-md shadow-md mb-1 border border-ink/20 whitespace-nowrap">
+          📍 Researcher Sam (Day 3)
+        </div>
+        <div class="relative w-8 h-8 rounded-full bg-white border-2 border-tertiary flex items-center justify-center shadow-xl">
+          <span class="text-sm">🧭</span>
+        </div>
+      </div><div class="flex flex-col items-center maplibregl-marker maplibregl-marker-anchor-center" style="transform: translate(-50%, -50%) translate(64px, 198px) rotateX(0deg) rotateZ(0deg);">
+        
+      </div></div><div class="maplibregl-control-container"><div class="maplibregl-ctrl-top-left "></div><div class="maplibregl-ctrl-top-right "></div><div class="maplibregl-ctrl-bottom-left "></div><div class="maplibregl-ctrl-bottom-right "></div></div><div class="maplibregl-canvas-container maplibregl-interactive maplibregl-touch-drag-pan maplibregl-touch-zoom-rotate"><canvas class="maplibregl-canvas" tabindex="0" aria-label="Map" role="region" width="342" height="549" style="width: 342px; height: 549px;"></canvas><div class="flex flex-col items-center cursor-pointer group maplibregl-marker maplibregl-marker-anchor-center" style="transform: translate(-50%, -50%) translate(255px, 240px) rotateX(0deg) rotateZ(0deg);">
+        <div class="bg-primary text-white text-[9px] font-mono font-bold px-2 py-0.5 rounded-md shadow-md mb-1 border border-white/25 whitespace-nowrap">
+          🐦 Kawi Sight #14
+        </div>
+        <div class="relative w-7 h-7 rounded-full bg-primary border-2 border-white flex items-center justify-center shadow-lg">
+          <span class="text-xs">🐦</span>
+          <span class="absolute inset-0 rounded-full border-2 border-primary radar-beacon"></span>
+        </div>
+      </div><div class="flex flex-col items-center cursor-pointer group maplibregl-marker maplibregl-marker-anchor-center" style="transform: translate(-50%, -50%) translate(88px, 294px) rotateX(0deg) rotateZ(0deg);">
+        <div class="bg-secondary text-white text-[9px] font-mono font-bold px-2 py-0.5 rounded-md shadow-md mb-1 border border-white/25 whitespace-nowrap">
+          🦊 Mimu Underbrush
+        </div>
+        <div class="relative w-6 h-6 rounded-full bg-secondary border-2 border-white flex items-center justify-center shadow-lg">
+          <span class="text-xs">🦊</span>
+        </div>
+      </div><div class="flex flex-col items-center maplibregl-marker maplibregl-marker-anchor-center" style="transform: translate(-50%, -50%) translate(171px, 275px) rotateX(0deg) rotateZ(0deg);">
+        <div class="bg-tertiary text-ink text-[10px] font-mono font-bold px-2 py-0.5 rounded-md shadow-md mb-1 border border-ink/20 whitespace-nowrap">
+          📍 Researcher Sam (Day 3)
+        </div>
+        <div class="relative w-8 h-8 rounded-full bg-white border-2 border-tertiary flex items-center justify-center shadow-xl">
+          <span class="text-sm">🧭</span>
+        </div>
+      </div><div class="flex flex-col items-center maplibregl-marker maplibregl-marker-anchor-center" style="transform: translate(-50%, -50%) translate(39px, 321px) rotateX(0deg) rotateZ(0deg);">
+        
+      </div></div><div class="maplibregl-control-container"><div class="maplibregl-ctrl-top-left "></div><div class="maplibregl-ctrl-top-right "></div><div class="maplibregl-ctrl-bottom-left "></div><div class="maplibregl-ctrl-bottom-right "></div></div><div class="maplibregl-canvas-container maplibregl-interactive maplibregl-touch-drag-pan maplibregl-touch-zoom-rotate"><canvas class="maplibregl-canvas" tabindex="0" aria-label="Map" role="region" width="342" height="549" style="width: 342px; height: 549px;"></canvas><div class="flex flex-col items-center cursor-pointer group maplibregl-marker maplibregl-marker-anchor-center" style="transform: translate(-50%, -50%) translate(255px, 240px) rotateX(0deg) rotateZ(0deg);">
+        <div class="bg-primary text-white text-[9px] font-mono font-bold px-2 py-0.5 rounded-md shadow-md mb-1 border border-white/25 whitespace-nowrap">
+          🐦 Kawi Sight #14
+        </div>
+        <div class="relative w-7 h-7 rounded-full bg-primary border-2 border-white flex items-center justify-center shadow-lg">
+          <span class="text-xs">🐦</span>
+          <span class="absolute inset-0 rounded-full border-2 border-primary radar-beacon"></span>
+        </div>
+      </div><div class="flex flex-col items-center cursor-pointer group maplibregl-marker maplibregl-marker-anchor-center" style="transform: translate(-50%, -50%) translate(88px, 294px) rotateX(0deg) rotateZ(0deg);">
+        <div class="bg-secondary text-white text-[9px] font-mono font-bold px-2 py-0.5 rounded-md shadow-md mb-1 border border-white/25 whitespace-nowrap">
+          🦊 Mimu Underbrush
+        </div>
+        <div class="relative w-6 h-6 rounded-full bg-secondary border-2 border-white flex items-center justify-center shadow-lg">
+          <span class="text-xs">🦊</span>
+        </div>
+      </div><div class="flex flex-col items-center maplibregl-marker maplibregl-marker-anchor-center" style="transform: translate(-50%, -50%) translate(171px, 275px) rotateX(0deg) rotateZ(0deg);">
+        <div class="bg-tertiary text-ink text-[10px] font-mono font-bold px-2 py-0.5 rounded-md shadow-md mb-1 border border-ink/20 whitespace-nowrap">
+          📍 Researcher Sam (Day 3)
+        </div>
+        <div class="relative w-8 h-8 rounded-full bg-white border-2 border-tertiary flex items-center justify-center shadow-xl">
+          <span class="text-sm">🧭</span>
+        </div>
+      </div><div class="flex flex-col items-center maplibregl-marker maplibregl-marker-anchor-center" style="transform: translate(-50%, -50%) translate(39px, 321px) rotateX(0deg) rotateZ(0deg);">
+        
+      </div></div><div class="maplibregl-control-container"><div class="maplibregl-ctrl-top-left "></div><div class="maplibregl-ctrl-top-right "></div><div class="maplibregl-ctrl-bottom-left "></div><div class="maplibregl-ctrl-bottom-right "></div></div><div class="maplibregl-canvas-container maplibregl-interactive maplibregl-touch-drag-pan maplibregl-touch-zoom-rotate"><canvas class="maplibregl-canvas" tabindex="0" aria-label="Map" role="region" width="377" height="687" style="width: 343px; height: 625px;"></canvas><div class="flex flex-col items-center cursor-pointer group maplibregl-marker maplibregl-marker-anchor-center" style="transform: translate(-50%, -50%) translate(256px, 278px) rotateX(0deg) rotateZ(0deg);">
+        <div class="bg-primary text-white text-[9px] font-mono font-bold px-2 py-0.5 rounded-md shadow-md mb-1 border border-white/25 whitespace-nowrap">
+          🐦 Kawi Sight #14
+        </div>
+        <div class="relative w-7 h-7 rounded-full bg-primary border-2 border-white flex items-center justify-center shadow-lg">
+          <span class="text-xs">🐦</span>
+          <span class="absolute inset-0 rounded-full border-2 border-primary radar-beacon"></span>
+        </div>
+      </div><div class="flex flex-col items-center cursor-pointer group maplibregl-marker maplibregl-marker-anchor-center" style="transform: translate(-50%, -50%) translate(88px, 332px) rotateX(0deg) rotateZ(0deg);">
+        <div class="bg-secondary text-white text-[9px] font-mono font-bold px-2 py-0.5 rounded-md shadow-md mb-1 border border-white/25 whitespace-nowrap">
+          🦊 Mimu Underbrush
+        </div>
+        <div class="relative w-6 h-6 rounded-full bg-secondary border-2 border-white flex items-center justify-center shadow-lg">
+          <span class="text-xs">🦊</span>
+        </div>
+      </div><div class="flex flex-col items-center maplibregl-marker maplibregl-marker-anchor-center" style="transform: translate(-50%, -50%) translate(172px, 313px) rotateX(0deg) rotateZ(0deg);">
+        <div class="bg-tertiary text-ink text-[10px] font-mono font-bold px-2 py-0.5 rounded-md shadow-md mb-1 border border-ink/20 whitespace-nowrap">
+          📍 Researcher Sam (Day 3)
+        </div>
+        <div class="relative w-8 h-8 rounded-full bg-white border-2 border-tertiary flex items-center justify-center shadow-xl">
+          <span class="text-sm">🧭</span>
+        </div>
+      </div><div class="flex flex-col items-center maplibregl-marker maplibregl-marker-anchor-center" style="transform: translate(-50%, -50%) translate(40px, 359px) rotateX(0deg) rotateZ(0deg);">
+        <div class="bg-[#183F36] text-white text-[8px] font-mono font-bold px-1.5 py-0.5 rounded shadow border border-white/20">
+          ZIGZAG TRAILHEAD
+        </div>
+      </div></div><div class="maplibregl-control-container"><div class="maplibregl-ctrl-top-left "></div><div class="maplibregl-ctrl-top-right "></div><div class="maplibregl-ctrl-bottom-left "></div><div class="maplibregl-ctrl-bottom-right "></div></div></div>
+<!-- Authentic CRT / Handheld LCD Scanline Shader Overlay -->
+<div class="absolute inset-0 crt-overlay pointer-events-none z-10"></div>
+<!-- Retro Glowing Crosshair Radar Reticle in Center of Viewport -->
+<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+<div class="relative w-36 h-36 rounded-full border border-primary/25 flex items-center justify-center">
+<div class="w-20 h-20 rounded-full border border-primary/40 border-dashed animate-spin" style="animation-duration: 20s;"></div>
+<div class="absolute w-full h-[1px] bg-primary/20"></div>
+<div class="absolute h-full w-[1px] bg-primary/20"></div>
+<div class="w-2 h-2 rounded-full bg-primary/60"></div>
+</div>
+</div>
+<!-- Top Left Floating Expedition Telemetry Card -->
+
+<!-- Top Right Map Zoom & Recenter Quick Controls -->
+<div class="absolute top-3 right-3 z-20 flex flex-col gap-1.5 pointer-events-auto"><button class="w-7 h-7 rounded bg-[#fffdf7] hover:bg-white text-ink border-2 border-[#24302d] shadow flex items-center justify-center font-pixel text-[10px] active:scale-95 transition-transform" onclick="map.zoomIn()" title="Zoom In">+</button><button class="w-7 h-7 rounded bg-[#fffdf7] hover:bg-white text-ink border-2 border-[#24302d] shadow flex items-center justify-center font-pixel text-[10px] active:scale-95 transition-transform" onclick="map.zoomOut()" title="Zoom Out">−</button><button class="w-7 h-7 rounded bg-[#1f6b57] hover:bg-[#267e68] text-white border-2 border-[#0d1e19] shadow flex items-center justify-center font-pixel text-[8px] active:scale-95 transition-transform" onclick="map.flyTo({center: [121.230, 14.580], zoom: 12.8, pitch: 40})" title="Center on Sam">◎</button></div>
+<!-- Bottom Floating Survey Control Deck inside Map -->
+
+</div>
+<!-- Route Node Footprint Bar (Ruby/Sapphire style) -->
+<div class="bg-surface-container border-t border-ink/10 px-3 py-2 flex items-center justify-between shrink-0 z-20 text-[11px]"><div class="flex items-center gap-3 overflow-x-auto no-scrollbar font-pixel text-[7px]"><span class="text-[#64706a] uppercase">ROUTE:</span><div class="flex items-center gap-1 text-[#4f8a68]"><span class="w-1.5 h-1.5 bg-[#4f8a68]"></span><span class="">Gate [CLEAR]</span></div><div class="flex items-center gap-1 text-[#d5a84c]"><span class="w-1.5 h-1.5 bg-[#d5a84c] animate-ping"></span><span class="font-bold underline">Zigzag [NOW]</span></div><div class="flex items-center gap-1 text-[#7c827e]"><span class="w-1.5 h-1.5 bg-[#7c827e]"></span><span class="">Sunbreak [LOCK]</span></div></div><div class="text-[8px] font-pixel text-[#315e4d] whitespace-nowrap ml-2">ACC ±1.8M</div></div>
+</div>
+<!-- ===================================================================== -->
+<!-- RIGHT: DUAL GAME PANELS (LOCAL REGISTRY & FIELD SATCHEL)              -->
+<!-- ===================================================================== -->
+
+</div>
+</div>
+<!-- ======================================================================= -->
+<!-- 3. BOTTOM HANDHELD CHASSIS CONTROLS BAR (Tactile Console Accents)       -->
+<!-- ======================================================================= -->
+
+</div>
+<!-- ========================================================================= -->
+<!-- 4. MAPLIBRE GL INITIALIZATION SCRIPT                                      -->
+<!-- ========================================================================= -->
+<script>
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: {
+        version: 8,
+        sources: {
+          'osm-tiles': {
+            type: 'raster',
+            tiles: [
+              'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+            ],
+            tileSize: 256,
+            attribution: '© OpenStreetMap contributors'
+          }
+        },
+        layers: [
+          {
+            id: 'osm-layer',
+            type: 'raster',
+            source: 'osm-tiles',
+            minzoom: 0,
+            maxzoom: 19,
+            paint: {
+              'raster-saturation': -0.35,
+              'raster-contrast': 0.15,
+              'raster-brightness-max': 0.92,
+              'raster-hue-rotate': 28 // Warm nature hue matching Wildbound
+            }
+          }
+        ]
+      },
+      center: [121.230, 14.580],
+      zoom: 12.7,
+      pitch: 32,
+      bearing: -12,
+      interactive: true,
+      attributionControl: false
+    });
+
+    map.on('load', () => {
+      // 1. Wildkin Marker: #014 Kawi
+      const elKawi = document.createElement('div');
+      elKawi.className = 'flex flex-col items-center cursor-pointer group';
+      elKawi.innerHTML = `
+        <div class="bg-primary text-white text-[9px] font-mono font-bold px-2 py-0.5 rounded-md shadow-md mb-1 border border-white/25 whitespace-nowrap">
+          🐦 Kawi Sight #14
+        </div>
+        <div class="relative w-7 h-7 rounded-full bg-primary border-2 border-white flex items-center justify-center shadow-lg">
+          <span class="text-xs">🐦</span>
+          <span class="absolute inset-0 rounded-full border-2 border-primary radar-beacon"></span>
+        </div>
+      `;
+      new maplibregl.Marker({ element: elKawi })
+        .setLngLat([121.238, 14.586])
+        .addTo(map);
+
+      // 2. Wildkin Marker: #021 Mimu
+      const elMimu = document.createElement('div');
+      elMimu.className = 'flex flex-col items-center cursor-pointer group';
+      elMimu.innerHTML = `
+        <div class="bg-secondary text-white text-[9px] font-mono font-bold px-2 py-0.5 rounded-md shadow-md mb-1 border border-white/25 whitespace-nowrap">
+          🦊 Mimu Underbrush
+        </div>
+        <div class="relative w-6 h-6 rounded-full bg-secondary border-2 border-white flex items-center justify-center shadow-lg">
+          <span class="text-xs">🦊</span>
+        </div>
+      `;
+      new maplibregl.Marker({ element: elMimu })
+        .setLngLat([121.222, 14.576])
+        .addTo(map);
+
+      // 3. Player Marker: Researcher Sam
+      const elSam = document.createElement('div');
+      elSam.className = 'flex flex-col items-center';
+      elSam.innerHTML = `
+        <div class="bg-tertiary text-ink text-[10px] font-mono font-bold px-2 py-0.5 rounded-md shadow-md mb-1 border border-ink/20 whitespace-nowrap">
+          📍 Researcher Sam (Day 3)
+        </div>
+        <div class="relative w-8 h-8 rounded-full bg-white border-2 border-tertiary flex items-center justify-center shadow-xl">
+          <span class="text-sm">🧭</span>
+        </div>
+      `;
+      new maplibregl.Marker({ element: elSam })
+        .setLngLat([121.230, 14.580])
+        .addTo(map);
+
+      // 4. Trailhead Waypoint
+      const elTrail = document.createElement('div');
+      elTrail.className = 'flex flex-col items-center';
+      elTrail.innerHTML = `
+        <div class="bg-[#183F36] text-white text-[8px] font-mono font-bold px-1.5 py-0.5 rounded shadow border border-white/20">
+          ZIGZAG TRAILHEAD
+        </div>
+      `;
+      new maplibregl.Marker({ element: elTrail })
+        .setLngLat([121.218, 14.572])
+        .addTo(map);
+    });
+
+    // Radar scan trigger simulation
+    function triggerWildkinRadar() {
+      alert("POKÉNAV RADAR PULSE ACTIVATED:\n• 1x Kawi detected in Upper Canopy (Bearing 045°)\n• 1x Mimu detected in Moss Underbrush (Bearing 210°)\n• 1x Unknown ping detected in Deep Grotto.");
+    }
+
+    // Keyboard bindings for console feel
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        triggerWildkinRadar();
+      } else if (e.key === 'c' || e.key === 'C') {
+        map.flyTo({ center: [121.230, 14.580], zoom: 12.8, pitch: 40 });
+      }
+    });
+  </script>
+
+
+
+
+
+
+
+
+</body></html>

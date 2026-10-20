@@ -1,0 +1,304 @@
+// WILDBOUND database schema (Prisma 7).
+//
+// Spatial convention: every geometry column is WGS84 lon/lat (SRID 4326).
+// Prisma has no geometry type, so those columns are `Unsupported(...)`: they
+// exist in migrations but not in the generated client. All spatial reads and
+// writes go through `prisma.$queryRaw` / `$executeRaw` in src/world-repo.ts.
+//
+// Draft/published model: each world table has a composite primary key
+// (id, stage). Editors only ever write stage = 'draft'. Publishing copies the
+// draft rows to stage = 'published' in one transaction.
+//
+// CHECK constraints (ST_IsValid, weight range) are not expressible here; they
+// live in the SQL migrations. Edit migration.sql by hand when you add one.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PublicationStage {
+  draft
+  published
+
+  @@map("publication_stage")
+}
+
+// ------------------------------------------------------------------ catalogue
+
+model Creature {
+  id               String   @id
+  /// Registry number shown in the Registry ("No. 001"). Unique per species.
+  registryNumber   Int      @unique @map("registry_number")
+  name             String
+  description      String   @default("")
+  habitatAffinity  String[] @default([]) @map("habitat_affinity")
+  /// Human-readable habitat line for the Registry, e.g. "Forest canopy; bright woodland edge".
+  habitatSummary   String   @default("") @map("habitat_summary")
+  rarity           String   @default("common")
+  activityPattern  String   @default("TBD") @map("activity_pattern")
+  /// Weight multipliers by weather / time of day. See SpawnModifiersSchema in @wildbound/shared.
+  spawnModifiers   Json     @default("{}") @map("spawn_modifiers")
+  /// Unlocked only after a capture. See CreatureSkillSchema in @wildbound/shared.
+  skills           Json     @default("[]")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  encounterEntries EncounterEntry[]
+  spawns           Spawn[]
+  registryEntries  RegistryEntry[]
+  captured         CapturedWildkin[]
+
+  @@map("creatures")
+}
+
+// ------------------------------------------------------------------ world (draft + published)
+
+model WorldRegion {
+  id                     String                                 @db.Uuid
+  stage                  PublicationStage
+  slug                   String
+  name                   String
+  description            String                                 @default("")
+  geom                   Unsupported("geometry(MultiPolygon,4326)")
+  biomeTags              String[]                               @default([]) @map("biome_tags")
+  unlockCondition        Json?                                  @map("unlock_condition")
+  storyStateRequirements String[]                               @default([]) @map("story_state_requirements")
+  active                 Boolean                                @default(true)
+
+  habitats        Habitat[]
+  pois            PointOfInterest[]
+  encounterTables EncounterTable[]
+
+  @@id([id, stage], map: "world_regions_id_stage_pk")
+  @@unique([stage, slug], map: "world_regions_stage_slug_unique")
+  @@index([geom], map: "world_regions_geom_idx", type: Gist)
+  @@map("world_regions")
+}
+
+model Habitat {
+  id             String                            @db.Uuid
+  stage          PublicationStage
+  regionId       String                            @map("region_id") @db.Uuid
+  slug           String
+  name           String
+  description    String                            @default("")
+  geom           Unsupported("geometry(Polygon,4326)")
+  habitatTags    String[]                          @default([]) @map("habitat_tags")
+  conditionRules Json                              @map("condition_rules")
+
+  region          WorldRegion      @relation(fields: [regionId, stage], references: [id, stage], onDelete: Cascade, onUpdate: NoAction, map: "habitats_region_id_stage_world_regions_id_stage_fk")
+  encounterTables EncounterTable[]
+
+  @@id([id, stage], map: "habitats_id_stage_pk")
+  @@unique([stage, regionId, slug], map: "habitats_stage_region_slug_unique")
+  @@index([geom], map: "habitats_geom_idx", type: Gist)
+  @@map("habitats")
+}
+
+model PointOfInterest {
+  id              String                          @db.Uuid
+  stage           PublicationStage
+  regionId        String                          @map("region_id") @db.Uuid
+  slug            String
+  name            String
+  description     String                          @default("")
+  type            String
+  geom            Unsupported("geometry(Point,4326)")
+  interactionId   String?                         @map("interaction_id")
+  unlockCondition Json?                           @map("unlock_condition")
+
+  region WorldRegion @relation(fields: [regionId, stage], references: [id, stage], onDelete: Cascade, onUpdate: NoAction, map: "points_of_interest_region_id_stage_world_regions_id_stage_fk")
+
+  @@id([id, stage], map: "points_of_interest_id_stage_pk")
+  @@unique([stage, regionId, slug], map: "pois_stage_region_slug_unique")
+  @@index([geom], map: "pois_geom_idx", type: Gist)
+  @@map("points_of_interest")
+}
+
+model EncounterTable {
+  id             String           @db.Uuid
+  stage          PublicationStage
+  regionId       String           @map("region_id") @db.Uuid
+  /// null = applies to the whole region.
+  habitatId      String?          @map("habitat_id") @db.Uuid
+  name           String
+  conditionRules Json             @map("condition_rules")
+  active         Boolean          @default(true)
+
+  region  WorldRegion      @relation(fields: [regionId, stage], references: [id, stage], onDelete: Cascade, onUpdate: NoAction, map: "encounter_tables_region_id_stage_world_regions_id_stage_fk")
+  habitat Habitat?         @relation(fields: [habitatId, stage], references: [id, stage], onDelete: Cascade, onUpdate: NoAction, map: "encounter_tables_habitat_id_stage_habitats_id_stage_fk")
+  entries EncounterEntry[]
+
+  @@id([id, stage], map: "encounter_tables_id_stage_pk")
+  @@index([stage, regionId], map: "encounter_tables_region_idx")
+  @@map("encounter_tables")
+}
+
+model EncounterEntry {
+  id         String           @db.Uuid
+  stage      PublicationStage
+  tableId    String           @map("table_id") @db.Uuid
+  creatureId String           @map("creature_id")
+  /// 1..1000, enforced by a CHECK constraint in the migration.
+  weight     Int
+  conditions Json
+  position   Int              @default(0)
+
+  creature Creature       @relation(fields: [creatureId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "encounter_entries_creature_id_creatures_id_fk")
+  table    EncounterTable @relation(fields: [tableId, stage], references: [id, stage], onDelete: Cascade, onUpdate: NoAction, map: "encounter_entries_table_id_stage_encounter_tables_id_stage_fk")
+
+  @@id([id, stage], map: "encounter_entries_id_stage_pk")
+  @@map("encounter_entries")
+}
+
+/// Single-row bookkeeping for the editable draft.
+model WorldMeta {
+  id             Int       @id @default(1)
+  draftUpdatedAt DateTime? @map("draft_updated_at") @db.Timestamptz(6)
+
+  @@map("world_meta")
+}
+
+/// One row per publish. Full version history of content is deferred.
+model Publication {
+  version     Int      @id @default(autoincrement())
+  publishedAt DateTime @default(now()) @map("published_at") @db.Timestamptz(6)
+  summary     Json
+
+  @@map("publications")
+}
+
+// ------------------------------------------------------------------ players
+
+model Player {
+  id          String   @id @default(uuid()) @db.Uuid
+  /// Lowercased username; the login key.
+  username    String   @unique
+  /// Username as the player typed it.
+  displayName String   @map("display_name")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt  DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+
+  sessions  PlayerSession[]
+  position  PlayerPosition?
+  spawns    Spawn[]
+  registry  RegistryEntry[]
+  inventory InventoryItem[]
+  wildkin   CapturedWildkin[]
+
+  @@map("players")
+}
+
+model PlayerSession {
+  id        String   @id @default(uuid()) @db.Uuid
+  playerId  String   @map("player_id") @db.Uuid
+  /// sha256 of the session token. The raw token only ever lives in the cookie.
+  tokenHash String   @unique @map("token_hash")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId])
+  @@map("player_sessions")
+}
+
+/// The server's view of where a player is. Only the movement check may update it.
+model PlayerPosition {
+  playerId      String    @id @map("player_id") @db.Uuid
+  lat           Float
+  lng           Float
+  accuracyM     Float     @map("accuracy_m")
+  recordedAt    DateTime  @map("recorded_at") @db.Timestamptz(6)
+  /// Consecutive implausible jumps. Reset by a plausible update.
+  strikes       Int       @default(0)
+  /// While set and in the future, game actions are refused.
+  lockedUntil   DateTime? @map("locked_until") @db.Timestamptz(6)
+  /// IANA time zone reported by the weather lookup (or the client as a fallback).
+  timeZone      String?   @map("time_zone")
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@map("player_positions")
+}
+
+enum SpawnStatus {
+  active
+  captured
+  fled
+  expired
+
+  @@map("spawn_status")
+}
+
+/// A Wildkin the server placed near one player. Clients can only act on spawns they own.
+model Spawn {
+  id         String      @id @default(uuid()) @db.Uuid
+  playerId   String      @map("player_id") @db.Uuid
+  creatureId String      @map("creature_id")
+  lat        Float
+  lng        Float
+  regionId   String?     @map("region_id") @db.Uuid
+  habitatId  String?     @map("habitat_id") @db.Uuid
+  timeOfDay  String      @map("time_of_day")
+  weather    String
+  status     SpawnStatus @default(active)
+  observedAt DateTime?   @map("observed_at") @db.Timestamptz(6)
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt  DateTime    @map("expires_at") @db.Timestamptz(6)
+
+  player   Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  creature Creature @relation(fields: [creatureId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, status, expiresAt])
+  @@map("spawns")
+}
+
+/// What a player knows about a species. Observe creates it; capture upgrades it.
+model RegistryEntry {
+  playerId        String    @map("player_id") @db.Uuid
+  creatureId      String    @map("creature_id")
+  firstObservedAt DateTime  @default(now()) @map("first_observed_at") @db.Timestamptz(6)
+  timesObserved   Int       @default(1) @map("times_observed")
+  firstCapturedAt DateTime? @map("first_captured_at") @db.Timestamptz(6)
+  timesCaptured   Int       @default(0) @map("times_captured")
+
+  player   Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  creature Creature @relation(fields: [creatureId], references: [id], onDelete: Cascade)
+
+  @@id([playerId, creatureId])
+  @@map("registry_entries")
+}
+
+/// Item stacks. Item definitions live in code (ITEMS in @wildbound/shared).
+model InventoryItem {
+  playerId String @map("player_id") @db.Uuid
+  itemId   String @map("item_id")
+  quantity Int    @default(0)
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([playerId, itemId])
+  @@map("inventory_items")
+}
+
+/// One captured individual. partySlot 0..5 puts it in the party; null keeps it in storage.
+model CapturedWildkin {
+  id         String   @id @default(uuid()) @db.Uuid
+  playerId   String   @map("player_id") @db.Uuid
+  creatureId String   @map("creature_id")
+  nickname   String?
+  partySlot  Int?     @map("party_slot")
+  capturedAt DateTime @default(now()) @map("captured_at") @db.Timestamptz(6)
+
+  player   Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  creature Creature @relation(fields: [creatureId], references: [id], onDelete: Restrict)
+
+  @@unique([playerId, partySlot])
+  @@index([playerId])
+  @@map("captured_wildkin")
+}

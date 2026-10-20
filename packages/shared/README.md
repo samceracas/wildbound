@@ -1,5 +1,7 @@
 # @wildbound/shared
 
+> Detailed documentation: [docs/02-world-model.md](../../docs/02-world-model.md).
+
 The data contract. Zod schemas and the TypeScript types inferred from them, used by the editor, API, web app and database layer so everyone agrees on one shape.
 
 ## Contents
@@ -8,8 +10,9 @@ The data contract. Zod schemas and the TypeScript types inferred from them, used
 |---|---|
 | `src/constants.ts` | Vocabularies (time of day, weather, POI types), limits, suggested tags, the `WORLD_SRID` (4326) |
 | `src/geo.ts` | GeoJSON schemas (Position, Polygon, MultiPolygon, Point), closed-ring and distinct-vertex checks, helpers |
-| `src/world.ts` | `WorldRegion`, `Habitat`, `PointOfInterest`, `EncounterTable`, `EncounterEntry`, `CreatureDefinition`, `ConditionRules`, `WorldDocument`, slug rules |
+| `src/world.ts` | `WorldRegion`, `Habitat`, `PointOfInterest`, `EncounterTable`, `EncounterEntry`, `CreatureDefinition` (with registry number, rarity, activity pattern, `SpawnModifiers`, skills), `ConditionRules`, `WorldDocument`, slug rules |
 | `src/api.ts` | Request and response schemas: resolve query, `WorldContext`, published world, editor responses, validation issues |
+| `src/game.ts` | Player game contract: `GAME_RULES` (all anti-cheat and spawn limits), `ITEMS`, login, position reports, game state, Registry views, inventory, party |
 | `src/schemas.test.ts` | Unit tests |
 
 Everything is exported from `src/index.ts`. The package is consumed as TypeScript source (no build step).

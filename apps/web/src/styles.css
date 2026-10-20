@@ -1,53 +1,104 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
-
-/* shadcn theme tokens (new-york, neutral). Edit these to retheme every component. */
+/*
+ * Theme: the Stitch "Field Registry" design system (patches/0.1.0/mockups/DESIGN.md).
+ * A deep-forest shell around warm paper. Light only, by design.
+ * shadcn components read the semantic variables; game UI also uses the named
+ * palette (bg-deep-forest, text-ink, bg-paper, ...).
+ */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-}
+  --radius: 0.625rem; /* 10px: buttons and inputs */
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  /* named palette */
+  --deep-forest: #183f36;
+  --forest-slate: #315e4d;
+  --primary-forest: #1f6b57;
+  --moss: #6f8f5f;
+  --leaf: #8ea96f;
+  --field-gold: #d5a84c;
+  --warm-paper: #f6f0e3;
+  --paper: #fffdf7;
+  --muted-paper: #e8e1d2;
+  --ink: #24302d;
+  --ink-muted: #64706a;
+  --sky: #8eb9cf;
+  --water: #4d93a6;
+  --terracotta: #c96a5b;
+  --success: #4f8a68;
+  --locked: #7c827e;
+
+  /* Handheld "Field Nav" console (Stitch screens 1-6) */
+  --chassis: #12322a;
+  --chassis-deep: #0b1d17;
+  --chassis-edge: #275345;
+  --chassis-text: #71a392;
+  --lcd: #e4f2d7;
+  --lcd-ink: #142617;
+  --lcd-edge: #436449;
+  --screen: #f6f3e7;
+  --screen-panel: #f0ebe0;
+  --screen-inset: #e7e1d1;
+  --screen-edge: #cec6b3;
+  --led: #34d399;
+
+  /* shadcn semantic tokens */
+  --background: var(--warm-paper);
+  --foreground: var(--ink);
+  --card: var(--paper);
+  --card-foreground: var(--ink);
+  --popover: var(--paper);
+  --popover-foreground: var(--ink);
+  --primary: var(--primary-forest);
+  --primary-foreground: var(--paper);
+  --secondary: var(--deep-forest);
+  --secondary-foreground: var(--paper);
+  --muted: var(--muted-paper);
+  --muted-foreground: var(--ink-muted);
+  --accent: var(--warm-paper);
+  --accent-foreground: var(--primary-forest);
+  --destructive: var(--terracotta);
+  --border: var(--muted-paper);
+  --input: var(--muted-paper);
+  --ring: var(--primary-forest);
 }
 
 @theme inline {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Noto Serif", ui-serif, Georgia, serif;
+  /* Console labels (Press Start 2P) and dot-matrix body text (VT323). */
+  --font-pixel: "Press Start 2P", ui-monospace, monospace;
+  --font-vt: "VT323", ui-monospace, monospace;
+
+  --color-deep-forest: var(--deep-forest);
+  --color-forest-slate: var(--forest-slate);
+  --color-primary-forest: var(--primary-forest);
+  --color-moss: var(--moss);
+  --color-leaf: var(--leaf);
+  --color-field-gold: var(--field-gold);
+  --color-warm-paper: var(--warm-paper);
+  --color-paper: var(--paper);
+  --color-muted-paper: var(--muted-paper);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-sky: var(--sky);
+  --color-water: var(--water);
+  --color-terracotta: var(--terracotta);
+  --color-success: var(--success);
+  --color-locked: var(--locked);
+  --color-chassis: var(--chassis);
+  --color-chassis-deep: var(--chassis-deep);
+  --color-chassis-edge: var(--chassis-edge);
+  --color-chassis-text: var(--chassis-text);
+  --color-lcd: var(--lcd);
+  --color-lcd-ink: var(--lcd-ink);
+  --color-lcd-edge: var(--lcd-edge);
+  --color-screen: var(--screen);
+  --color-screen-panel: var(--screen-panel);
+  --color-screen-inset: var(--screen-inset);
+  --color-screen-edge: var(--screen-edge);
+  --color-led: var(--led);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -66,10 +117,14 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  /* Detached dialogs/tooltips only: a hairline index-card shadow, never glow. */
+  --shadow-card: 0 2px 4px rgba(24, 63, 54, 0.06), 0 8px 16px rgba(24, 63, 54, 0.08);
 }
 
 @layer base {
@@ -82,6 +137,57 @@
     @apply h-full m-0;
   }
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply bg-chassis-deep text-foreground font-sans antialiased;
+  }
+}
+
+@layer components {
+  /* Typography scale from DESIGN.md */
+  .text-display {
+    @apply font-serif text-[40px] leading-[42px] tracking-[-0.02em];
+  }
+  .text-headline-lg {
+    @apply font-serif text-[32px] leading-9 tracking-[-0.015em];
+  }
+  .text-headline-md {
+    @apply font-sans text-2xl leading-[29px] font-bold tracking-[-0.01em];
+  }
+  .text-label-lg {
+    @apply text-sm leading-[17px] font-bold tracking-[0.01em];
+  }
+  .text-label-md {
+    @apply text-xs leading-[14px] font-bold tracking-[0.04em] uppercase;
+  }
+  .pixelated {
+    image-rendering: pixelated;
+  }
+  /* Unknown Registry entries: the species' shape only. */
+  .silhouette {
+    filter: brightness(0) opacity(0.55);
+  }
+
+  /* ---- Handheld console pieces (patches/0.1.0/mockups) ---- */
+  /* CRT scanlines over a screen. Purely decorative: pointer-events off. */
+  .scanlines {
+    position: relative;
+  }
+  .scanlines::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background-image: repeating-linear-gradient(0deg, rgb(0 0 0 / 0.045) 0 1px, transparent 1px 3px);
+  }
+  /* Recessed (inset) and raised panels on the paper screen. */
+  .inset-panel {
+    @apply rounded-sm border border-screen-edge bg-screen-inset shadow-[inset_0_1px_2px_rgb(0_0_0/0.12)];
+  }
+  .raised-panel {
+    @apply rounded-lg border-2 border-[#b8ae97] bg-screen-panel shadow-[0_2px_0_#b8ae97];
+  }
+  /* Screw heads on the chassis corners. */
+  .screw {
+    @apply absolute size-2 rounded-full border border-chassis-deep bg-chassis;
   }
 }

@@ -1,6 +1,10 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { getToken, setToken } from "../api.ts";
+import { cn } from "@/lib/utils.ts";
+import { getToken, setToken } from "../lib/api.ts";
+import { editorKeys } from "../lib/queries.ts";
 import { useEditor } from "../store.ts";
+import { Button, Input, PanelTitle } from "./ui.tsx";
 
 export function NoticeToast() {
   const notice = useEditor((s) => s.notice);
@@ -13,7 +17,15 @@ export function NoticeToast() {
   }, [notice]);
   if (!notice || !visible) return null;
   return (
-    <div className={`toast ${notice.kind}`} role="status" onClick={() => setVisible(false)}>
+    <div
+      className={cn(
+        "fixed bottom-12 left-1/2 z-20 max-w-[80vw] -translate-x-1/2 cursor-pointer rounded-control border border-line bg-panel-2 px-4 py-[9px] shadow-[0_6px_20px_rgba(0,0,0,0.4)]",
+        notice.kind === "success" && "border-accent",
+        notice.kind === "error" && "border-danger text-[#ffd6d6]",
+      )}
+      role="status"
+      onClick={() => setVisible(false)}
+    >
       {notice.text}
     </div>
   );
@@ -21,25 +33,29 @@ export function NoticeToast() {
 
 export function TokenDialog() {
   const authRequired = useEditor((s) => s.authRequired);
-  const load = useEditor((s) => s.load);
+  const qc = useQueryClient();
   const [value, setValue] = useState(getToken());
   if (!authRequired) return null;
   return (
-    <div className="modal-backdrop">
+    <div className="fixed inset-0 z-30 grid place-items-center bg-black/60">
       <form
-        className="modal"
+        className="flex w-[360px] flex-col gap-3 rounded-[10px] border border-line bg-panel p-5"
         onSubmit={(e) => {
           e.preventDefault();
           setToken(value.trim());
-          void load();
+          const s = useEditor.getState();
+          s.setAuthRequired(false);
+          // Nothing loaded yet: load now. Otherwise keep the edits and let the user retry.
+          if (!s.loaded) void qc.refetchQueries({ queryKey: editorKeys.world });
+          else s.notify("info", "Token saved. Retry the last action.");
         }}
       >
-        <h2>Editor access</h2>
-        <p className="muted">The API rejected the editor token. Enter the EDITOR_TOKEN configured for the API.</p>
-        <input type="password" value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
-        <button className="btn primary" type="submit">
+        <PanelTitle>Editor access</PanelTitle>
+        <p className="my-[1em] text-muted">The API rejected the editor token. Enter the EDITOR_TOKEN configured for the API.</p>
+        <Input type="password" value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
+        <Button variant="primary" type="submit">
           Connect
-        </button>
+        </Button>
       </form>
     </div>
   );
@@ -54,5 +70,9 @@ export function ToolHint() {
     preview: "Test: click to drop the player · drag it or use arrow keys to move",
   };
   const hint = hints[tool];
-  return hint ? <div className="tool-hint">{hint}</div> : null;
+  return hint ? (
+    <div className="pointer-events-none absolute top-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-line bg-[rgba(17,22,28,0.88)] px-3.5 py-1.5 text-label">
+      {hint}
+    </div>
+  ) : null;
 }

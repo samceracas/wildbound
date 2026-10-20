@@ -1,8 +1,10 @@
 import { z } from "zod";
 import {
+  ACTIVITY_PATTERNS,
   ENCOUNTER_WEIGHT_MAX,
   ENCOUNTER_WEIGHT_MIN,
   POI_TYPES,
+  RARITIES,
   TIME_OF_DAY,
   WEATHER,
 } from "./constants.ts";
@@ -48,11 +50,42 @@ export const UnlockConditionSchema = z
   .nullable();
 export type UnlockCondition = z.infer<typeof UnlockConditionSchema>;
 
+export const RaritySchema = z.enum(RARITIES);
+export const ActivityPatternSchema = z.enum(ACTIVITY_PATTERNS);
+
+/**
+ * Multipliers applied to an encounter weight under the current environment.
+ * Missing keys mean 1 (no change). 0 means "never spawns in this condition".
+ * Example: { weather: { rain: 1.5, storm: 0 }, timeOfDay: { night: 2 } }
+ */
+export const SpawnModifiersSchema = z.object({
+  weather: z.partialRecord(WeatherSchema, z.number().min(0).max(10)).default({}),
+  timeOfDay: z.partialRecord(TimeOfDaySchema, z.number().min(0).max(10)).default({}),
+});
+export type SpawnModifiers = z.infer<typeof SpawnModifiersSchema>;
+
+/** A battle/field skill. Revealed in the Registry only after a capture. */
+export const CreatureSkillSchema = z.object({
+  name: NameSchema,
+  description: DescriptionSchema,
+  /** "proposed" until the Wildkin Bible approves it (see documents/). */
+  canon: z.enum(["established", "proposed"]),
+});
+export type CreatureSkill = z.infer<typeof CreatureSkillSchema>;
+
 export const CreatureDefinitionSchema = z.object({
   id: SlugSchema,
+  /** Registry number ("No. 001"). */
+  registryNumber: z.number().int().positive(),
   name: NameSchema,
   description: DescriptionSchema,
   habitatAffinity: TagListSchema,
+  /** Human-readable habitat line for the Registry. */
+  habitatSummary: DescriptionSchema.default(""),
+  rarity: RaritySchema.default("common"),
+  activityPattern: ActivityPatternSchema.default("TBD"),
+  spawnModifiers: SpawnModifiersSchema.default({ weather: {}, timeOfDay: {} }),
+  skills: z.array(CreatureSkillSchema).max(8).default([]),
 });
 export type CreatureDefinition = z.infer<typeof CreatureDefinitionSchema>;
 

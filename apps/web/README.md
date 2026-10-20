@@ -1,123 +1,64 @@
 # @wildbound/web
 
-The player-facing web app. For now it is a **learning space**: a small, working React + Vite + MapLibre project, bootstrapped so you can build on it yourself. It is intentionally minimal.
+> Detailed documentation: [docs/06-web-game.md](../../docs/06-web-game.md).
 
-Later this app will host the Phaser 3 field, which draws a stylized top-down 2D world from the same world context the editor previews. Phaser is **not** set up yet (see the [root README](../../README.md#scope-and-roadmap)).
+The WILDBOUND game: username login → location sharing → radar, Registry, Satchel and Party. Mobile-first (designed at 390px), styled as a handheld "field nav" console after the six Stitch mockups in [`patches/0.1.0/mockups/`](../../patches/0.1.0/mockups/) (`1-login` … `6-party`, each as `.html` + `.png`), using the "Field Registry" design tokens.
 
-## What is here
+Parts are intentionally unfinished: look for `TODO(you)` (see [`patches/0.1.0/EXERCISES.md`](../../patches/0.1.0/EXERCISES.md)).
+
+## Stack
+
+React 19, Vite 7, React Router 7, TanStack Query 5, react-hook-form + `@hookform/resolvers/zod`, Tailwind CSS 4 + shadcn/ui (new-york), lucide icons, MapLibre GL JS 5, `@wildbound/shared` for every request/response schema.
+
+## Layout
 
 ```
-apps/web/
-  index.html          Vite entry
-  vite.config.ts      Port 5174, Tailwind plugin, "@" alias, reads VITE_* from the repo-root .env
-  tsconfig.json       Extends the shared strict base config, adds the "@/*" path
-  components.json     shadcn CLI config (new-york style, neutral base, lucide icons)
-  src/
-    main.tsx          React root, QueryClientProvider and devtools
-    App.tsx           Published-world summary card (shadcn) over the map
-    MapView.tsx       The MapLibre setup: OSM raster basemap, zoom controls, scale bar
-    api.ts            Typed, Zod-validated helpers for the API (fetchPublishedWorld, resolveCoordinate)
-    queries.ts        TanStack Query hooks and query keys (usePublishedWorld, useWorldContext)
-    styles.css        Tailwind import and the shadcn theme tokens (light and dark)
-    lib/
-      utils.ts        cn(): class merging helper used by every shadcn component
-      query-client.ts The shared QueryClient and its defaults
-    components/ui/    shadcn components (button, card, badge so far)
+src/
+  main.tsx                 QueryClientProvider → LocationProvider → RouterProvider
+  router.tsx               / (login) → /location → /play/* ; guards send you back a step when needed
+  styles.css               Field Registry tokens (deep forest, warm paper, ink, …) mapped onto shadcn variables,
+                           plus console tokens (chassis, lcd, screen) and pieces (.scanlines, .inset-panel, .raised-panel)
+  lib/
+    api.ts                 Typed fetch client; every response is parsed with Zod; ApiError(status, code)
+    queries.ts             TanStack Query keys + hooks (useMe, useGameState, useObserve, useCapture, …)
+    assets.ts              Icon/sprite URLs, registry number formatting
+  components/
+    ui/                    shadcn components restyled to the design system (button, badge, card, input)
+    layout/Shell.tsx       Console chassis (Shell), LcdScreen, ConsoleButton (A/B face buttons), Led, ScreenTitle
+  features/
+    auth/                  LoginPage (react-hook-form + zod), RequireSession
+    location/              LocationProvider (watchPosition + Permissions API), LocationGatePage, usePositionReporter
+    game/                  GameLayout (console header, PWR/GPS/weather/time strip, cartridge tabs, pause overlay), useClock, weather/time icons
+    radar/                 RadarMap (MapLibre markers), RadarPage (Observe / Capture sheet)
+    registry/              RegistryPage (index roster with silhouettes + filters), RegistryDetailPage (dossier card)
+    inventory/             InventoryPage ("Satchel")
+    party/                 PartyPage, RenameForm (exercise)
+public/
+  player/head.png          PixelLab player head (map marker)
+  wildkin/icons/*.png      PixelLab face icons (64px)
+  wildkin/sprites/*.png    PixelLab full sprites (128px)
 ```
 
-When it is running you should see an OpenStreetMap basemap centered on Metro Manila and a card with badges such as `v1`, `1 regions`, `3 habitats`, `7 POIs`. That summary proves the full pipeline works: editor, publish, API, this app.
+## How the pieces fit
 
-## Tech stack
+- **Sessions.** Vite proxies `/api` to the API (`vite.config.ts`), so requests are same-origin and the httpOnly `wb_session` cookie is first-party. Override the target with `API_PROXY_TARGET`.
+- **Location.** `LocationProvider` owns one `watchPosition` for the whole app and listens to permission changes. `status === "active"` is the only playable state; anything else shows the "Survey paused" overlay.
+- **Position reports.** `usePositionReporter` sends fixes to `POST /api/game/position` (throttled, plus a 30 s heartbeat while still). The server decides whether to accept them; the radar shows where the *server* thinks you are.
+- **Radar.** `useGameState` polls `/api/game/state` every 10 s. Markers are MapLibre `Marker`s synced in effects; the map itself is created once.
+- **Registry.** Fields the player has not unlocked arrive as `null` from the API; unknown species render as CSS silhouettes.
+- **Fonts.** Press Start 2P (console labels) and VT323 (dot-matrix body text) come from Google Fonts with Inter/Noto Serif (`index.html`), exposed as `font-pixel` and `font-vt`.
+- **Forms.** Use the shared Zod schema as the resolver so client and server validation match (see `LoginPage`).
 
-| Package | Why |
-|---|---|
-| `react`, `react-dom` 19 | UI |
-| `vite` 7, `@vitejs/plugin-react` | Dev server and build |
-| `maplibre-gl` 5 | The map (open source, no API key) |
-| `@wildbound/shared` | Zod schemas and types for the API responses (workspace package) |
-| `zod` | Needed by the shared schemas |
-| `typescript` | Type checking (`pnpm typecheck`) |
-| `tailwindcss` 4, `@tailwindcss/vite` | Styling. No `tailwind.config`; the theme lives in `src/styles.css` |
-| shadcn (`radix-ui`, `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react`, `tw-animate-css`) | Component library. Components are copied into `src/components/ui` and are yours to edit |
-| `@tanstack/react-query` 5 (+ devtools) | Server state: fetching, caching, loading and error states |
-
-No router or client state library yet. Add them when a real need shows up.
-
-### Adding shadcn components
+## Run
 
 ```bash
-cd apps/web
-pnpm dlx shadcn@latest add dialog select tabs
+pnpm dev:api        # the game needs the API
+pnpm dev:web        # http://localhost:5174
+pnpm --filter @wildbound/web build
 ```
 
-`components.json` already points the CLI at `src/styles.css` and the `@/components/ui` alias.
+Geolocation needs `https://` or `localhost`. To play on a desktop, use Chrome devtools → *More tools → Sensors* and set a location inside a published region (e.g. `14.6518, 121.0444` in the seeded Mabunyi world). Move in small steps.
 
-### Adding data fetching
+## Art
 
-Put the raw call in `src/api.ts` (Zod-parsed), then wrap it in a hook in `src/queries.ts` with a key from `queryKeys`. Components use the hook and never call `fetch` directly.
-
-## Run it
-
-From the repo root, with the database and API running (see the [root Quick start](../../README.md#quick-start)):
-
-```bash
-pnpm db:seed --publish                 # puts a published sample world in the database
-pnpm dev:api                           # API on :4000 (separate terminal)
-pnpm dev:web                           # this app on :5174
-```
-
-Open http://localhost:5174. If the label says "Nothing published yet", publish from the editor or run `pnpm db:seed --publish`.
-
-## Configuration
-
-Read from the repo-root `.env`:
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `VITE_API_URL` | `http://localhost:4000` | API base URL |
-
-The API allows this app's origin through `CORS_ORIGINS` (default includes `http://localhost:5174`). The editor token is **not** used here; every endpoint this app calls is public.
-
-## The data this app reads
-
-Two public endpoints, both already wrapped in `src/api.ts`:
-
-- `GET /api/world/published` returns `{ version, publishedAt, world, creatures }`. `world` has `regions`, `habitats`, `pois` and `encounterTables`, all as GeoJSON geometry in `[lng, lat]` order.
-- `GET /api/world/resolve?lat&lng` returns the WILDBOUND context for one coordinate: region, habitat, nearby POIs and available Wildkin. Optional `timeOfDay`, `weather` and `radius` let you simulate conditions.
-
-The shapes are defined once in `packages/shared`, so TypeScript and Zod agree with the API.
-
-## Learning path (suggested exercises)
-
-Each step is small and builds on the last. Do them in `MapView.tsx` unless noted. UI pieces can use the shadcn components.
-
-1. **Understand the setup.** Read `MapView.tsx`. Why is the map created in `useEffect` with a ref? What happens in StrictMode, and why does cleanup call `map.remove()`?
-2. **Change the view.** Edit `center` and `zoom`. Add `maxBounds`. Try `pitch` and `bearing`.
-3. **React to events.** Add `map.on("click", e => ...)` and log `e.lngLat`. Show the coordinate in the status label.
-4. **Add a GeoJSON source and a layer.** Inside `map.on("load", ...)`, call `addSource` with a hard-coded polygon, then `addLayer` with a `fill` and a `line` layer. Learn the difference between a *source* (data) and a *layer* (styling).
-5. **Draw the published world.** Pass the fetched `world` into `MapView` as a prop. Build GeoJSON `FeatureCollection`s from `regions` and `habitats` and add one source and layer per kind. Update with `source.setData(...)` when the prop changes instead of recreating the map.
-6. **Style by data.** Use data-driven expressions, for example `["get", "name"]` or `["case", ...]`, to color habitats differently.
-7. **Add markers or a circle layer for POIs.** Compare `maplibregl.Marker` (DOM, easy, fine for tens) with a `circle` layer (GPU, scales to thousands).
-8. **Use the resolver.** On click, pass `{ lat, lng }` to the `useWorldContext` hook and render the region, habitat, Wildkin and nearby POIs in a panel. Handle the "outside every region" case, which is a normal empty response.
-9. **Simulate conditions.** Add selects for time of day and weather and watch `availableWildkin` change without any code changes to the API.
-10. **Fit the view to the data.** Compute the bounds of the published world and call `map.fitBounds`.
-11. **Simulate a player.** Add a draggable marker that re-resolves on `dragend`. This is the shape the future live-GPS adapter will take.
-12. **Prepare for Phaser.** Design a small hook such as `useWorldContext(position)` that returns a `WorldContext`. The Phaser field will consume exactly that, never raw map data.
-
-Useful references: [MapLibre GL JS docs](https://maplibre.org/maplibre-gl-js/docs/), the [Style Specification](https://maplibre.org/maplibre-style-spec/), and the finished editor in `apps/editor/src/map/editor-map.ts` for a larger MapLibre example (drawing, vertex handles, markers).
-
-## Scripts
-
-| Command | What it does |
-|---|---|
-| `pnpm dev:web` | Dev server on http://localhost:5174 |
-| `pnpm --filter @wildbound/web build` | Type check and production build into `dist/` |
-| `pnpm --filter @wildbound/web preview` | Serve the production build |
-| `pnpm --filter @wildbound/web typecheck` | Type check only |
-
-## Ground rules for this app
-
-- Do not create a second world model. Use the types from `@wildbound/shared`.
-- Keep game rules out of React components. Rules live in `packages/world` and the API.
-- Use simulated coordinates while developing. Live geolocation comes later as an adapter.
-- The real map is geographic truth, not the game's final look.
+Icons, sprites and the player head were generated with PixelLab (Pixen model, the cheapest option) from the descriptions in `documents/WILDBOUND_Wildkin_Bible_v1.1.docx`. They are placeholders until approved, as the Bible requires. The Kantar sprite was regenerated in v0.1.0 pass 2 so its pale side markings read clearly.

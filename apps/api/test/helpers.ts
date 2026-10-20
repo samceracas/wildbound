@@ -1,0 +1,13 @@
+import type { ApiConfig } from "../src/config.ts";
+
+export const testConfig = (over: Partial<ApiConfig> = {}): ApiConfig => ({
+  databaseUrl: "",
+  port: 0,
+  host: "127.0.0.1",
+  editorToken: "test-editor-token",
+  corsOrigins: [],
+  worldTimeZone: "Asia/Manila",
+  weatherApiUrl: "off",
+  secureCookies: false,
+  ...over,
+});

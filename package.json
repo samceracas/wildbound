@@ -4,22 +4,25 @@
   "version": "0.1.0",
   "type": "module",
   "packageManager": "pnpm@10.28.0",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
     "db:migrate": "pnpm --filter @wildbound/db migrate",
     "db:seed": "pnpm --filter @wildbound/db seed",
     "db:reset": "pnpm --filter @wildbound/db reset",
-    "dev": "pnpm --parallel --filter @wildbound/api --filter @wildbound/editor dev",
+    "dev": "pnpm --parallel --filter @wildbound/api --filter @wildbound/editor --filter @wildbound/web dev",
     "dev:api": "pnpm --filter @wildbound/api dev",
     "dev:editor": "pnpm --filter @wildbound/editor dev",
     "dev:web": "pnpm --filter @wildbound/web dev",
     "build": "pnpm -r --filter @wildbound/editor --filter @wildbound/web build",
     "typecheck": "pnpm -r --parallel typecheck",
-    "test": "vitest run",
+    "test": "vitest run --project unit --project integration",
     "test:unit": "vitest run --project unit",
-    "test:integration": "vitest run --project integration"
+    "test:integration": "vitest run --project integration",
+    "test:exercises": "vitest run --project exercises"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

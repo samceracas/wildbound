@@ -4,8 +4,8 @@ import { assembleWorldContext, timeOfDayAt } from "@wildbound/world";
 
 /**
  * Coordinate → WILDBOUND world context. PostGIS does the spatial work;
- * @wildbound/world applies the game rules. This is the entry point the
- * future Phaser field will call.
+ * @wildbound/world applies the game rules. Editor preview uses this with any
+ * coordinate; the game only ever calls it with a player's server-side position.
  */
 export async function resolveWorldContext(
   db: Executor,

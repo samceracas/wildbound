@@ -295,3 +295,16 @@ export function entityLabel(world: WorldDocument, sel: Selection): string {
   const all = [...world.regions, ...world.habitats, ...world.pois, ...world.encounterTables];
   return all.find((e) => e.id === sel.id)?.name ?? "(deleted)";
 }
+
+/**
+ * The entries of `values` that differ from `current` (deep, by JSON). Inspector
+ * forms submit all their fields; committing only the changed ones keeps no-op
+ * blurs out of the undo history.
+ */
+export function changedFields<T extends object>(current: T, values: Partial<T>): Partial<T> {
+  const changed: Partial<T> = {};
+  for (const key of Object.keys(values) as (keyof T)[]) {
+    if (JSON.stringify(values[key]) !== JSON.stringify(current[key])) changed[key] = values[key];
+  }
+  return changed;
+}

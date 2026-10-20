@@ -6,7 +6,12 @@ export interface ApiConfig {
   host: string;
   editorToken: string;
   corsOrigins: string[];
+  /** Fallback zone for time of day when neither the weather service nor the client supplies one. */
   worldTimeZone: string;
+  /** Open-Meteo forecast endpoint (key-free). */
+  weatherApiUrl: string;
+  /** Send the session cookie with `Secure` (enable behind HTTPS). */
+  secureCookies: boolean;
 }
 
 export function loadConfig(overrides: Partial<ApiConfig> = {}): ApiConfig {
@@ -20,6 +25,8 @@ export function loadConfig(overrides: Partial<ApiConfig> = {}): ApiConfig {
       .map((o) => o.trim())
       .filter(Boolean),
     worldTimeZone: process.env.WORLD_TIMEZONE ?? "Asia/Manila",
+    weatherApiUrl: process.env.WEATHER_API_URL ?? "https://api.open-meteo.com/v1/forecast",
+    secureCookies: process.env.SECURE_COOKIES === "true",
     ...overrides,
   };
 }
