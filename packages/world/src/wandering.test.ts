@@ -51,10 +51,19 @@ describe("wanderStep", () => {
 describe("wander", () => {
   const base = { style: "darter" as const, active: true, stepMs: 10_000, center: start, random: seededRandom(9) };
 
-  it("takes one step per elapsed interval, capped", () => {
-    expect(wander(start, { ...base, elapsedMs: 25_000, maxSteps: 6, radiusM: 1000 }).steps).toBe(2);
+  it("takes steps of varying length that fit into the elapsed time, capped", () => {
+    const two = wander(start, { ...base, random: () => 0.5, elapsedMs: 25_000, maxSteps: 6, radiusM: 1000 });
+    expect(two).toMatchObject({ steps: 2, usedMs: 20_000 });
+    // Short steps (random 0 → half of stepMs) fit more often.
+    expect(wander(start, { ...base, random: () => 0, elapsedMs: 25_000, maxSteps: 6, radiusM: 1000 }).steps).toBe(5);
     expect(wander(start, { ...base, elapsedMs: 10 * 60_000, maxSteps: 6, radiusM: 1000 }).steps).toBe(6);
-    expect(wander(start, { ...base, elapsedMs: 5_000, maxSteps: 6, radiusM: 1000 })).toMatchObject({ steps: 0, lat: start.lat });
+    expect(wander(start, { ...base, elapsedMs: 4_000, maxSteps: 6, radiusM: 1000 })).toMatchObject({ steps: 0, usedMs: 0, lat: start.lat });
+  });
+
+  it("gives spawns polled at the same time their own rhythm", () => {
+    const random = seededRandom(5);
+    const counts = Array.from({ length: 8 }, () => wander(start, { ...base, random, elapsedMs: 30_000, maxSteps: 6, radiusM: 1000 }).steps);
+    expect(new Set(counts).size).toBeGreaterThan(1);
   });
 
   it("reports leaving the radius and stops there", () => {

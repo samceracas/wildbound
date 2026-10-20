@@ -78,14 +78,22 @@ export function wanderStep(
 export interface WanderResult extends WanderState {
   /** Steps actually taken. */
   steps: number;
+  /** Time those steps took (ms); advance the spawn's clock by this much. */
+  usedMs: number;
   /** Ended farther than `radiusM` from `center`. */
   outOfBounds: boolean;
 }
 
+/** Each step lasts between half and one and a half `stepMs`, so Wildkin keep their own rhythm. */
+export const STEP_JITTER = 0.5;
+
 /**
- * Advances a spawn by however many whole steps fit into `elapsedMs` (capped at
+ * Advances a spawn through as many steps as fit into `elapsedMs` (capped at
  * `maxSteps`, so a player returning after a long break does not see Wildkin
- * teleport). Stops early once the spawn leaves the radius around `center`.
+ * teleport). Every step has its own random length around `stepMs`, so two
+ * spawns polled at the same moment have usually taken a different number of
+ * steps: they do not move in lockstep. Stops early once the spawn leaves the
+ * radius around `center`.
  */
 export function wander(
   state: WanderState,
@@ -100,11 +108,16 @@ export function wander(
     random: () => number;
   },
 ): WanderResult {
-  const steps = Math.min(args.maxSteps, Math.floor(args.elapsedMs / args.stepMs));
   let current = state;
-  for (let i = 0; i < steps; i++) {
+  let usedMs = 0;
+  let steps = 0;
+  while (steps < args.maxSteps) {
+    const stepMs = args.stepMs * (1 - STEP_JITTER + 2 * STEP_JITTER * args.random());
+    if (usedMs + stepMs > args.elapsedMs) break;
+    usedMs += stepMs;
+    steps++;
     current = wanderStep(current, args);
-    if (distanceMeters(args.center, current) > args.radiusM) return { ...current, steps: i + 1, outOfBounds: true };
+    if (distanceMeters(args.center, current) > args.radiusM) return { ...current, steps, usedMs, outOfBounds: true };
   }
-  return { ...current, steps, outOfBounds: false };
+  return { ...current, steps, usedMs, outOfBounds: false };
 }

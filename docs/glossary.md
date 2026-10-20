@@ -64,7 +64,7 @@ the software.
 | **Test mode** | tech | Editor tool to drop a simulated player and see the resolved context |
 | **Turf** | tech | JavaScript geometry library (areas, overlaps) used for validation and drawing |
 | **Visual hook** | game | The one or two features players remember a Wildkin by (e.g. Kawi's rust breast and long tail). Feeds the art prompt |
-| **Wandering** | game | Spawns moving a few meters every 10 s according to their movement style; one that walks out of the 120 m spawn radius is gone. Experimental in v0.2.0. See [07](07-game-systems.md#wandering-spawns-experimental) |
+| **Wandering** | game | Spawns moving a few meters every 5–15 s (each on its own rhythm) according to their movement style; one that walks out of the 120 m spawn radius is gone. Experimental in v0.2.0. See [07](07-game-systems.md#wandering-spawns-experimental) |
 | **Weight** | game | A number 1–1000 saying how common an entry is relative to others in its table |
 | **Wildkin** | game | The creatures of WILDBOUND: a distinct biological lineage, not ordinary animals |
 | **WMO code** | tech | International weather code returned by Open-Meteo (0 = clear sky, 95 = thunderstorm…) |

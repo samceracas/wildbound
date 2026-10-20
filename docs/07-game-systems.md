@@ -258,10 +258,16 @@ Seed species: Kawi `darter`, Mimu `skulker`, Lumae `forager`, Kantar `skulker`, 
 ### How it is driven by the poll
 
 ```
-steps    = min(spawnWanderMaxSteps (6), floor((now − spawn.moved_at) / spawnWanderStepMs (10 s)))
-moved_at = moved_at + steps × 10 s       (keeps the leftover fraction, so slow polling doesn't slow Wildkin)
+each step lasts its own random time: spawnWanderStepMs (10 s) × 0.5–1.5   → 5–15 s
+steps    = as many steps as fit into (now − spawn.moved_at), at most spawnWanderMaxSteps (6)
+moved_at = moved_at + time those steps took   (keeps the leftover, so slow polling doesn't slow Wildkin)
            or now, when the 6-step cap was hit (a player back from a break doesn't see Wildkin teleport)
+new spawn: moved_at = now − random × 10 s     (a random phase, so spawns created together don't step together)
 ```
+
+**No lockstep.** Because every step has its own length and every spawn its own phase, a poll usually finds that some
+Wildkin took a step and others did not, and the radar then starts each walk at its own moment (below). Wildkin move
+on their own instead of all at once on the poll tick.
 
 - After each step, if the spawn is more than `spawnRadiusM` (**120 m**) from the player's tracked position, it stops
   and is marked `fled` ("it wandered off"). The older 240 m "player walked away" rule still runs first.
@@ -271,15 +277,19 @@ moved_at = moved_at + steps × 10 s       (keeps the leftover fraction, so slow 
 
 ### What the player sees
 
-The radar animates the server's positions: markers walk smoothly between polls, face the direction they walk, fade in
-and out, and "It wandered off." appears when the selected Wildkin leaves. Details in
+The radar animates the server's positions: each marker waits its **own random delay** after a poll before walking
+and walks for a time that depends on the distance (short hops are quick, long treks slower), so markers set off and
+stop at different moments. They face the direction they walk, fade in and out, and "It wandered off." appears when
+the selected Wildkin leaves. Details in
 [06 · Radar](06-web-game.md#radar).
 
 ### Tuning or switching it off
 
 - Speeds and pause chances: `WANDER_PROFILES` and `INACTIVE_SPEED_FACTOR` in `packages/world/src/wandering.ts`.
 - Step length and catch-up cap: `GAME_RULES.spawnWanderStepMs` / `spawnWanderMaxSteps` in
-  `packages/shared/src/game.ts`.
+  `packages/shared/src/game.ts`; how much each step's length varies: `STEP_JITTER` (0.5 = ±50 %) in `wandering.ts`.
+- On-screen walk: `WALK_MIN_MS` / `WALK_MAX_MS`, `WALK_PACE_MPS` and `WALK_WINDOW_MS` in
+  `apps/web/src/features/radar/RadarMap.tsx`.
 - Per species: change its movement style in the Creature Manager and publish.
 - To disable it entirely, skip the `wanderSpawns(...)` call in `gameState()` (keep the active spawns as they are) or
   give every species the `still` style. The database columns (`heading`, `moved_at`) are harmless if unused.

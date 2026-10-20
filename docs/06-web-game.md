@@ -185,9 +185,14 @@ flowchart TB
 - **Wandering (v0.2.0, experimental).** Spawns move on the server (see
   [07 · Wandering](07-game-systems.md#wandering-spawns-experimental)), so each poll can bring new coordinates. The
   client only animates what the server says:
-  - a marker whose spawn moved **walks** from where it is drawn to the new spot over `WALK_MS` (2.2 s, ease-in-out,
-    one `requestAnimationFrame` loop for all markers; a new position mid-walk starts from the current drawn point);
-  - the icon is **mirrored** (`scaleX(-1)`) when walking left, because the art faces right;
+  - a marker whose spawn moved **walks** from where it is drawn to the new spot, ease-in-out, in one
+    `requestAnimationFrame` loop for all markers (a new position mid-walk starts from the current drawn point);
+  - every walk is **desynchronised**: it waits its own random delay after the poll (so it still ends before the next
+    poll, `WALK_WINDOW_MS` 9 s) and lasts according to the distance (`WALK_PACE_MPS` 1.2 m/s, clamped to
+    `WALK_MIN_MS`–`WALK_MAX_MS`, 0.9–3.6 s). All positions arrive together with the poll, but Wildkin set off and
+    stop at different moments;
+  - the icon is **mirrored** (`scaleX(-1)`) when walking left, because the art faces right (it turns when the walk
+    starts, not when the poll arrives);
   - new spawns **fade in** and vanished ones **fade out** (`FADE_MS` 350 ms) instead of popping;
   - with `prefers-reduced-motion` markers jump straight to the new position.
   If the spawn you have selected disappears (it wandered out of the spawn radius, expired or was deleted), the sheet

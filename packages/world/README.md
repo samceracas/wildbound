@@ -15,7 +15,7 @@ Pure WILDBOUND domain logic. No database, no React, no network: the same functio
 | `context.ts` | `assembleWorldContext`: turns spatial lookup results plus environment into the `WorldContext` clients receive |
 | `movement.ts` | `distanceMeters` (haversine), `checkMovement` (the anti-teleport plausibility check), `canAct` |
 | `spawning.ts` | `applySpawnModifiers` (**exercise**), `randomPointNear`, `planSpawns` |
-| `wandering.ts` | Spawn wandering (experimental, v0.2.0): `WANDER_PROFILES` per movement style (`still`, `skulker`, `forager`, `roamer`, `darter`), `isActivePeriod` (35 % speed outside it), `offsetMeters`, `wanderStep` (one 10 s step: pause, turn, move), `wander` (steps for the elapsed time, capped, stops when leaving the radius) |
+| `wandering.ts` | Spawn wandering (experimental, v0.2.0): `WANDER_PROFILES` per movement style (`still`, `skulker`, `forager`, `roamer`, `darter`), `isActivePeriod` (35 % speed outside it), `offsetMeters`, `wanderStep` (one step: pause, turn, move), `wander` (steps of random length, `STEP_JITTER` ±50 % around 10 s, that fit the elapsed time; returns `usedMs`; capped; stops when leaving the radius), so spawns never move in lockstep |
 | `weather.ts` | `weatherFromWmoCode`: Open-Meteo WMO code → WILDBOUND weather (**exercise**) |
 | `capture.ts` | `captureChance` (observing first helps), `FLEE_CHANCE_ON_FAIL` |
 

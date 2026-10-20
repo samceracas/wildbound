@@ -187,7 +187,8 @@ export async function gameState(deps: GameDeps, playerId: string): Promise<GameS
             timeOfDay: environment.timeOfDay,
             weather: environment.weather,
             expiresAt: new Date(now.getTime() + GAME_RULES.spawnTtlMs),
-            movedAt: now,
+            // A random phase, so spawns created together do not take their first step together.
+            movedAt: new Date(now.getTime() - (deps.random ?? Math.random)() * GAME_RULES.spawnWanderStepMs),
           },
         }),
       );
@@ -240,8 +241,8 @@ async function wanderSpawns(
       kept.push(spawn);
       continue;
     }
-    // Keep the leftover fraction of a step so slow polling does not slow Wildkin down.
-    const movedAt = new Date(spawn.movedAt.getTime() + result.steps * GAME_RULES.spawnWanderStepMs);
+    // Keep the unused time so slow polling does not slow Wildkin down.
+    const movedAt = new Date(spawn.movedAt.getTime() + result.usedMs);
     const data = {
       lat: result.lat,
       lng: result.lng,

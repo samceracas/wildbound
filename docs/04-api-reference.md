@@ -217,7 +217,7 @@ a fallback used when the weather service gives none. See [07 · Anti-teleport](0
 ### `GET /api/game/state`
 
 The radar. Called every 10 s by the web app. Side effects: expires old spawns, marks spawns more than 240 m away as
-`fled`, lets the remaining spawns **wander** (one step per 10 s since they last moved, at most 6 at once; a spawn that
+`fled`, lets the remaining spawns **wander** (steps of 5–15 s each, random per step, since they last moved, at most 6 at once; a spawn that
 leaves the 120 m spawn radius, or whose species was deleted, becomes `fled`), then creates up to 2 new spawns (cap 6
 active). Species deleted in the Creature Manager are never spawned. See
 [07 · Wandering](07-game-systems.md#wandering-spawns-experimental).

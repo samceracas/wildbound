@@ -13,8 +13,19 @@ interface Props {
 }
 
 const RANGE_SOURCE = "interact-range";
-/** How long a marker takes to walk to a spawn's new position (polls are 10 s apart). */
-const WALK_MS = 2200;
+/**
+ * Walk timing. Polls are 10 s apart and bring every spawn's new position at
+ * once, so each marker waits its own random delay before walking, and walks for
+ * a time that depends on the distance (a short hop is quick, a long trek takes
+ * longer). That way Wildkin set off and stop at different moments instead of
+ * moving in lockstep.
+ */
+const WALK_MIN_MS = 900;
+const WALK_MAX_MS = 3600;
+/** Pace used to turn distance into walk time (meters per second on screen). */
+const WALK_PACE_MPS = 1.2;
+/** Latest moment a walk may start after a poll, so it ends before the next one. */
+const WALK_WINDOW_MS = 9000;
 /** Fade in/out time for spawns that appear or wander off. */
 const FADE_MS = 350;
 
@@ -25,14 +36,28 @@ interface SpawnMarker {
   marker: maplibregl.Marker;
   /** Latest server data for this spawn (the click handler reads it). */
   spawn: SpawnView;
-  /** Where the walk started, where it ends, and when it started (performance.now()). */
+  /** Where the walk started, where it ends, when it starts (performance.now(), may be in the future) and how long it takes. */
   from: LngLat;
   to: LngLat;
   start: number;
+  duration: number;
   /** Still has frames to draw (the rAF loop parks it at `to` when done). */
   walking: boolean;
-  /** Icon mirrored (walking left; the art faces right). */
+  /** Icon mirrored (walking left; the art faces right). Applied when the walk actually starts. */
   facingLeft: boolean;
+}
+
+/** Rough ground distance in meters between two points (small distances). */
+function metersBetween(a: LngLat, b: LngLat): number {
+  const dLat = (b.lat - a.lat) * 111_320;
+  const dLng = (b.lng - a.lng) * 111_320 * Math.cos((a.lat * Math.PI) / 180);
+  return Math.hypot(dLat, dLng);
+}
+
+/** This walk's own duration and start delay (see WALK_* above). */
+function planWalk(from: LngLat, to: LngLat): { delay: number; duration: number } {
+  const duration = Math.min(WALK_MAX_MS, Math.max(WALK_MIN_MS, (metersBetween(from, to) / WALK_PACE_MPS) * 1000));
+  return { delay: Math.random() * Math.max(0, WALK_WINDOW_MS - duration), duration };
 }
 
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
@@ -43,7 +68,7 @@ function reducedMotion(): boolean {
 
 /** Where a marker is drawn at time `now`. */
 function positionAt(sm: SpawnMarker, now: number): LngLat {
-  const t = Math.min(1, Math.max(0, (now - sm.start) / WALK_MS));
+  const t = Math.min(1, Math.max(0, (now - sm.start) / sm.duration));
   if (t >= 1) return sm.to;
   const k = easeInOut(t);
   return { lat: sm.from.lat + (sm.to.lat - sm.from.lat) * k, lng: sm.from.lng + (sm.to.lng - sm.from.lng) * k };
@@ -220,10 +245,13 @@ export function RadarMap({ player, spawns, selectedId, onSelect, labelFor }: Pro
     let moving = false;
     for (const sm of spawnMarkers.current.values()) {
       if (!sm.walking) continue;
+      moving = true;
+      if (now < sm.start) continue; // still waiting for its own moment to set off
+      const art = sm.marker.getElement().querySelector<HTMLElement>("[data-role=art]");
+      if (art) art.style.transform = sm.facingLeft ? "scaleX(-1)" : "";
       const p = positionAt(sm, now);
       sm.marker.setLngLat([p.lng, p.lat]);
-      if (now - sm.start < WALK_MS) moving = true;
-      else sm.walking = false; // drawn exactly at `to`
+      if (now - sm.start >= sm.duration) sm.walking = false; // drawn exactly at `to`
     }
     if (moving) walkFrame.current = requestAnimationFrame(walk);
   }, []);
@@ -263,7 +291,7 @@ export function RadarMap({ player, spawns, selectedId, onSelect, labelFor }: Pro
           if (current) onSelectRef.current(current.spawn);
         });
         const marker = new maplibregl.Marker({ element: el }).setLngLat([s.lng, s.lat]).addTo(m);
-        sm = { marker, spawn: s, from: target, to: target, start: now - WALK_MS, walking: false, facingLeft: false };
+        sm = { marker, spawn: s, from: target, to: target, start: now, duration: WALK_MIN_MS, walking: false, facingLeft: false };
         spawnMarkers.current.set(s.id, sm);
         // Next frame, so the browser has painted opacity 0 and the transition runs.
         requestAnimationFrame(() => {
@@ -277,11 +305,14 @@ export function RadarMap({ player, spawns, selectedId, onSelect, labelFor }: Pro
         sm.from = here;
         sm.to = target;
         if (animate) {
-          sm.start = now;
+          const { delay, duration } = planWalk(here, target);
+          sm.start = now + delay;
+          sm.duration = duration;
           sm.walking = true;
           startWalk = true;
         } else {
-          sm.start = now - WALK_MS;
+          sm.start = now;
+          sm.duration = WALK_MIN_MS;
           sm.walking = false;
           sm.marker.setLngLat([target.lng, target.lat]);
         }
@@ -307,8 +338,9 @@ export function RadarMap({ player, spawns, selectedId, onSelect, labelFor }: Pro
           selected ? "scale-125 border-field-gold" : s.inRange ? "border-primary-forest" : "border-white",
         ].join(" ");
       }
-      // Mirror the art itself (not the ring, which carries the selection scale) to face the walk.
-      if (art) art.style.transform = sm.facingLeft ? "scaleX(-1)" : "";
+      // Mirror the art itself (not the ring, which carries the selection scale) to face the walk;
+      // a marker still waiting to set off keeps facing the way it went last (the walk loop turns it).
+      if (art && !(sm.walking && performance.now() < sm.start)) art.style.transform = sm.facingLeft ? "scaleX(-1)" : "";
     }
     if (startWalk && walkFrame.current === null) walkFrame.current = requestAnimationFrame(walk);
   }, [spawns, selectedId, labelFor, walk]);
