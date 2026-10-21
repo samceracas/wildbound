@@ -104,6 +104,21 @@ describe("sanitizeSuggestion", () => {
     expect(suggestion).toEqual({ name: "Lampyra" });
     expect(dropped).toEqual(["rarity"]);
   });
+
+  it("drops base stats that do not add up to the stat budget and keeps the battle fields that validate", () => {
+    const entry = {
+      category: "aerial",
+      bodyTraits: ["feathered"],
+      baseStats: { hp: 80, atk: 80, def: 80, spd: 80 },
+      attacks: [{ name: "Peck", approach: "pierce", power: 40, description: "A quick jab." }],
+    };
+    const { suggestion, dropped } = sanitizeSuggestion({ entry, notes: [] });
+    expect(dropped).toEqual(["baseStats"]);
+    expect(suggestion).toMatchObject({ category: "aerial", bodyTraits: ["feathered"], attacks: [{ name: "Peck", canon: "proposed" }] });
+
+    const ok = sanitizeSuggestion({ entry: { baseStats: { hp: 70, atk: 75, def: 60, spd: 95 } }, notes: [] });
+    expect(ok.suggestion.baseStats).toEqual({ hp: 70, atk: 75, def: 60, spd: 95 });
+  });
 });
 
 describe("normalizeEntry (model answers in other shapes)", () => {

@@ -1,26 +1,38 @@
 import { Router } from "express";
 import { listCreatures } from "@wildbound/db";
 import {
+  BattleActionRequestSchema,
+  CategorySchema,
   ITEMS,
   PARTY_SIZE,
   PositionReportSchema,
   RenameWildkinRequestSchema,
+  StarterRequestSchema,
   UpdatePartyRequestSchema,
+  UseItemRequestSchema,
   type CapturedWildkinView,
   type InventoryResponse,
   type ItemId,
-  type ObserveResponse,
   type PartyResponse,
   type RegistryResponse,
+  type WildkinDetailResponse,
 } from "@wildbound/shared";
 import { z } from "zod";
 import type { AppDeps } from "../app.ts";
 import { requirePlayer } from "../auth.ts";
 import { HttpError, notImplemented, parseOr400 } from "../http.ts";
-import { gameState, loadActionableSpawn, reportPosition, type GameDeps } from "../game/service.ts";
+import { actInBattle, currentBattle, getBattle, startBattle } from "../game/battle-service.ts";
+import { chooseStarter, starterOptions, useItem, visitVet } from "../game/care-service.ts";
+import { creatureMap, loadLicenses, nowOf, requirePosition, type GameDeps } from "../game/common.ts";
+import { fieldKnowledge, licensesView, observeSpawn, takeAssessment } from "../game/research-service.ts";
+import { gameState, reportPosition } from "../game/service.ts";
 import { registryView } from "../game/views.ts";
+import { capturedView, leadOf, loadWildkin, wildkinDetail } from "../game/wildkin.ts";
 
-const SpawnParamsSchema = z.object({ id: z.uuid() });
+const IdParamsSchema = z.object({ id: z.uuid() });
+const PoiParamsSchema = z.object({ poiId: z.uuid() });
+const ItemParamsSchema = z.object({ itemId: z.string().max(64) });
+const CategoryParamsSchema = z.object({ category: CategorySchema });
 
 /**
  * Player game API. Every route needs a session (requirePlayer) and every action
@@ -33,6 +45,7 @@ export function gameRoutes(deps: AppDeps): Router {
     db,
     weather: deps.weather,
     fallbackTimeZone: deps.config.worldTimeZone,
+    relaxWeather: deps.config.assessmentRelaxWeather,
     now: deps.now,
     random: deps.random,
   };
@@ -52,59 +65,111 @@ export function gameRoutes(deps: AppDeps): Router {
 
   /**
    * Observe a spawn: unlocks the species' basic Registry entry (name,
-   * description, habitat, registry number). Repeat observations are counted.
+   * description, habitat, registry number), reveals the spawn's level and
+   * hints, and records research (researcher EXP, the lead's observation EXP).
    */
   router.post("/spawns/:id/observe", async (req, res) => {
-    const { id } = parseOr400(SpawnParamsSchema, req.params, "Invalid spawn id");
-    const playerId = res.locals.player.id;
-    const { spawn, now } = await loadActionableSpawn(game, playerId, id);
+    const { id } = parseOr400(IdParamsSchema, req.params, "Invalid spawn id");
+    res.json(await observeSpawn(game, res.locals.player.id, id));
+  });
 
-    const previous = await db.registryEntry.findUnique({ where: { playerId_creatureId: { playerId, creatureId: spawn.creatureId } } });
-    const [entry] = await db.$transaction([
-      db.registryEntry.upsert({
-        where: { playerId_creatureId: { playerId, creatureId: spawn.creatureId } },
-        create: { playerId, creatureId: spawn.creatureId, firstObservedAt: now },
-        update: { timesObserved: { increment: 1 } },
-      }),
-      db.spawn.update({ where: { id: spawn.id }, data: { observedAt: spawn.observedAt ?? now } }),
-    ]);
+  // ---------------------------------------------------------------- starter
 
-    const creature = (await listCreatures(db, { includeDeleted: true })).find((c) => c.id === spawn.creatureId)!;
-    res.json({ entry: registryView(creature, entry), firstObservation: previous === null } satisfies ObserveResponse);
+  router.get("/starter", async (_req, res) => {
+    res.json(await starterOptions(game));
+  });
+
+  /** A player with no Wildkin chooses Kawi, Mimu or Kantar at level 5. */
+  router.post("/starter", async (req, res) => {
+    const { creatureId } = parseOr400(StarterRequestSchema, req.body, "Invalid starter");
+    res.json(await chooseStarter(game, res.locals.player.id, creatureId));
+  });
+
+  // ---------------------------------------------------------------- battles
+
+  /** Start a wild battle with a spawn (capture happens inside the battle). */
+  router.post("/spawns/:id/battle", async (req, res) => {
+    const { id } = parseOr400(IdParamsSchema, req.params, "Invalid spawn id");
+    res.json(await startBattle(game, res.locals.player.id, id));
+  });
+
+  router.get("/battles/current", async (_req, res) => {
+    res.json(await currentBattle(game, res.locals.player.id));
+  });
+
+  router.get("/battles/:id", async (req, res) => {
+    const { id } = parseOr400(IdParamsSchema, req.params, "Invalid battle id");
+    res.json(await getBattle(game, res.locals.player.id, id));
+  });
+
+  /** One action per turn: `{ turn, action }` -> the new battle view and the events to play back. */
+  router.post("/battles/:id/actions", async (req, res) => {
+    const { id } = parseOr400(IdParamsSchema, req.params, "Invalid battle id");
+    const body = parseOr400(BattleActionRequestSchema, req.body, "Invalid battle action");
+    res.json(await actInBattle(game, res.locals.player.id, id, body));
+  });
+
+  // ---------------------------------------------------------------- care, stations, pickups
+
+  /** Use a field item (Trail Ration) on one of your Wildkin. */
+  router.post("/items/:itemId/use", async (req, res) => {
+    const { itemId } = parseOr400(ItemParamsSchema, req.params, "Invalid item");
+    const { wildkinId } = parseOr400(UseItemRequestSchema, req.body, "Invalid request");
+    res.json(await useItem(game, res.locals.player.id, itemId, wildkinId));
+  });
+
+  /** The vet at a field station heals every Wildkin you own (restless ones excepted). */
+  router.post("/stations/:poiId/heal", async (req, res) => {
+    const { poiId } = parseOr400(PoiParamsSchema, req.params, "Invalid station id");
+    res.json(await visitVet(game, res.locals.player.id, poiId));
   });
 
   /**
-   * Capture a spawn.
+   * Search a POI for supplies, once per player per POI per day.
    *
    * ------------------------------------------------------------------------
-   * TODO(you): implement capture. The guard below already proves the spawn is
-   * the player's, active and in range. Then:
+   * TODO(you): implement the daily pickup (exercise #14). The guards below
+   * already prove the player has a fresh, unlocked position. Then:
    *
-   * 1. Load the player's "field-capsule" stack (db.inventoryItem.findUnique with the
-   *    playerId_itemId compound key). No capsules -> throw new HttpError(409, "no_capsules", "...").
-   * 2. Roll success with captureChance(rarity, spawn.observedAt !== null) from
-   *    @wildbound/world (use `game.random?.() ?? Math.random()` so tests can control it).
-   *    On failure, roll FLEE_CHANCE_ON_FAIL to decide whether the spawn flees.
-   * 3. In ONE db.$transaction(async (tx) => { ... }):
-   *    - decrement the capsule (tx.inventoryItem.update with { quantity: { decrement: 1 } })
-   *    - on success: set the spawn status to "captured"; create a CapturedWildkin row
-   *      (put it in the first free party slot 0..5, else partySlot null = storage);
-   *      upsert the RegistryEntry: create with firstObservedAt + firstCapturedAt = now and
-   *      timesCaptured 1, or update timesCaptured +1 and firstCapturedAt if it was null.
-   *    - on failure + flee: set the spawn status to "fled".
-   * 4. Respond with CaptureResponse (see @wildbound/shared game.ts):
-   *    { success, fled, capsulesLeft, entry: registryView(creature, entry), wildkinId }
+   * 1. Load the POI with `poiById(game.db, poiId, at)` from ../game/pois.ts
+   *    (published world only). Missing -> throw new HttpError(404, "not_found", "...").
+   *    Farther than GAME_RULES.interactRadiusM -> throw conflict("out_of_range", "...")
+   *    (see visitVet in ../game/care-service.ts for the same check).
+   * 2. Work out today's key: `await playerDayKey(game, game.db, playerId, now)` (../game/common.ts).
+   * 3. Roll the loot with `rollPickup(poi.type, game.random ?? Math.random)` from @wildbound/world.
+   * 4. In ONE `game.db.$transaction(async (tx) => { ... })`:
+   *    - create the PoiPickup row { playerId, poiId, dayKey, items: loot, collectedAt: now }.
+   *      Its primary key (player, POI, day) is what makes this "once a day": a second
+   *      request fails with Prisma error code "P2002". Catch it (outside the transaction)
+   *      and throw conflict("already_collected", "You already searched here today").
+   *    - add the items with `grantItems(tx, playerId, loot)` from ../game/care-service.ts.
+   *      It caps every stack at ITEM_STACK_MAX (30) and reports what did not fit.
+   * 5. Respond with PickupResponse (@wildbound/shared game.ts):
+   *    { poi: { id, name }, items: <the ItemGrant[] from grantItems> }
    *
-   * Why a transaction? Two quick taps must not spend one capsule twice or create
-   * two Wildkin from one spawn. Bonus: make step 3 also re-check `status: "active"`
-   * (tx.spawn.updateMany({ where: { id, status: "active" } }) and look at `count`).
+   * Why a unique key and not "check, then insert"? Two quick taps could both
+   * pass a check before either inserts. The database refuses the second insert.
+   * Test: apps/api/test/battle.test.ts ("daily pickups ... exercise #14").
    * ------------------------------------------------------------------------
    */
-  router.post("/spawns/:id/capture", async (req, res) => {
-    const { id } = parseOr400(SpawnParamsSchema, req.params, "Invalid spawn id");
-    await loadActionableSpawn(game, res.locals.player.id, id);
+  router.post("/pois/:poiId/collect", async (req, res) => {
+    const { poiId } = parseOr400(PoiParamsSchema, req.params, "Invalid POI id");
+    await requirePosition(game, res.locals.player.id, nowOf(game));
+    void poiId;
     void res;
-    throw notImplemented("Capture");
+    throw notImplemented("Searching for supplies");
+  });
+
+  // ---------------------------------------------------------------- licenses
+
+  router.get("/licenses", async (_req, res) => {
+    res.json(await licensesView(game, res.locals.player.id));
+  });
+
+  /** Take the next rank's assessment at a field station. */
+  router.post("/licenses/:category/assessment", async (req, res) => {
+    const { category } = parseOr400(CategoryParamsSchema, req.params, "Unknown license category");
+    res.json(await takeAssessment(game, res.locals.player.id, category));
   });
 
   /**
@@ -113,14 +178,15 @@ export function gameRoutes(deps: AppDeps): Router {
    */
   router.get("/registry", async (_req, res) => {
     const playerId = res.locals.player.id;
-    const [all, entries] = await Promise.all([
+    const [all, entries, knowledge] = await Promise.all([
       listCreatures(db, { includeDeleted: true }),
       db.registryEntry.findMany({ where: { playerId } }),
+      fieldKnowledge(db, playerId),
     ]);
     const byCreature = new Map(entries.map((e) => [e.creatureId, e]));
     const live = new Set((await listCreatures(db)).map((c) => c.id));
     const creatures = all.filter((c) => live.has(c.id) || byCreature.has(c.id));
-    const views = creatures.map((c) => registryView(c, byCreature.get(c.id) ?? null));
+    const views = creatures.map((c) => registryView(c, byCreature.get(c.id) ?? null, knowledge));
     res.json({
       entries: views,
       observedCount: views.filter((v) => v.status !== "unknown").length,
@@ -137,25 +203,31 @@ export function gameRoutes(deps: AppDeps): Router {
     res.json({ items } satisfies InventoryResponse);
   });
 
+  /** The player's Wildkin, as the game sees them right now (lazy recovery applied). */
+  const ownedWildkin = async (playerId: string) => {
+    const now = nowOf(game);
+    return loadWildkin(db, playerId, await creatureMap(db), await loadLicenses(db, playerId), now);
+  };
+
   /** Party (6 slots) plus everything in storage. */
   router.get("/party", async (_req, res) => {
-    const [rows, creatures] = await Promise.all([
-      db.capturedWildkin.findMany({ where: { playerId: res.locals.player.id }, orderBy: { capturedAt: "asc" } }),
-      listCreatures(db, { includeDeleted: true }),
-    ]);
-    const species = new Map(creatures.map((c) => [c.id, c]));
-    const view = (r: (typeof rows)[number]): CapturedWildkinView => ({
-      id: r.id,
-      creatureId: r.creatureId,
-      registryNumber: species.get(r.creatureId)?.registryNumber ?? 0,
-      speciesName: species.get(r.creatureId)?.name ?? r.creatureId,
-      nickname: r.nickname,
-      partySlot: r.partySlot,
-      capturedAt: r.capturedAt.toISOString(),
-    });
+    const all = await ownedWildkin(res.locals.player.id);
+    const leadId = leadOf(all)?.row.id ?? null;
     const party: PartyResponse["party"] = Array.from({ length: PARTY_SIZE }, () => null);
-    for (const r of rows) if (r.partySlot !== null) party[r.partySlot] = view(r);
-    res.json({ party, storage: rows.filter((r) => r.partySlot === null).map(view) } satisfies PartyResponse);
+    for (const w of all) if (w.row.partySlot !== null) party[w.row.partySlot] = capturedView(w, leadId);
+    res.json({ party, storage: all.filter((w) => w.row.partySlot === null).map((w) => capturedView(w, leadId)) } satisfies PartyResponse);
+  });
+
+  /** One Wildkin in detail; what the scanner shows depends on your license rank in its category. */
+  router.get("/wildkin/:id", async (req, res) => {
+    const { id } = parseOr400(IdParamsSchema, req.params, "Invalid id");
+    const all = await ownedWildkin(res.locals.player.id);
+    const w = all.find((x) => x.row.id === id);
+    if (!w) throw new HttpError(404, "not_found", "That Wildkin is not yours");
+    const habitat = w.row.caughtHabitatId
+      ? await db.habitat.findFirst({ where: { id: w.row.caughtHabitatId }, orderBy: { stage: "desc" }, select: { name: true } })
+      : null;
+    res.json({ wildkin: wildkinDetail(w, leadOf(all)?.row.id ?? null, habitat?.name ?? null) } satisfies WildkinDetailResponse);
   });
 
   /**
@@ -181,7 +253,7 @@ export function gameRoutes(deps: AppDeps): Router {
    * Give a captured Wildkin a nickname (null clears it).
    */
   router.patch("/wildkin/:id", async (req, res) => {
-    const { id } = parseOr400(SpawnParamsSchema, req.params, "Invalid id");
+    const { id } = parseOr400(IdParamsSchema, req.params, "Invalid id");
     const { nickname } = parseOr400(RenameWildkinRequestSchema, req.body, "Invalid nickname");
 
     const capturedWildkin = await db.capturedWildkin.findFirst({
@@ -217,12 +289,9 @@ export function gameRoutes(deps: AppDeps): Router {
       })
     ]);
 
-    const view: CapturedWildkinView = {
-      ...results,
-      registryNumber: creatureEntry.registryNumber ?? 0,
-      speciesName: creatureEntry.name ?? results.creatureId,
-      capturedAt: results.capturedAt.toISOString(),
-    }
+    // v0.3.0: the view carries level, HP and condition too, so build it like GET /party does.
+    const all = await ownedWildkin(res.locals.player.id);
+    const view = capturedView(all.find((w) => w.row.id === results.id)!, leadOf(all)?.row.id ?? null);
 
     res.json(view satisfies CapturedWildkinView);
   });

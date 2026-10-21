@@ -30,6 +30,11 @@ export interface ApiConfig {
   loreSource: "brief" | "full";
   /** Upper bound on lore characters sent per assistant request (keeps prompts within model limits). */
   loreMaxChars: number;
+  /**
+   * Clamp weather requirements of license assessments to 1 (default true while
+   * exercise #1 is open: live weather is always "clear" until it is done).
+   */
+  assessmentRelaxWeather: boolean;
 }
 
 export function loadConfig(overrides: Partial<ApiConfig> = {}): ApiConfig {
@@ -53,6 +58,7 @@ export function loadConfig(overrides: Partial<ApiConfig> = {}): ApiConfig {
     loreDocsDir: process.env.LORE_DOCS_DIR || fileURLToPath(new URL("../../../docs", import.meta.url)),
     loreSource: process.env.LORE_SOURCE === "full" ? "full" : "brief",
     loreMaxChars: Number(process.env.LORE_MAX_CHARS ?? 30_000),
+    assessmentRelaxWeather: process.env.ASSESSMENT_RELAX_WEATHER !== "false",
     ...overrides,
   };
 }

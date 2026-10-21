@@ -90,24 +90,20 @@ export const UNLIMITED = Number.POSITIVE_INFINITY;
 const allowed = <T extends string>(all: readonly T[], ...lists: readonly (readonly T[])[]): T[] =>
   all.filter((v) => lists.every((l) => l.length === 0 || l.includes(v)));
 
-/**
- * The most of each requirement a player can achieve in the current published
- * world for one category: with only five species, "observe 3 distinct Aquatic
- * species" would be impossible, so every requirement count is clamped to this.
- *
- * - species: published species of the category listed in an active table
- * - times of day / weathers: in which any of them can spawn (the table, entry
- *   and habitat conditions allow it and the species' spawn modifier is above 0)
- * - matchups: 2 per distinct body trait of those species
- * - phenotypes: 4 per species (Small, Large, Bold, Wary; markings not counted)
- * - habitats: where they appear (a region-wide table covers every habitat of its region)
- * - captures and battles: unlimited when the category has any species, else 0
- */
-export function achievableAssessmentLimits(
+/** Where and when a category's species can be met in a world (see achievableAssessmentLimits). */
+export interface CategoryPresence {
+  species: Set<string>;
+  timesOfDay: Set<TimeOfDay>;
+  weathers: Set<Weather>;
+  habitatIds: Set<string>;
+  bodyTraits: Set<string>;
+}
+
+export function categoryPresence(
   world: WorldDocument,
   creatures: readonly CreatureDefinition[],
   category: Category,
-): RequirementCounts {
+): CategoryPresence {
   const species = new Map(creatures.filter((c) => c.category === category).map((c) => [c.id, c]));
   const habitats = new Map(world.habitats.map((h) => [h.id, h]));
   const activeRegions = new Set(world.regions.filter((r) => r.active).map((r) => r.id));
@@ -139,17 +135,39 @@ export function achievableAssessmentLimits(
     }
   }
 
-  const traits = new Set([...present].flatMap((id) => species.get(id)!.bodyTraits));
-  const any = present.size > 0 ? UNLIMITED : 0;
+  const bodyTraits = new Set([...present].flatMap((id) => species.get(id)!.bodyTraits));
+  return { species: present, timesOfDay: times, weathers, habitatIds, bodyTraits };
+}
+
+/**
+ * The most of each requirement a player can achieve in the current published
+ * world for one category: with only five species, "observe 3 distinct Aquatic
+ * species" would be impossible, so every requirement count is clamped to this.
+ *
+ * - species: published species of the category listed in an active table
+ * - times of day / weathers: in which any of them can spawn (the table, entry
+ *   and habitat conditions allow it and the species' spawn modifier is above 0)
+ * - matchups: 2 per distinct body trait of those species
+ * - phenotypes: 4 per species (Small, Large, Bold, Wary; markings not counted)
+ * - habitats: where they appear (a region-wide table covers every habitat of its region)
+ * - captures and battles: unlimited when the category has any species, else 0
+ */
+export function achievableAssessmentLimits(
+  world: WorldDocument,
+  creatures: readonly CreatureDefinition[],
+  category: Category,
+): RequirementCounts {
+  const p = categoryPresence(world, creatures, category);
+  const any = p.species.size > 0 ? UNLIMITED : 0;
   return {
-    observeDistinctSpecies: present.size,
-    observeTimesOfDay: times.size,
-    observeWeathers: weathers.size,
+    observeDistinctSpecies: p.species.size,
+    observeTimesOfDay: p.timesOfDay.size,
+    observeWeathers: p.weathers.size,
     captureCount: any,
     winBattles: any,
-    recordMatchups: traits.size * 2,
-    recordPhenotypes: present.size * 4,
-    visitHabitats: habitatIds.size,
+    recordMatchups: p.bodyTraits.size * 2,
+    recordPhenotypes: p.species.size * 4,
+    visitHabitats: p.habitatIds.size,
   };
 }
 

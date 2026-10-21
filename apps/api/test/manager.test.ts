@@ -86,6 +86,11 @@ const draft = (over: Record<string, unknown> = {}) => ({
   activityPattern: "crepuscular",
   rarity: "uncommon",
   movementStyle: "darter",
+  // Battle fields (v0.3.0): required to publish.
+  category: "aerial",
+  bodyTraits: ["feathered"],
+  baseStats: { hp: 60, atk: 70, def: 60, spd: 110 },
+  attacks: [{ name: "Dust Flick", approach: "spore", power: 35, description: "A puff of wing dust.", canon: "proposed" }],
   ...over,
 });
 
@@ -169,6 +174,29 @@ describe("encyclopedia CRUD + publish", () => {
     expect(res.body.issues).toHaveLength(2);
   });
 
+  it("refuses to publish without the battle fields, and base stats must add up to 300", async () => {
+    // A stat shape that does not sum to the budget cannot even be saved.
+    const uneven = await api("post", "/wildkin").send(draft({ baseStats: { hp: 80, atk: 80, def: 80, spd: 80 } }));
+    expect(uneven.status).toBe(400);
+
+    await api("post", "/wildkin").send(draft({ category: "TBD", bodyTraits: [], baseStats: null, attacks: [] }));
+    const res = await api("post", "/wildkin/lampyra/publish");
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("publish_incomplete");
+    expect(res.body.issues.map((i: { code: string }) => i.code).sort()).toEqual([
+      "battle-attacks",
+      "battle-baseStats",
+      "battle-bodyTraits",
+      "battle-category",
+    ]);
+
+    await api("put", "/wildkin/lampyra").send(draft());
+    expect((await api("post", "/wildkin/lampyra/publish")).status).toBe(200);
+    const creature = (await listCreatures(handle.db)).find((c) => c.id === "lampyra");
+    expect(creature).toMatchObject({ category: "aerial", bodyTraits: ["feathered"], baseStats: { hp: 60, atk: 70, def: 60, spd: 110 } });
+    expect((await api("get", "/stats")).body).toMatchObject({ battleReady: 6 });
+  });
+
   it("soft deletes and restores, removing the species from the game meanwhile", async () => {
     expect((await api("delete", "/wildkin/mimu")).status).toBe(204);
     expect(WildkinListResponseSchema.parse((await api("get", "/wildkin")).body).wildkin.map((w) => w.id)).not.toContain("mimu");
@@ -207,7 +235,7 @@ describe("encyclopedia CRUD + publish", () => {
     // A player who met and caught a Kawi.
     const player = await handle.db.player.create({ data: { username: "sam", displayName: "Sam" } });
     await handle.db.registryEntry.create({ data: { playerId: player.id, creatureId: "kawi" } });
-    await handle.db.capturedWildkin.create({ data: { playerId: player.id, creatureId: "kawi" } });
+    await handle.db.capturedWildkin.create({ data: { playerId: player.id, creatureId: "kawi", currentHp: 20 } });
     expect((await api("get", "/wildkin/kawi/usage")).body).toMatchObject({ capturedWildkin: 1, registryEntries: 1 });
 
     expect((await api("delete", "/wildkin/kawi?permanent=1")).status).toBe(204);

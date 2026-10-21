@@ -1,5 +1,13 @@
 import {
   ACTIVITY_PATTERNS,
+  APPROACHES,
+  ATTACK_POWER_MAX,
+  ATTACK_POWER_MIN,
+  BODY_TRAITS,
+  CATEGORIES,
+  MARKING_FREQUENCY_MAX,
+  MATCHUPS,
+  STAT_BUDGET,
   MOVEMENT_STYLES,
   RARITIES,
   SUGGESTED_HABITAT_TAGS,
@@ -70,6 +78,21 @@ Fields of "entry" (all optional; omit what you would not change):
 - openQuestions: array of short strings.
 - spawnModifiers: {"timeOfDay": {${TIME_OF_DAY.map((t) => `"${t}"`).join(", ")}: number 0-10}, "weather": {${WEATHER.map((w) => `"${w}"`).join(", ")}: number 0-10}} — multipliers on encounter weight, 1 = unchanged, 0 = never. They must agree with activityPattern.
 - skills: up to 4 items {"name", "description", "canon": "proposed"} built from reusable effects (damage, heal, shield, stat change, damage over time, short control, cleanse, counter).
+
+Battle and genetics fields (v0.3.0):
+- category: the Field Registry license that covers it, one of ${CATEGORIES.join(", ")}, chosen from its anatomy and habitat.
+- bodyTraits: 1 or 2 of ${BODY_TRAITS.join(", ")}, consistent with its anatomy. What each means in a matchup:
+${BODY_TRAITS.map((t) => `  ${t}: weak to ${MATCHUPS[t].weak}, resists ${MATCHUPS[t].resist} (${MATCHUPS[t].reason})`).join("\n")}
+- baseStats: {"hp", "atk", "def", "spd"}, whole numbers 10 to 150 that add up to EXACTLY ${STAT_BUDGET} (check the sum).
+  Derive the shape from anatomy and behaviour (a heavy shelled grazer: high hp and def, low spd; a darting flier: high spd).
+  Every species has the same total: rarity never means strength, a rare Wildkin is not stronger.
+- attacks: 1 or 2 placeholder attacks {"name", "approach", "power", "description", "canon": "proposed"}.
+  approach is one of ${APPROACHES.join(", ")} and must fit how the creature actually fights (a beak pecks: pierce;
+  a tail slam: crush; spraying water: surge). power is ${ATTACK_POWER_MIN} to ${ATTACK_POWER_MAX}. Always mark them "proposed".
+- genePool: leave it out (the defaults: Build and Temperament alleles at 0.5, no marking variant) unless the idea clearly
+  implies variation, e.g. larger individuals in deep water ({"build": {"pAllele": 0.6, "byHabitatTag": [{"tag": "freshwater",
+  "pAllele": 0.7}]}, "temperament": {"pAllele": 0.5, "byHabitatTag": []}, "marking": null}) or a rare pattern
+  ("marking": {"name": "Banded", "description": "...", "frequency": 0.05}, frequency at most ${MARKING_FREQUENCY_MAX}).
 `;
 
 export function systemPrompt(lore: string): string {
@@ -78,7 +101,7 @@ export function systemPrompt(lore: string): string {
 Rules (from the Wildkin Bible):
 - Wildkin are living species with ecological needs and behaviour, not disposable battle units. Observation precedes capture.
 - Every species needs a recognizable visual hook, an ecological role, a clear gameplay purpose and a small content footprint.
-- Do not equate rarity with strength. Real-world animals are design references only.
+- Do not equate rarity with strength: every species' base stats add up to the same budget. Real-world animals are design references only.
 - Mark invented details as PROPOSED; keep unknowns as TBD rather than inventing definitive canon. Never contradict ESTABLISHED canon.
 - Check the existing roster: do not duplicate an existing Wildkin's visual, ecological and gameplay role; mention overlaps in notes.
 - Keep it reusable: no bespoke engine mechanics for one creature.

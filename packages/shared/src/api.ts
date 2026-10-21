@@ -72,6 +72,8 @@ export const ApiErrorSchema = z.object({
   error: z.string(),
   message: z.string(),
   issues: z.array(ValidationIssueSchema).optional(),
+  /** Extra machine-readable detail for some errors (e.g. the running battle's id, a license requirement, assessment progress). */
+  details: z.record(z.string(), z.unknown()).optional(),
 });
 export type ApiError = z.infer<typeof ApiErrorSchema>;
 

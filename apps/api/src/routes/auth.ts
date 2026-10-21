@@ -2,11 +2,12 @@ import { Router } from "express";
 import { LoginRequestSchema, STARTER_INVENTORY, type MeResponse } from "@wildbound/shared";
 import type { AppDeps } from "../app.ts";
 import { endSession, requirePlayer, startSession } from "../auth.ts";
+import { ensureLicenses } from "../game/common.ts";
 import { parseOr400 } from "../http.ts";
 
 /**
  * Username-only login: the username is the save slot. Logging in with a new
- * name creates the player (with starter items); an existing name resumes it.
+ * name creates the player (with starter items and rank 1 licenses); an existing name resumes it.
  * There is deliberately no password yet, so anyone who knows a username can
  * load that save. Add one before sharing the game publicly.
  */
@@ -29,6 +30,8 @@ export function authRoutes({ db, config }: AppDeps): Router {
       },
     });
 
+    // Every player holds all four Field Registry licenses (rank 1 to start).
+    await ensureLicenses(db, player.id);
     await startSession(db, res, player.id, config.secureCookies);
     res.json({ player: { id: player.id, username: player.username, displayName: player.displayName } } satisfies MeResponse);
   });

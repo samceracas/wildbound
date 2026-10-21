@@ -407,6 +407,8 @@ export const BattleStateSchema = z.object({
   activeId: z.string(),
   /** Party members that took part (were active at some point), for EXP. */
   participants: z.array(z.string()),
+  /** Set by the API when the outcome is "captured": the new captured_wildkin id. */
+  capturedWildkinId: z.string().optional(),
 });
 export type BattleState = z.infer<typeof BattleStateSchema>;
 

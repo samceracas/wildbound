@@ -73,7 +73,7 @@ export const FALLBACK_ATTACK: Attack = {
   priority: false,
 };
 
-export const attacksOf = (c: Combatant): Attack[] => (c.attacks.length ? c.attacks : [FALLBACK_ATTACK]);
+export const attacksOf = (c: Pick<Combatant, "attacks">): Attack[] => (c.attacks.length ? c.attacks : [FALLBACK_ATTACK]);
 
 /** Can battle: not fainted and not restless. */
 export const isUsable = (c: Pick<Combatant, "hp" | "restless">) => c.hp > 0 && !c.restless;

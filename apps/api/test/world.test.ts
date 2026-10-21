@@ -302,3 +302,55 @@ describe("payload validation", () => {
     expect(world.draft.pois).toHaveLength(0);
   });
 });
+
+describe("wild levels and license requirements (v0.3.0)", () => {
+  it("saves and publishes table level ranges, entry overrides and habitat license requirements", async () => {
+    const doc = sampleWorld();
+    doc.encounterTables[0]!.minLevel = 3;
+    doc.encounterTables[0]!.maxLevel = 8;
+    doc.encounterTables[0]!.entries[0]!.minLevel = 5;
+    doc.encounterTables[0]!.entries[0]!.maxLevel = 12;
+    doc.habitats[1]!.licenseRequirement = { category: "aquatic", rank: 3 };
+    const saved = await saveDraft(doc);
+    expect(saved.statusCode, saved.body).toBe(200);
+
+    const draft = EditorWorldResponseSchema.parse((await app.inject({ method: "GET", url: "/api/editor/world", headers: auth })).json()).draft;
+    const table = draft.encounterTables.find((t) => t.id === IDS.forestTable)!;
+    expect(table).toMatchObject({ minLevel: 3, maxLevel: 8 });
+    expect(table.entries.find((e) => e.id === IDS.e1)).toMatchObject({ minLevel: 5, maxLevel: 12 });
+    expect(table.entries.find((e) => e.id === IDS.e2)).toMatchObject({ minLevel: null, maxLevel: null });
+    expect(draft.habitats.find((h) => h.id === IDS.creek)?.licenseRequirement).toEqual({ category: "aquatic", rank: 3 });
+
+    expect((await publish()).statusCode).toBe(200);
+    const published = PublishedWorldResponseSchema.parse((await app.inject({ method: "GET", url: "/api/editor/published", headers: auth })).json()).world;
+    expect(published.encounterTables.find((t) => t.id === IDS.forestTable)?.entries[0]).toMatchObject({ minLevel: 5, maxLevel: 12 });
+    expect(published.habitats.find((h) => h.id === IDS.creek)?.licenseRequirement).toEqual({ category: "aquatic", rank: 3 });
+
+    // Resolution carries the effective ranges and the requirement.
+    const forest = await resolve(FOREST, { stage: "published" });
+    expect(forest.availableWildkin.find((w) => w.creatureId === "kawi")?.levelBands).toEqual([{ minLevel: 5, maxLevel: 12, weight: 40 }]);
+    expect(forest.availableWildkin.find((w) => w.creatureId === "mimu")?.levelBands).toEqual([{ minLevel: 3, maxLevel: 8, weight: 35 }]);
+    expect((await resolve(CREEK, { stage: "published" })).habitat?.licenseRequirement).toEqual({ category: "aquatic", rank: 3 });
+  });
+
+  it("refuses invalid level ranges and warns about ranges crossing a license band", async () => {
+    const bad = sampleWorld();
+    bad.encounterTables[0]!.minLevel = 9;
+    bad.encounterTables[0]!.maxLevel = 4;
+    const refused = await saveDraft(bad);
+    expect(refused.statusCode).toBe(400);
+    expect(refused.body).toMatch(/level/i);
+
+    const oneBound = sampleWorld() as unknown as { encounterTables: { entries: { minLevel: number | null }[] }[] };
+    oneBound.encounterTables[0]!.entries[0]!.minLevel = 4;
+    expect((await saveDraft(oneBound)).statusCode).toBe(400);
+
+    const crossing = sampleWorld();
+    crossing.encounterTables[0]!.minLevel = 18;
+    crossing.encounterTables[0]!.maxLevel = 24;
+    const saved = await saveDraft(crossing);
+    expect(saved.statusCode, saved.body).toBe(200);
+    const codes = saved.json().report.issues.map((i: { code: string }) => i.code);
+    expect(codes).toContain("level-range-crosses-band");
+  });
+});

@@ -17,5 +17,6 @@ export const testConfig = (over: Partial<ApiConfig> = {}): ApiConfig => ({
   loreDocsDir: "",
   loreSource: "brief",
   loreMaxChars: 10_000,
+  assessmentRelaxWeather: true,
   ...over,
 });

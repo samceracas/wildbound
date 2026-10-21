@@ -160,13 +160,14 @@ describe("spawns, observe and the Registry", () => {
     if (far) expect((await a.post(`/api/game/spawns/${far.id}/observe`)).status).toBe(409);
   });
 
-  it("capture, party updates and renaming are left to implement (501)", async () => {
+  it("party updates are left to implement (501); capture moved into battles", async () => {
     const a = await login();
     await report(a, FOREST);
     const [spawn] = GameStateResponseSchema.parse((await a.get("/api/game/state")).body).spawns;
     tick(60);
     await report(a, spawn!);
-    expect((await a.post(`/api/game/spawns/${spawn!.id}/capture`)).status).toBe(501);
+    // Exercise #3 is retired: capture now happens inside a battle (see battle.test.ts).
+    expect((await a.post(`/api/game/spawns/${spawn!.id}/capture`)).status).toBe(404);
     expect((await a.put("/api/game/party").send({ slots: [null, null, null, null, null, null] })).status).toBe(501);
     expect((await a.get("/api/game/party")).body.party).toHaveLength(6);
   });
@@ -179,8 +180,9 @@ describe("wandering spawns", () => {
     const first = GameStateResponseSchema.parse((await a.get("/api/game/state")).body).spawns;
     expect(first.length).toBeGreaterThan(0);
 
-    // Less than one wander step: nothing moves.
-    tick(5);
+    // No time passed: nothing moves (spawns start with a random phase of up to one step, so even a
+    // few seconds may let one take its first step).
+    tick(0);
     await report(a, FOREST);
     const still = GameStateResponseSchema.parse((await a.get("/api/game/state")).body).spawns;
     for (const s of first) expect(still.find((t) => t.id === s.id)).toMatchObject({ lat: s.lat, lng: s.lng });

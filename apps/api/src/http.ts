@@ -8,12 +8,18 @@ export class HttpError extends Error {
     readonly code: string,
     message: string,
     readonly issues?: ValidationIssue[],
+    readonly details?: Record<string, unknown>,
   ) {
     super(message);
   }
 
   toBody(): ApiError {
-    return { error: this.code, message: this.message, ...(this.issues ? { issues: this.issues } : {}) };
+    return {
+      error: this.code,
+      message: this.message,
+      ...(this.issues ? { issues: this.issues } : {}),
+      ...(this.details ? { details: this.details } : {}),
+    };
   }
 }
 
@@ -35,3 +41,7 @@ export function parseOr400<S extends z.ZodType>(schema: S, input: unknown, messa
   if (!parsed.success) throw new HttpError(400, "bad_request", message, zodIssues(parsed.error));
   return parsed.data;
 }
+
+/** A 409 with a machine-readable code and optional details. */
+export const conflict = (code: string, message: string, details?: Record<string, unknown>) =>
+  new HttpError(409, code, message, undefined, details);
