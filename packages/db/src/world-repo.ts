@@ -2,6 +2,7 @@ import type {
   ConditionRules,
   CreatureDefinition,
   EncounterTable,
+  LicenseRequirement,
   PoiType,
   PublicationStage,
   UnlockCondition,
@@ -57,8 +58,35 @@ export async function listCreatures(db: Executor, opts: { includeDeleted?: boole
       spawnModifiers: r.spawnModifiers,
       skills: r.skills,
       movementStyle: r.movementStyle,
+      category: r.category,
+      bodyTraits: r.bodyTraits,
+      baseStats: r.baseStats,
+      attacks: r.attacks,
+      genePool: r.genePool,
     }),
   );
+}
+
+/** The game fields of a creature as Prisma column data (shared by seeding and the Creature Manager). */
+export function creatureColumns(c: Omit<CreatureDefinition, "id">) {
+  return {
+    registryNumber: c.registryNumber,
+    name: c.name,
+    description: c.description,
+    habitatAffinity: c.habitatAffinity,
+    habitatSummary: c.habitatSummary,
+    rarity: c.rarity,
+    activityPattern: c.activityPattern,
+    spawnModifiers: c.spawnModifiers,
+    skills: c.skills,
+    movementStyle: c.movementStyle,
+    category: c.category,
+    bodyTraits: c.bodyTraits,
+    // A nullable Json column needs Prisma.DbNull for SQL NULL.
+    baseStats: c.baseStats ?? Prisma.DbNull,
+    attacks: c.attacks,
+    genePool: c.genePool,
+  };
 }
 
 /**
@@ -95,18 +123,7 @@ async function upsertCreaturesIn(db: Prisma.TransactionClient, list: CreatureDef
   await db.$executeRaw`UPDATE creatures SET registry_number = registry_number + 1000000 WHERE id = ANY(${ids}::text[])`;
   // Phase 2: write the real data.
   for (const c of list) {
-    const data = {
-      registryNumber: c.registryNumber,
-      name: c.name,
-      description: c.description,
-      habitatAffinity: c.habitatAffinity,
-      habitatSummary: c.habitatSummary,
-      rarity: c.rarity,
-      activityPattern: c.activityPattern,
-      spawnModifiers: c.spawnModifiers,
-      skills: c.skills,
-      movementStyle: c.movementStyle,
-    };
+    const data = creatureColumns(c);
     await db.creature.upsert({ where: { id: c.id }, create: { id: c.id, ...data }, update: data });
   }
 }
@@ -133,6 +150,7 @@ interface HabitatRow {
   geometry: string;
   habitat_tags: string[];
   condition_rules: ConditionRules;
+  license_requirement: LicenseRequirement;
 }
 interface PoiRow {
   id: string;
@@ -156,7 +174,8 @@ export async function loadWorld(db: Executor, stage: PublicationStage): Promise<
              story_state_requirements, active
       FROM world_regions WHERE stage = ${stageSql(stage)} ORDER BY name, id`,
     db.$queryRaw<HabitatRow[]>`
-      SELECT id, region_id, slug, name, description, ST_AsGeoJSON(geom) AS geometry, habitat_tags, condition_rules
+      SELECT id, region_id, slug, name, description, ST_AsGeoJSON(geom) AS geometry, habitat_tags, condition_rules,
+             license_requirement
       FROM habitats WHERE stage = ${stageSql(stage)} ORDER BY name, id`,
     db.$queryRaw<PoiRow[]>`
       SELECT id, region_id, slug, name, description, type, ST_AsGeoJSON(geom) AS location, interaction_id, unlock_condition
@@ -190,6 +209,7 @@ export async function loadWorld(db: Executor, stage: PublicationStage): Promise<
       geometry: parseGeo(h.geometry),
       habitatTags: h.habitat_tags,
       conditionRules: h.condition_rules,
+      licenseRequirement: h.license_requirement ?? null,
     })),
     pois: poiRows.map((p) => ({
       id: p.id,
@@ -214,11 +234,15 @@ function toEncounterTable(t: TableWithEntries): EncounterTable {
     habitatId: t.habitatId,
     conditionRules: (t.conditionRules as ConditionRules | null) ?? EMPTY_CONDITIONS,
     active: t.active,
+    minLevel: t.minLevel,
+    maxLevel: t.maxLevel,
     entries: t.entries.map((e) => ({
       id: e.id,
       creatureId: e.creatureId,
       weight: e.weight,
       conditions: e.conditions as ConditionRules,
+      minLevel: e.minLevel,
+      maxLevel: e.maxLevel,
     })),
   };
 }
@@ -261,9 +285,10 @@ export async function saveDraft(db: Database, doc: WorldDocument): Promise<void>
     }
     for (const h of doc.habitats) {
       await tx.$executeRaw`
-        INSERT INTO habitats (id, stage, region_id, slug, name, description, geom, habitat_tags, condition_rules)
+        INSERT INTO habitats (id, stage, region_id, slug, name, description, geom, habitat_tags, condition_rules, license_requirement)
         VALUES (${h.id}::uuid, 'draft', ${h.regionId}::uuid, ${h.slug}, ${h.name}, ${h.description},
-                ${geomFromGeoJson(h.geometry)}, ${textArray(h.habitatTags)}, ${json(h.conditionRules)})`;
+                ${geomFromGeoJson(h.geometry)}, ${textArray(h.habitatTags)}, ${json(h.conditionRules)},
+                ${json(h.licenseRequirement ?? null)})`;
     }
     for (const p of doc.pois) {
       await tx.$executeRaw`
@@ -283,6 +308,8 @@ export async function saveDraft(db: Database, doc: WorldDocument): Promise<void>
           name: t.name,
           conditionRules: t.conditionRules,
           active: t.active,
+          minLevel: t.minLevel,
+          maxLevel: t.maxLevel,
         })),
       });
       const entries = doc.encounterTables.flatMap((t) =>
@@ -294,6 +321,8 @@ export async function saveDraft(db: Database, doc: WorldDocument): Promise<void>
           weight: e.weight,
           conditions: e.conditions,
           position,
+          minLevel: e.minLevel,
+          maxLevel: e.maxLevel,
         })),
       );
       if (entries.length) await tx.encounterEntry.createMany({ data: entries });
@@ -331,20 +360,20 @@ export async function publishDraft(
       SELECT id, 'published', slug, name, description, geom, biome_tags, unlock_condition, story_state_requirements, active
       FROM world_regions WHERE stage = 'draft'`;
     await tx.$executeRaw`
-      INSERT INTO habitats (id, stage, region_id, slug, name, description, geom, habitat_tags, condition_rules)
-      SELECT id, 'published', region_id, slug, name, description, geom, habitat_tags, condition_rules
+      INSERT INTO habitats (id, stage, region_id, slug, name, description, geom, habitat_tags, condition_rules, license_requirement)
+      SELECT id, 'published', region_id, slug, name, description, geom, habitat_tags, condition_rules, license_requirement
       FROM habitats WHERE stage = 'draft'`;
     await tx.$executeRaw`
       INSERT INTO points_of_interest (id, stage, region_id, slug, name, description, type, geom, interaction_id, unlock_condition)
       SELECT id, 'published', region_id, slug, name, description, type, geom, interaction_id, unlock_condition
       FROM points_of_interest WHERE stage = 'draft'`;
     await tx.$executeRaw`
-      INSERT INTO encounter_tables (id, stage, region_id, habitat_id, name, condition_rules, active)
-      SELECT id, 'published', region_id, habitat_id, name, condition_rules, active
+      INSERT INTO encounter_tables (id, stage, region_id, habitat_id, name, condition_rules, active, min_level, max_level)
+      SELECT id, 'published', region_id, habitat_id, name, condition_rules, active, min_level, max_level
       FROM encounter_tables WHERE stage = 'draft'`;
     await tx.$executeRaw`
-      INSERT INTO encounter_entries (id, stage, table_id, creature_id, weight, conditions, position)
-      SELECT id, 'published', table_id, creature_id, weight, conditions, position
+      INSERT INTO encounter_entries (id, stage, table_id, creature_id, weight, conditions, position, min_level, max_level)
+      SELECT id, 'published', table_id, creature_id, weight, conditions, position, min_level, max_level
       FROM encounter_entries WHERE stage = 'draft'`;
 
     const summary = {
@@ -395,7 +424,7 @@ export async function findSpatialContext(db: Executor, q: SpatialQuery) {
   if (!region) return { region: null, habitat: null, pois: [], tables: [], version };
 
   const [habitat] = await db.$queryRaw<Omit<HabitatRow, "geometry">[]>`
-    SELECT id, region_id, slug, name, description, habitat_tags, condition_rules
+    SELECT id, region_id, slug, name, description, habitat_tags, condition_rules, license_requirement
     FROM habitats
     WHERE stage = ${stage} AND region_id = ${region.id}::uuid AND ST_Covers(geom, ${point})
     ORDER BY ST_Area(geom::geography) ASC, id ASC
@@ -440,6 +469,7 @@ export async function findSpatialContext(db: Executor, q: SpatialQuery) {
           description: habitat.description,
           habitatTags: habitat.habitat_tags,
           conditionRules: habitat.condition_rules,
+          licenseRequirement: habitat.license_requirement ?? null,
         }
       : null,
     pois: pois.map((p) => ({

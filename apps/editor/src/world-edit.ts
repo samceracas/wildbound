@@ -14,7 +14,7 @@ import type {
   WorldDocument,
   WorldRegion,
 } from "@wildbound/shared";
-import { EMPTY_CONDITIONS, SLUG_PATTERN, polygonsOf } from "@wildbound/shared";
+import { DEFAULT_WILD_LEVELS, EMPTY_CONDITIONS, SLUG_PATTERN, polygonsOf } from "@wildbound/shared";
 
 export type EntityKind = "region" | "habitat" | "poi" | "encounterTable";
 export interface Selection {
@@ -154,6 +154,7 @@ export function createHabitat(
     geometry,
     habitatTags: [],
     conditionRules: EMPTY_CONDITIONS,
+    licenseRequirement: null,
   };
   return { world: { ...world, habitats: [...world.habitats, habitat] }, habitat };
 }
@@ -194,13 +195,14 @@ export function createEncounterTable(
     habitatId,
     conditionRules: EMPTY_CONDITIONS,
     active: true,
+    ...DEFAULT_WILD_LEVELS,
     entries: [],
   };
   return { world: { ...world, encounterTables: [...world.encounterTables, table] }, table };
 }
 
 export function createEntry(creatureId: string, weight = 10): EncounterEntry {
-  return { id: newId(), creatureId, weight, conditions: EMPTY_CONDITIONS };
+  return { id: newId(), creatureId, weight, conditions: EMPTY_CONDITIONS, minLevel: null, maxLevel: null };
 }
 
 // ------------------------------------------------------------------ update

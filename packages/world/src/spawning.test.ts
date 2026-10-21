@@ -17,8 +17,8 @@ describe("randomPointNear", () => {
 
 describe("planSpawns", () => {
   const available = [
-    { creatureId: "kawi", name: "Kawi", weight: 60, probability: 0.6 },
-    { creatureId: "mimu", name: "Mimu", weight: 40, probability: 0.4 },
+    { creatureId: "kawi", name: "Kawi", weight: 60, probability: 0.6, levelBands: [{ minLevel: 2, maxLevel: 6, weight: 60 }] },
+    { creatureId: "mimu", name: "Mimu", weight: 40, probability: 0.4, levelBands: [{ minLevel: 9, maxLevel: 9, weight: 40 }] },
   ];
   const modifiers = new Map([["kawi", NEUTRAL_MODIFIERS]]);
 
@@ -26,6 +26,15 @@ describe("planSpawns", () => {
     const planned = planSpawns({ center, available, modifiers, env, activeCount: 4, maxActive: 6, radiusM: 120, random: seededRandom(1) });
     expect(planned).toHaveLength(2);
     for (const p of planned) expect(["kawi", "mimu"]).toContain(p.creatureId);
+  });
+
+  it("rolls each spawn's level from its creature's level bands", () => {
+    const planned = planSpawns({ center, available, modifiers, env, activeCount: 0, maxActive: 40, radiusM: 120, random: seededRandom(3) });
+    for (const p of planned) {
+      if (p.creatureId === "mimu") expect(p.level).toBe(9);
+      else expect(p.level).toBeGreaterThanOrEqual(2), expect(p.level).toBeLessThanOrEqual(6);
+    }
+    expect(new Set(planned.filter((p) => p.creatureId === "kawi").map((p) => p.level)).size).toBeGreaterThan(1);
   });
 
   it("plans nothing when nothing is available or the player is full", () => {

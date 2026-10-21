@@ -1,5 +1,16 @@
 import { z } from "zod";
+import {
+  AttackSchema,
+  BaseStatsSchema,
+  BodyTraitSchema,
+  DEFAULT_GENE_POOL,
+  GenePoolSchema,
+  MAX_ATTACKS,
+  STAT_BUDGET,
+  statTotal,
+} from "./battle.ts";
 import { MOVEMENT_STYLES } from "./constants.ts";
+import { CategoryOrTbdSchema } from "./research.ts";
 import {
   ActivityPatternSchema,
   CreatureSkillSchema,
@@ -85,6 +96,20 @@ export const WildkinEntryInputSchema = z.object({
   openQuestions: z.array(z.string().trim().min(1).max(400)).max(24).default([]),
   spawnModifiers: SpawnModifiersSchema.default({ weather: {}, timeOfDay: {} }),
   skills: z.array(CreatureSkillSchema).max(8).default([]),
+  // ---- battle & genetics (v0.3.0)
+  /** Which Field Registry license covers it. Required (not TBD) to publish. */
+  category: CategoryOrTbdSchema.default("TBD"),
+  /** 1 to 2 body traits once published. */
+  bodyTraits: z
+    .array(BodyTraitSchema)
+    .max(2, "At most 2 body traits")
+    .refine((t) => new Set(t).size === t.length, "Body traits must be different")
+    .default([]),
+  /** Stat shape; the four values must sum to exactly STAT_BUDGET (300). */
+  baseStats: BaseStatsSchema.nullable().default(null),
+  /** Placeholder attacks (replaced by the 0.4.0 skill system). */
+  attacks: z.array(AttackSchema).max(MAX_ATTACKS, `At most ${MAX_ATTACKS} attacks`).default([]),
+  genePool: GenePoolSchema.default(DEFAULT_GENE_POOL),
 });
 export type WildkinEntryInput = z.input<typeof WildkinEntryInputSchema>;
 export type WildkinEntryData = z.infer<typeof WildkinEntryInputSchema>;
@@ -137,13 +162,37 @@ export const WildkinStatsSchema = z.object({
   unpublishedChanges: z.number().int(),
   deleted: z.number().int(),
   withArt: z.number().int(),
+  /** Published species with category, body traits, stats and attacks. */
+  battleReady: z.number().int(),
   byRarity: z.record(z.string(), z.number().int()),
   nextRegistryNumber: z.number().int(),
 });
 export type WildkinStats = z.infer<typeof WildkinStatsSchema>;
 
-/** Fields the publish step insists on (the rest may stay empty / TBD). */
+/** Text fields the publish step insists on (the rest may stay empty / TBD). */
 export const PUBLISH_REQUIRED_FIELDS = ["name", "registryDescription", "habitatSummary"] as const;
+
+/**
+ * Battle fields a species needs before it can reach the game (v0.3.0). Each
+ * returns a message when the field is not ready, else null.
+ */
+export const PUBLISH_BATTLE_CHECKS: { field: keyof WildkinEntryData; problem: (d: WildkinEntryData) => string | null }[] = [
+  { field: "category", problem: (d) => (d.category === "TBD" ? "Choose a category before publishing" : null) },
+  { field: "bodyTraits", problem: (d) => (d.bodyTraits.length === 0 ? "Add at least one body trait before publishing" : null) },
+  {
+    field: "baseStats",
+    problem: (d) =>
+      d.baseStats === null
+        ? "Set the base stats before publishing"
+        : statTotal(d.baseStats) !== STAT_BUDGET
+          ? `Base stats must add up to exactly ${STAT_BUDGET}`
+          : null,
+  },
+  { field: "attacks", problem: (d) => (d.attacks.length === 0 ? "Add at least one placeholder attack before publishing" : null) },
+];
+
+/** Ready for battle: the checks above all pass. */
+export const isBattleReady = (d: WildkinEntryData) => PUBLISH_BATTLE_CHECKS.every((c) => c.problem(d) === null);
 
 /**
  * Entry fields that publishing copies into the game (the `creatures` table).
@@ -161,6 +210,11 @@ export const GAME_FIELDS = [
   "movementStyle",
   "spawnModifiers",
   "skills",
+  "category",
+  "bodyTraits",
+  "baseStats",
+  "attacks",
+  "genePool",
 ] as const satisfies readonly (keyof WildkinEntryData)[];
 export type GameField = (typeof GAME_FIELDS)[number];
 

@@ -32,31 +32,43 @@ enum PublicationStage {
 // ------------------------------------------------------------------ catalogue
 
 model Creature {
-  id               String   @id
+  id              String    @id
   /// Registry number shown in the Registry ("No. 001"). Unique among non-deleted species
   /// (partial unique index in migration 4_registry_number_reuse; Prisma cannot express it).
-  registryNumber   Int      @map("registry_number")
-  name             String
-  description      String   @default("")
-  habitatAffinity  String[] @default([]) @map("habitat_affinity")
+  registryNumber  Int       @map("registry_number")
+  name            String
+  description     String    @default("")
+  habitatAffinity String[]  @default([]) @map("habitat_affinity")
   /// Human-readable habitat line for the Registry, e.g. "Forest canopy; bright woodland edge".
-  habitatSummary   String   @default("") @map("habitat_summary")
-  rarity           String   @default("common")
-  activityPattern  String   @default("TBD") @map("activity_pattern")
+  habitatSummary  String    @default("") @map("habitat_summary")
+  rarity          String    @default("common")
+  activityPattern String    @default("TBD") @map("activity_pattern")
   /// Weight multipliers by weather / time of day. See SpawnModifiersSchema in @wildbound/shared.
-  spawnModifiers   Json     @default("{}") @map("spawn_modifiers")
+  spawnModifiers  Json      @default("{}") @map("spawn_modifiers")
   /// Unlocked only after a capture. See CreatureSkillSchema in @wildbound/shared.
-  skills           Json     @default("[]")
+  skills          Json      @default("[]")
   /// How spawns wander on the radar. See MOVEMENT_STYLES in @wildbound/shared.
-  movementStyle    String   @default("forager") @map("movement_style")
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  movementStyle   String    @default("forager") @map("movement_style")
+  /// Field Registry license category ("aerial", "aquatic", "terrestrial", "verdant" or "TBD"). See CATEGORIES.
+  category        String    @default("TBD")
+  /// 1-2 of BODY_TRAITS (matchups).
+  bodyTraits      String[]  @default([]) @map("body_traits")
+  /// { hp, atk, def, spd } summing to STAT_BUDGET (300); null = not authored. See BaseStatsSchema.
+  baseStats       Json?     @map("base_stats")
+  /// Placeholder attacks (v0.3.0). See AttackSchema.
+  attacks         Json      @default("[]")
+  /// Allele odds and marking variant. See GenePoolSchema.
+  genePool        Json      @default("{\"build\":{\"pAllele\":0.5,\"byHabitatTag\":[]},\"temperament\":{\"pAllele\":0.5,\"byHabitatTag\":[]},\"marking\":null}") @map("gene_pool")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   /// Soft delete (Creature Manager). Deleted species never spawn and are hidden from the editor.
-  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(6)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
 
   encounterEntries EncounterEntry[]
   spawns           Spawn[]
   registryEntries  RegistryEntry[]
   captured         CapturedWildkin[]
+  conditionRecords ConditionRecord[]
+  phenotypeRecords PhenotypeRecord[]
 
   @@map("creatures")
 }
@@ -112,16 +124,16 @@ model WildkinArt {
 // ------------------------------------------------------------------ world (draft + published)
 
 model WorldRegion {
-  id                     String                                 @db.Uuid
+  id                     String                                     @db.Uuid
   stage                  PublicationStage
   slug                   String
   name                   String
-  description            String                                 @default("")
+  description            String                                     @default("")
   geom                   Unsupported("geometry(MultiPolygon,4326)")
-  biomeTags              String[]                               @default([]) @map("biome_tags")
-  unlockCondition        Json?                                  @map("unlock_condition")
-  storyStateRequirements String[]                               @default([]) @map("story_state_requirements")
-  active                 Boolean                                @default(true)
+  biomeTags              String[]                                   @default([]) @map("biome_tags")
+  unlockCondition        Json?                                      @map("unlock_condition")
+  storyStateRequirements String[]                                   @default([]) @map("story_state_requirements")
+  active                 Boolean                                    @default(true)
 
   habitats        Habitat[]
   pois            PointOfInterest[]
@@ -134,15 +146,17 @@ model WorldRegion {
 }
 
 model Habitat {
-  id             String                            @db.Uuid
-  stage          PublicationStage
-  regionId       String                            @map("region_id") @db.Uuid
-  slug           String
-  name           String
-  description    String                            @default("")
-  geom           Unsupported("geometry(Polygon,4326)")
-  habitatTags    String[]                          @default([]) @map("habitat_tags")
-  conditionRules Json                              @map("condition_rules")
+  id                 String                                @db.Uuid
+  stage              PublicationStage
+  regionId           String                                @map("region_id") @db.Uuid
+  slug               String
+  name               String
+  description        String                                @default("")
+  geom               Unsupported("geometry(Polygon,4326)")
+  habitatTags        String[]                              @default([]) @map("habitat_tags")
+  conditionRules     Json                                  @map("condition_rules")
+  /// { category, rank } needed to battle and capture here; null = open. See LicenseRequirementSchema.
+  licenseRequirement Json?                                 @map("license_requirement")
 
   region          WorldRegion      @relation(fields: [regionId, stage], references: [id, stage], onDelete: Cascade, onUpdate: NoAction, map: "habitats_region_id_stage_world_regions_id_stage_fk")
   encounterTables EncounterTable[]
@@ -154,16 +168,16 @@ model Habitat {
 }
 
 model PointOfInterest {
-  id              String                          @db.Uuid
+  id              String                              @db.Uuid
   stage           PublicationStage
-  regionId        String                          @map("region_id") @db.Uuid
+  regionId        String                              @map("region_id") @db.Uuid
   slug            String
   name            String
-  description     String                          @default("")
+  description     String                              @default("")
   type            String
   geom            Unsupported("geometry(Point,4326)")
-  interactionId   String?                         @map("interaction_id")
-  unlockCondition Json?                           @map("unlock_condition")
+  interactionId   String?                             @map("interaction_id")
+  unlockCondition Json?                               @map("unlock_condition")
 
   region WorldRegion @relation(fields: [regionId, stage], references: [id, stage], onDelete: Cascade, onUpdate: NoAction, map: "points_of_interest_region_id_stage_world_regions_id_stage_fk")
 
@@ -182,6 +196,9 @@ model EncounterTable {
   name           String
   conditionRules Json             @map("condition_rules")
   active         Boolean          @default(true)
+  /// Wild level range (1..100, CHECK in migration 5_battle_system). Entries may override it.
+  minLevel       Int              @default(1) @map("min_level")
+  maxLevel       Int              @default(10) @map("max_level")
 
   region  WorldRegion      @relation(fields: [regionId, stage], references: [id, stage], onDelete: Cascade, onUpdate: NoAction, map: "encounter_tables_region_id_stage_world_regions_id_stage_fk")
   habitat Habitat?         @relation(fields: [habitatId, stage], references: [id, stage], onDelete: Cascade, onUpdate: NoAction, map: "encounter_tables_habitat_id_stage_habitats_id_stage_fk")
@@ -201,6 +218,9 @@ model EncounterEntry {
   weight     Int
   conditions Json
   position   Int              @default(0)
+  /// Level override: both set or both null (CHECK in migration 5_battle_system).
+  minLevel   Int?             @map("min_level")
+  maxLevel   Int?             @map("max_level")
 
   creature Creature       @relation(fields: [creatureId], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "encounter_entries_creature_id_creatures_id_fk")
   table    EncounterTable @relation(fields: [tableId, stage], references: [id, stage], onDelete: Cascade, onUpdate: NoAction, map: "encounter_entries_table_id_stage_encounter_tables_id_stage_fk")
@@ -229,20 +249,35 @@ model Publication {
 // ------------------------------------------------------------------ players
 
 model Player {
-  id          String   @id @default(uuid()) @db.Uuid
+  id              String    @id @default(uuid()) @db.Uuid
   /// Lowercased username; the login key.
-  username    String   @unique
+  username        String    @unique
   /// Username as the player typed it.
-  displayName String   @map("display_name")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  lastSeenAt  DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  displayName     String    @map("display_name")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt      DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+  /// Rested bonus: stored charges; more accrue lazily since lastBattleExpAt (see restedCharges in @wildbound/world).
+  restedCharges   Int       @default(0) @map("rested_charges")
+  lastBattleExpAt DateTime? @map("last_battle_exp_at") @db.Timestamptz(6)
+  /// Walking EXP meter for the day `walkMeterDay` (counted segments only).
+  walkMeterM      Float     @default(0) @map("walk_meter_m") @db.Real
+  walkMeterDay    String?   @map("walk_meter_day")
 
-  sessions  PlayerSession[]
-  position  PlayerPosition?
-  spawns    Spawn[]
-  registry  RegistryEntry[]
-  inventory InventoryItem[]
-  wildkin   CapturedWildkin[]
+  sessions    PlayerSession[]
+  position    PlayerPosition?
+  spawns      Spawn[]
+  registry    RegistryEntry[]
+  inventory   InventoryItem[]
+  wildkin     CapturedWildkin[]
+  battles     Battle[]
+  licenses    ResearcherLicense[]
+  assessments AssessmentCompletion[]
+  expEvents   ExpEvent[]
+  matchups    MatchupRecord[]
+  conditions  ConditionRecord[]
+  phenotypes  PhenotypeRecord[]
+  visits      HabitatVisit[]
+  pickups     PoiPickup[]
 
   @@map("players")
 }
@@ -263,17 +298,17 @@ model PlayerSession {
 
 /// The server's view of where a player is. Only the movement check may update it.
 model PlayerPosition {
-  playerId      String    @id @map("player_id") @db.Uuid
-  lat           Float
-  lng           Float
-  accuracyM     Float     @map("accuracy_m")
-  recordedAt    DateTime  @map("recorded_at") @db.Timestamptz(6)
+  playerId    String    @id @map("player_id") @db.Uuid
+  lat         Float
+  lng         Float
+  accuracyM   Float     @map("accuracy_m")
+  recordedAt  DateTime  @map("recorded_at") @db.Timestamptz(6)
   /// Consecutive implausible jumps. Reset by a plausible update.
-  strikes       Int       @default(0)
+  strikes     Int       @default(0)
   /// While set and in the future, game actions are refused.
-  lockedUntil   DateTime? @map("locked_until") @db.Timestamptz(6)
+  lockedUntil DateTime? @map("locked_until") @db.Timestamptz(6)
   /// IANA time zone reported by the weather lookup (or the client as a fallback).
-  timeZone      String?   @map("time_zone")
+  timeZone    String?   @map("time_zone")
 
   player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
@@ -285,6 +320,8 @@ enum SpawnStatus {
   captured
   fled
   expired
+  /// A battle with it is running: it does not wander or expire.
+  in_battle
 
   @@map("spawn_status")
 }
@@ -302,6 +339,11 @@ model Spawn {
   weather    String
   status     SpawnStatus @default(active)
   observedAt DateTime?   @map("observed_at") @db.Timestamptz(6)
+  /// Rolled at spawn time from the encounter entry's level band.
+  level      Int         @default(5)
+  /// See GenomeSchema / VigorSchema. Rolled at spawn time (rollGenome with the habitat's tags).
+  genome     Json        @default("{\"build\":[\"S\",\"L\"],\"temperament\":[\"B\",\"W\"],\"marking\":[\"+\",\"+\"]}")
+  vigor      Json        @default("{\"hp\":2,\"atk\":2,\"def\":2,\"spd\":2}")
   /// Direction of travel in radians (wandering); null until the first move.
   heading    Float?
   /// Last time the server advanced this spawn's wandering.
@@ -311,6 +353,7 @@ model Spawn {
 
   player   Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
   creature Creature @relation(fields: [creatureId], references: [id], onDelete: Cascade)
+  battles  Battle[]
 
   @@index([playerId, status, expiresAt])
   @@map("spawns")
@@ -346,17 +389,191 @@ model InventoryItem {
 
 /// One captured individual. partySlot 0..5 puts it in the party; null keeps it in storage.
 model CapturedWildkin {
-  id         String   @id @default(uuid()) @db.Uuid
-  playerId   String   @map("player_id") @db.Uuid
-  creatureId String   @map("creature_id")
-  nickname   String?
-  partySlot  Int?     @map("party_slot")
-  capturedAt DateTime @default(now()) @map("captured_at") @db.Timestamptz(6)
+  id                String   @id @default(uuid()) @db.Uuid
+  playerId          String   @map("player_id") @db.Uuid
+  creatureId        String   @map("creature_id")
+  nickname          String?
+  partySlot         Int?     @map("party_slot")
+  capturedAt        DateTime @default(now()) @map("captured_at") @db.Timestamptz(6)
+  /// Kept in sync with exp (levelForExp, clamped by the license cap).
+  level             Int      @default(5)
+  /// Total EXP (a Wildkin caught at level L starts with totalExpForLevel(L)).
+  exp               Int      @default(125)
+  genome            Json     @default("{\"build\":[\"S\",\"L\"],\"temperament\":[\"B\",\"W\"],\"marking\":[\"+\",\"+\"]}")
+  vigor             Json     @default("{\"hp\":2,\"atk\":2,\"def\":2,\"spd\":2}")
+  /// HP at hpUpdatedAt; the current HP adds natural recovery lazily (currentHp in @wildbound/world).
+  currentHp         Int      @map("current_hp")
+  hpUpdatedAt       DateTime @default(now()) @map("hp_updated_at") @db.Timestamptz(6)
+  caughtLevel       Int?     @map("caught_level")
+  caughtHabitatId   String?  @map("caught_habitat_id") @db.Uuid
+  caughtAtTimeOfDay String?  @map("caught_at_time_of_day")
+  caughtAtWeather   String?  @map("caught_at_weather")
 
-  player   Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  creature Creature @relation(fields: [creatureId], references: [id], onDelete: Restrict)
+  player    Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  creature  Creature   @relation(fields: [creatureId], references: [id], onDelete: Restrict)
+  expEvents ExpEvent[]
 
   @@unique([playerId, partySlot])
   @@index([playerId])
   @@map("captured_wildkin")
+}
+
+// ------------------------------------------------------------------ battles + research (v0.3.0)
+
+enum BattleStatus {
+  active
+  won
+  lost
+  captured
+  escaped
+  abandoned
+
+  @@map("battle_status")
+}
+
+/// One wild battle. `state` is the engine's BattleState (BattleStateSchema in @wildbound/shared).
+/// At most one active battle per player (partial unique index in migration 5_battle_system).
+model Battle {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  playerId  String       @map("player_id") @db.Uuid
+  spawnId   String       @map("spawn_id") @db.Uuid
+  /// "wild" (NPC friendly battles come in 0.4.0).
+  kind      String       @default("wild")
+  status    BattleStatus @default(active)
+  turn      Int          @default(0)
+  state     Json
+  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime     @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  spawn  Spawn  @relation(fields: [spawnId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, status])
+  @@map("battles")
+}
+
+/// Field Registry license per category. Every player has all four (rank 1 to start).
+model ResearcherLicense {
+  playerId String @map("player_id") @db.Uuid
+  category String
+  rank     Int    @default(1)
+  /// Cumulative researcher EXP in this category.
+  exp      Int    @default(0)
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([playerId, category])
+  @@map("researcher_licenses")
+}
+
+/// A passed assessment (the primary key makes each rank-up happen once).
+model AssessmentCompletion {
+  playerId    String   @map("player_id") @db.Uuid
+  category    String
+  /// The rank reached.
+  rank        Int
+  completedAt DateTime @default(now()) @map("completed_at") @db.Timestamptz(6)
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([playerId, category, rank])
+  @@map("assessment_completions")
+}
+
+/// Every EXP gain, Wildkin or researcher. Daily caps are computed from this log.
+model ExpEvent {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  playerId          String   @map("player_id") @db.Uuid
+  /// "wildkin" or "researcher".
+  track             String
+  capturedWildkinId String?  @map("captured_wildkin_id") @db.Uuid
+  /// Researcher track only.
+  category          String?
+  /// WILDKIN_EXP_SOURCES or RESEARCHER_EXP_SOURCES.
+  source            String
+  amount            Int
+  /// Player-local "YYYY-MM-DD".
+  dayKey            String   @map("day_key")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  meta              Json     @default("{}")
+
+  player          Player           @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  capturedWildkin CapturedWildkin? @relation(fields: [capturedWildkinId], references: [id], onDelete: SetNull)
+
+  @@index([playerId, dayKey, source])
+  @@map("exp_events")
+}
+
+/// A discovered matchup, per body trait (applies to every species with the trait).
+model MatchupRecord {
+  playerId   String   @map("player_id") @db.Uuid
+  bodyTrait  String   @map("body_trait")
+  approach   String
+  /// "weak" or "resist".
+  effect     String
+  recordedAt DateTime @default(now()) @map("recorded_at") @db.Timestamptz(6)
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([playerId, bodyTrait, approach])
+  @@map("matchup_records")
+}
+
+/// First observation of a species at a time of day / in a weather.
+model ConditionRecord {
+  playerId   String   @map("player_id") @db.Uuid
+  creatureId String   @map("creature_id")
+  /// "time_of_day" or "weather".
+  kind       String
+  value      String
+  recordedAt DateTime @default(now()) @map("recorded_at") @db.Timestamptz(6)
+
+  player   Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  creature Creature @relation(fields: [creatureId], references: [id], onDelete: Cascade)
+
+  @@id([playerId, creatureId, kind, value])
+  @@map("condition_records")
+}
+
+/// First time a player saw a species showing a phenotype (small, large, bold, wary, marking).
+model PhenotypeRecord {
+  playerId   String   @map("player_id") @db.Uuid
+  creatureId String   @map("creature_id")
+  trait      String
+  recordedAt DateTime @default(now()) @map("recorded_at") @db.Timestamptz(6)
+
+  player   Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  creature Creature @relation(fields: [creatureId], references: [id], onDelete: Cascade)
+
+  @@id([playerId, creatureId, trait])
+  @@map("phenotype_records")
+}
+
+/// One row per player, habitat and day (no FK: habitats are keyed by (id, stage)).
+model HabitatVisit {
+  playerId  String   @map("player_id") @db.Uuid
+  habitatId String   @map("habitat_id") @db.Uuid
+  dayKey    String   @map("day_key")
+  /// The first visit to this habitat ever.
+  firstEver Boolean  @default(false) @map("first_ever")
+  visitedAt DateTime @default(now()) @map("visited_at") @db.Timestamptz(6)
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([playerId, habitatId, dayKey])
+  @@map("habitat_visits")
+}
+
+/// A daily POI search (the primary key allows one per player, POI and day).
+model PoiPickup {
+  playerId    String   @map("player_id") @db.Uuid
+  poiId       String   @map("poi_id") @db.Uuid
+  dayKey      String   @map("day_key")
+  items       Json
+  collectedAt DateTime @default(now()) @map("collected_at") @db.Timestamptz(6)
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([playerId, poiId, dayKey])
+  @@map("poi_pickups")
 }

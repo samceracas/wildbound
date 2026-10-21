@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { NEARBY_POI_DEFAULT_RADIUS_M, NEARBY_POI_MAX_RADIUS_M, PUBLICATION_STAGES } from "./constants.ts";
 import { Latitude, Longitude } from "./geo.ts";
+import { LicenseRequirementSchema } from "./research.ts";
 import {
   ConditionRulesSchema,
   CreatureDefinitionSchema,
@@ -122,6 +123,7 @@ export const ResolvedHabitatSchema = z.object({
   habitatTags: z.array(z.string()),
   conditionRules: ConditionRulesSchema,
   conditionsMet: z.boolean(),
+  licenseRequirement: LicenseRequirementSchema,
 });
 
 export const ResolvedPoiSchema = z.object({
@@ -146,6 +148,9 @@ export const ResolvedEncounterEntrySchema = z.object({
   available: z.boolean(),
   /** Share of this table's available weight (0 when unavailable). */
   probability: z.number(),
+  /** Effective wild level range: the entry's override, else the table's. */
+  minLevel: z.number().int(),
+  maxLevel: z.number().int(),
 });
 
 export const ResolvedEncounterTableSchema = z.object({
@@ -158,11 +163,16 @@ export const ResolvedEncounterTableSchema = z.object({
   entries: z.array(ResolvedEncounterEntrySchema),
 });
 
+export const LevelBandSchema = z.object({ minLevel: z.number().int(), maxLevel: z.number().int(), weight: z.number() });
+export type LevelBand = z.infer<typeof LevelBandSchema>;
+
 export const AvailableWildkinSchema = z.object({
   creatureId: z.string(),
   name: z.string(),
   weight: z.number(),
   probability: z.number(),
+  /** One band per available entry for this creature (it can come from several tables). */
+  levelBands: z.array(LevelBandSchema),
 });
 
 export const WorldContextSchema = z.object({

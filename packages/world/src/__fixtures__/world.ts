@@ -51,6 +51,7 @@ export function sampleWorld(): WorldDocument {
         geometry: square(120.998, 14.65, 0.0015),
         habitatTags: ["forest-edge", "canopy"],
         conditionRules: EMPTY_CONDITIONS,
+        licenseRequirement: null,
       },
       {
         id: IDS.creek,
@@ -61,6 +62,7 @@ export function sampleWorld(): WorldDocument {
         geometry: square(121.002, 14.65, 0.0015),
         habitatTags: ["freshwater"],
         conditionRules: { timeOfDay: [], weather: ["rain", "cloudy", "clear"] },
+        licenseRequirement: null,
       },
     ],
     pois: [
@@ -84,10 +86,12 @@ export function sampleWorld(): WorldDocument {
         habitatId: IDS.forest,
         conditionRules: EMPTY_CONDITIONS,
         active: true,
+        minLevel: 2,
+        maxLevel: 6,
         entries: [
-          { id: IDS.e1, creatureId: "kawi", weight: 40, conditions: EMPTY_CONDITIONS },
-          { id: IDS.e2, creatureId: "mimu", weight: 35, conditions: EMPTY_CONDITIONS },
-          { id: IDS.e3, creatureId: "kantar", weight: 25, conditions: { timeOfDay: ["day"], weather: [] } },
+          { id: IDS.e1, creatureId: "kawi", weight: 40, conditions: EMPTY_CONDITIONS, minLevel: null, maxLevel: null },
+          { id: IDS.e2, creatureId: "mimu", weight: 35, conditions: EMPTY_CONDITIONS, minLevel: null, maxLevel: null },
+          { id: IDS.e3, creatureId: "kantar", weight: 25, conditions: { timeOfDay: ["day"], weather: [] }, minLevel: null, maxLevel: null },
         ],
       },
       {
@@ -97,7 +101,9 @@ export function sampleWorld(): WorldDocument {
         habitatId: null,
         conditionRules: { timeOfDay: [], weather: ["rain"] },
         active: true,
-        entries: [{ id: IDS.e4, creatureId: "riverkin", weight: 10, conditions: EMPTY_CONDITIONS }],
+        minLevel: 2,
+        maxLevel: 6,
+        entries: [{ id: IDS.e4, creatureId: "riverkin", weight: 10, conditions: EMPTY_CONDITIONS, minLevel: null, maxLevel: null }],
       },
     ],
   };

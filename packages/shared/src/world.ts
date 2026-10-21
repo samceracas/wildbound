@@ -10,6 +10,17 @@ import {
   WEATHER,
 } from "./constants.ts";
 import { AreaGeometrySchema, PointSchema, PolygonSchema } from "./geo.ts";
+import {
+  AttackSchema,
+  BaseStatsSchema,
+  BodyTraitSchema,
+  DEFAULT_GENE_POOL,
+  GenePoolSchema,
+  LEVEL_MAX,
+  LEVEL_MIN,
+  MAX_ATTACKS,
+} from "./battle.ts";
+import { CategoryOrTbdSchema, LicenseRequirementSchema } from "./research.ts";
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -89,6 +100,15 @@ export const CreatureDefinitionSchema = z.object({
   skills: z.array(CreatureSkillSchema).max(8).default([]),
   /** How spawns of this species wander on the radar. */
   movementStyle: z.enum(MOVEMENT_STYLES).default("forager"),
+  /** Which Field Registry license covers it. */
+  category: CategoryOrTbdSchema.default("TBD"),
+  /** Anatomy that resists or is vulnerable to attack approaches (1 or 2 once published). */
+  bodyTraits: z.array(BodyTraitSchema).max(2).default([]),
+  /** Stat shape summing to STAT_BUDGET; null = not authored yet. */
+  baseStats: BaseStatsSchema.nullable().default(null),
+  /** Placeholder attacks (v0.3.0), replaced by the 0.4.0 skill system. */
+  attacks: z.array(AttackSchema).max(MAX_ATTACKS).default([]),
+  genePool: GenePoolSchema.default(DEFAULT_GENE_POOL),
 });
 export type CreatureDefinition = z.infer<typeof CreatureDefinitionSchema>;
 
@@ -114,6 +134,8 @@ export const HabitatSchema = z.object({
   geometry: PolygonSchema,
   habitatTags: TagListSchema,
   conditionRules: ConditionRulesSchema,
+  /** Battle and capture need this license rank (observing is always allowed). null = open to everyone. */
+  licenseRequirement: LicenseRequirementSchema.default(null),
 });
 export type Habitat = z.infer<typeof HabitatSchema>;
 
@@ -130,11 +152,18 @@ export const PointOfInterestSchema = z.object({
 });
 export type PointOfInterest = z.infer<typeof PointOfInterestSchema>;
 
+const WildLevelSchema = z.number().int().min(LEVEL_MIN).max(LEVEL_MAX);
+/** Default level range for new encounter tables (and older drafts without one). */
+export const DEFAULT_WILD_LEVELS = { minLevel: 1, maxLevel: 10 } as const;
+
 export const EncounterEntrySchema = z.object({
   id: IdSchema,
   creatureId: SlugSchema,
   weight: z.number().int().min(ENCOUNTER_WEIGHT_MIN).max(ENCOUNTER_WEIGHT_MAX),
   conditions: ConditionRulesSchema,
+  /** Level override for this entry: both set, or both null (= the table's range). */
+  minLevel: WildLevelSchema.nullable().default(null),
+  maxLevel: WildLevelSchema.nullable().default(null),
 });
 export type EncounterEntry = z.infer<typeof EncounterEntrySchema>;
 
@@ -146,17 +175,45 @@ export const EncounterTableSchema = z.object({
   habitatId: IdSchema.nullable(),
   conditionRules: ConditionRulesSchema,
   active: z.boolean(),
+  /** Wild level range for the table's entries (entries may override it). */
+  minLevel: WildLevelSchema.default(DEFAULT_WILD_LEVELS.minLevel),
+  maxLevel: WildLevelSchema.default(DEFAULT_WILD_LEVELS.maxLevel),
   entries: z.array(EncounterEntrySchema).max(64),
 });
 export type EncounterTable = z.infer<typeof EncounterTableSchema>;
 
+/**
+ * Level range problems that make a world invalid (they block saving). Each
+ * message names the table; `code` is "invalid-level-range".
+ */
+export function levelRangeProblems(t: Pick<EncounterTable, "name" | "minLevel" | "maxLevel" | "entries">): string[] {
+  const problems: string[] = [];
+  if (t.minLevel > t.maxLevel) problems.push(`Encounter table "${t.name}": the lowest wild level is above the highest`);
+  t.entries.forEach((e, i) => {
+    if ((e.minLevel === null) !== (e.maxLevel === null)) {
+      problems.push(`Encounter table "${t.name}", entry ${i + 1}: set both override levels or neither`);
+    } else if (e.minLevel !== null && e.maxLevel !== null && e.minLevel > e.maxLevel) {
+      problems.push(`Encounter table "${t.name}", entry ${i + 1}: the lowest override level is above the highest`);
+    }
+  });
+  return problems;
+}
+
 /** The complete authorable world. Draft and published stages share this exact shape. */
-export const WorldDocumentSchema = z.object({
-  regions: z.array(WorldRegionSchema).max(200),
-  habitats: z.array(HabitatSchema).max(2000),
-  pois: z.array(PointOfInterestSchema).max(5000),
-  encounterTables: z.array(EncounterTableSchema).max(2000),
-});
+export const WorldDocumentSchema = z
+  .object({
+    regions: z.array(WorldRegionSchema).max(200),
+    habitats: z.array(HabitatSchema).max(2000),
+    pois: z.array(PointOfInterestSchema).max(5000),
+    encounterTables: z.array(EncounterTableSchema).max(2000),
+  })
+  .superRefine((doc, ctx) => {
+    doc.encounterTables.forEach((t, i) => {
+      for (const message of levelRangeProblems(t)) {
+        ctx.addIssue({ code: "custom", message, path: ["encounterTables", i], params: { code: "invalid-level-range" } });
+      }
+    });
+  });
 export type WorldDocument = z.infer<typeof WorldDocumentSchema>;
 
 export const EMPTY_WORLD: WorldDocument = { regions: [], habitats: [], pois: [], encounterTables: [] };

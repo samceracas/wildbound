@@ -54,6 +54,8 @@ export const SUGGESTED_HABITAT_TAGS = [
   "freshwater",
   "creek",
   "riparian",
+  "mature-woodland",
+  "deep-pool",
 ] as const;
 
 /** Default and maximum radius (meters) for nearby POI lookups. */

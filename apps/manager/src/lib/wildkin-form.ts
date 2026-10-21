@@ -1,4 +1,5 @@
 import {
+  DEFAULT_GENE_POOL,
   SLUG_PATTERN,
   WildkinEntryInputSchema,
   type SpawnModifiers,
@@ -71,7 +72,9 @@ export function assistContext(values: Partial<WildkinEntryData>): Partial<Wildki
       const m = value as SpawnModifiers;
       if (Object.keys(m.weather ?? {}).length === 0 && Object.keys(m.timeOfDay ?? {}).length === 0) continue;
     }
-    if (key === "activityPattern" || key === "rarity") if (value === "TBD") continue;
+    if (key === "activityPattern" || key === "rarity" || key === "category") if (value === "TBD") continue;
+    // An untouched gene pool is the default; sending it would only nudge the assistant to copy it.
+    if (key === "genePool" && JSON.stringify(value) === JSON.stringify(DEFAULT_GENE_POOL)) continue;
     const parsed = shape[key].safeParse(value);
     if (parsed.success) out[key] = parsed.data;
   }

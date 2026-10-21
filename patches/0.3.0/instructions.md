@@ -34,6 +34,13 @@ These gaps were not settled in the design session. Each has a recommended defaul
 4. **Scanner depth.** *Recommended:* how much the player sees about a captured individual (stat grades, vigor, genotype) depends on their license rank in its category (see [Scanner depth](#scanner-depth)). It is view filtering only and gives license ranks a visible meaning in 0.3.0.
 5. **Weather-based assessment requirements vs. exercise #1.** Exercise #1 (`weatherFromWmoCode`) is still unimplemented, so live weather is always `clear` and "observe in 3 different weather conditions" is impossible. *Recommended:* add an env flag `ASSESSMENT_RELAX_WEATHER` (default `true` while exercise #1 is open) that clamps weather requirements to 1. Document it in the exercise.
 
+## Answers (confirmed by the project owner, 2026-10-21)
+1. **Starter Wildkin: confirmed as recommended.** Kawi, Mimu or Kantar at level 5 on `/play/starter`; the ranger lore goes into the First Field Survey appendix.
+2. **License cap: CHANGED. A Wildkin at its license cap stops gaining EXP; anything beyond the cap is lost.** EXP is clamped to `totalExpForLevel(cap)`: a gain that would cross the cap raises the Wildkin to the cap and the rest is discarded (the logged `amount` is what was actually gained). A Wildkin already at the cap gains nothing and no event is logged. After a license rank-up it simply starts gaining EXP again from where it stopped (there is no banked EXP to level from). Only Wildkin *captured* above the cap are restless; they still "receive EXP normally", up to the top of their own license band (a restless level 25 Wildkin can grow to 40, the rank 2 cap; `expCapFor` in `packages/world/src/levels.ts`). Everywhere this brief says "held at the cap" or "banked EXP", read it this way.
+3. **Matchups per body trait: confirmed.**
+4. **Scanner depth by license rank: confirmed.**
+5. **`ASSESSMENT_RELAX_WEATHER` flag (default `true`): confirmed.**
+
 # Design decisions (summary)
 Short list of everything decided. The sections after this one give the full detail.
 

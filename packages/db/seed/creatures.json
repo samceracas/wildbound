@@ -4,94 +4,433 @@
     "registryNumber": 1,
     "name": "Kawi",
     "description": "A curious, compact canopy bird with dark-edged wings, a rust-colored breast and long expressive tail feathers that flick when it is curious. Often heard before it is seen.",
-    "habitatAffinity": ["canopy", "woodland-edge", "forest-edge"],
+    "habitatAffinity": [
+      "canopy",
+      "woodland-edge",
+      "forest-edge"
+    ],
     "habitatSummary": "Forest canopy and bright woodland edges.",
     "rarity": "common",
     "activityPattern": "diurnal",
     "movementStyle": "darter",
     "spawnModifiers": {
-      "timeOfDay": { "dawn": 1.3, "day": 1.5, "dusk": 1, "night": 0.1 },
-      "weather": { "clear": 1.2, "cloudy": 1, "rain": 0.5, "storm": 0, "fog": 0.7 }
+      "timeOfDay": {
+        "dawn": 1.3,
+        "day": 1.5,
+        "dusk": 1,
+        "night": 0.1
+      },
+      "weather": {
+        "clear": 1.2,
+        "cloudy": 1,
+        "rain": 0.5,
+        "storm": 0,
+        "fog": 0.7
+      }
     },
     "skills": [
-      { "name": "Branch Hop", "description": "Darts to a new perch, briefly raising its Speed.", "canon": "proposed" },
-      { "name": "Curious Tilt", "description": "Studies the opponent, revealing its next move.", "canon": "proposed" }
-    ]
+      {
+        "name": "Branch Hop",
+        "description": "Darts to a new perch, briefly raising its Speed.",
+        "canon": "proposed"
+      },
+      {
+        "name": "Curious Tilt",
+        "description": "Studies the opponent, revealing its next move.",
+        "canon": "proposed"
+      }
+    ],
+    "category": "aerial",
+    "bodyTraits": [
+      "feathered"
+    ],
+    "baseStats": {
+      "hp": 65,
+      "atk": 75,
+      "def": 50,
+      "spd": 110
+    },
+    "attacks": [
+      {
+        "name": "Peck",
+        "approach": "pierce",
+        "power": 40,
+        "description": "A quick, precise jab of the short hooked beak.",
+        "canon": "proposed"
+      },
+      {
+        "name": "Wing Buffet",
+        "approach": "strike",
+        "power": 35,
+        "description": "Beats its dark-edged wings into the opponent's face.",
+        "canon": "proposed"
+      }
+    ],
+    "genePool": {
+      "build": {
+        "pAllele": 0.4,
+        "byHabitatTag": []
+      },
+      "temperament": {
+        "pAllele": 0.4,
+        "byHabitatTag": []
+      },
+      "marking": {
+        "name": "Pale-tailed",
+        "description": "Pale tips on the long tail feathers.",
+        "frequency": 0.05
+      }
+    }
   },
   {
     "id": "mimu",
     "registryNumber": 2,
     "name": "Mimu",
     "description": "A cautious, elongated forest mouse whose muted green-brown coloration blends into leaf litter and moss. It pauses often, listening before crossing open patches.",
-    "habitatAffinity": ["forest-floor", "leaf-litter", "moss"],
+    "habitatAffinity": [
+      "forest-floor",
+      "leaf-litter",
+      "moss"
+    ],
     "habitatSummary": "Leaf litter, moss, roots and sheltered undergrowth.",
     "rarity": "common",
     "activityPattern": "crepuscular",
     "movementStyle": "skulker",
     "spawnModifiers": {
-      "timeOfDay": { "dawn": 2, "day": 0.5, "dusk": 2, "night": 1 },
-      "weather": { "clear": 1, "cloudy": 1.2, "rain": 0.8, "storm": 0.2, "fog": 1.3 }
+      "timeOfDay": {
+        "dawn": 2,
+        "day": 0.5,
+        "dusk": 2,
+        "night": 1
+      },
+      "weather": {
+        "clear": 1,
+        "cloudy": 1.2,
+        "rain": 0.8,
+        "storm": 0.2,
+        "fog": 1.3
+      }
     },
     "skills": [
-      { "name": "Leaf Litter Hide", "description": "Vanishes into cover, raising its Defense.", "canon": "proposed" },
-      { "name": "Seed Cache", "description": "Eats a stored seed to restore a little HP.", "canon": "proposed" }
-    ]
+      {
+        "name": "Leaf Litter Hide",
+        "description": "Vanishes into cover, raising its Defense.",
+        "canon": "proposed"
+      },
+      {
+        "name": "Seed Cache",
+        "description": "Eats a stored seed to restore a little HP.",
+        "canon": "proposed"
+      }
+    ],
+    "category": "terrestrial",
+    "bodyTraits": [
+      "soft-bodied"
+    ],
+    "baseStats": {
+      "hp": 70,
+      "atk": 50,
+      "def": 80,
+      "spd": 100
+    },
+    "attacks": [
+      {
+        "name": "Nibble",
+        "approach": "pierce",
+        "power": 35,
+        "description": "A quick nip with small, sharp teeth.",
+        "canon": "proposed"
+      },
+      {
+        "name": "Scurry Strike",
+        "approach": "strike",
+        "power": 40,
+        "description": "Darts out from cover and bumps into the opponent before slipping back.",
+        "canon": "proposed"
+      }
+    ],
+    "genePool": {
+      "build": {
+        "pAllele": 0.3,
+        "byHabitatTag": []
+      },
+      "temperament": {
+        "pAllele": 0.7,
+        "byHabitatTag": []
+      },
+      "marking": {
+        "name": "Moss-backed",
+        "description": "A greener stripe along the back.",
+        "frequency": 0.05
+      }
+    }
   },
   {
     "id": "lumae",
     "registryNumber": 3,
     "name": "Lumae",
     "description": "A small four-legged Wildkin with a leaf-like body and a flower-like growth along its back that opens and closes as it moves. Its presence is a sign of a healthy clearing.",
-    "habitatAffinity": ["clearing", "flowering", "sunny"],
+    "habitatAffinity": [
+      "clearing",
+      "flowering",
+      "sunny"
+    ],
     "habitatSummary": "Sunny clearings with healthy flowering plants.",
     "rarity": "TBD",
     "activityPattern": "diurnal",
     "movementStyle": "forager",
     "spawnModifiers": {
-      "timeOfDay": { "dawn": 0.8, "day": 1.6, "dusk": 0.6, "night": 0 },
-      "weather": { "clear": 1.5, "cloudy": 0.8, "rain": 0.3, "storm": 0, "fog": 0.5 }
+      "timeOfDay": {
+        "dawn": 0.8,
+        "day": 1.6,
+        "dusk": 0.6,
+        "night": 0
+      },
+      "weather": {
+        "clear": 1.5,
+        "cloudy": 0.8,
+        "rain": 0.3,
+        "storm": 0,
+        "fog": 0.5
+      }
     },
     "skills": [
-      { "name": "Bloom", "description": "Opens its dorsal flower, healing itself over time.", "canon": "proposed" },
-      { "name": "Petal Veil", "description": "Shields itself with a ring of petals.", "canon": "proposed" }
-    ]
+      {
+        "name": "Bloom",
+        "description": "Opens its dorsal flower, healing itself over time.",
+        "canon": "proposed"
+      },
+      {
+        "name": "Petal Veil",
+        "description": "Shields itself with a ring of petals.",
+        "canon": "proposed"
+      }
+    ],
+    "category": "verdant",
+    "bodyTraits": [
+      "leafy"
+    ],
+    "baseStats": {
+      "hp": 100,
+      "atk": 50,
+      "def": 80,
+      "spd": 70
+    },
+    "attacks": [
+      {
+        "name": "Spore Puff",
+        "approach": "spore",
+        "power": 40,
+        "description": "Its dorsal flower releases a puff of fine spores.",
+        "canon": "proposed"
+      },
+      {
+        "name": "Leaf Shove",
+        "approach": "strike",
+        "power": 35,
+        "description": "Pushes with its sturdy, leaf-like body.",
+        "canon": "proposed"
+      }
+    ],
+    "genePool": {
+      "build": {
+        "pAllele": 0.5,
+        "byHabitatTag": [
+          {
+            "tag": "sunny",
+            "pAllele": 0.6
+          }
+        ]
+      },
+      "temperament": {
+        "pAllele": 0.5,
+        "byHabitatTag": []
+      },
+      "marking": {
+        "name": "Twin-bloom",
+        "description": "Two dorsal flowers instead of one.",
+        "frequency": 0.05
+      }
+    }
   },
   {
     "id": "kantar",
     "registryNumber": 4,
     "name": "Kantar",
     "description": "A segmented, many-legged Wildkin with dark armored plates and pale markings along its sides. It hides beneath stones by day and slips away when surprised.",
-    "habitatAffinity": ["rocky", "fallen-branches", "sheltered"],
+    "habitatAffinity": [
+      "rocky",
+      "fallen-branches",
+      "sheltered"
+    ],
     "habitatSummary": "Under rocks, fallen branches and damp forest floor.",
     "rarity": "common",
     "activityPattern": "sheltering_by_day",
     "movementStyle": "skulker",
     "spawnModifiers": {
-      "timeOfDay": { "dawn": 0.8, "day": 0.3, "dusk": 1.5, "night": 2 },
-      "weather": { "clear": 0.8, "cloudy": 1, "rain": 1.4, "storm": 0.6, "fog": 1.2 }
+      "timeOfDay": {
+        "dawn": 0.8,
+        "day": 0.3,
+        "dusk": 1.5,
+        "night": 2
+      },
+      "weather": {
+        "clear": 0.8,
+        "cloudy": 1,
+        "rain": 1.4,
+        "storm": 0.6,
+        "fog": 1.2
+      }
     },
     "skills": [
-      { "name": "Plate Curl", "description": "Curls its armored segments, sharply raising Defense.", "canon": "proposed" },
-      { "name": "Quick Retreat", "description": "Slips under cover and re-emerges with a counter.", "canon": "proposed" }
-    ]
+      {
+        "name": "Plate Curl",
+        "description": "Curls its armored segments, sharply raising Defense.",
+        "canon": "proposed"
+      },
+      {
+        "name": "Quick Retreat",
+        "description": "Slips under cover and re-emerges with a counter.",
+        "canon": "proposed"
+      }
+    ],
+    "category": "terrestrial",
+    "bodyTraits": [
+      "plated"
+    ],
+    "baseStats": {
+      "hp": 70,
+      "atk": 90,
+      "def": 95,
+      "spd": 45
+    },
+    "attacks": [
+      {
+        "name": "Venom Nip",
+        "approach": "toxin",
+        "power": 40,
+        "description": "A defensive nip carrying a mild biological toxin. No real-world hazard is implied.",
+        "canon": "proposed"
+      },
+      {
+        "name": "Plate Slam",
+        "approach": "crush",
+        "power": 40,
+        "description": "Throws the weight of its armored segments against the opponent.",
+        "canon": "proposed"
+      }
+    ],
+    "genePool": {
+      "build": {
+        "pAllele": 0.5,
+        "byHabitatTag": [
+          {
+            "tag": "mature-woodland",
+            "pAllele": 0.75
+          },
+          {
+            "tag": "forest-floor",
+            "pAllele": 0.6
+          }
+        ]
+      },
+      "temperament": {
+        "pAllele": 0.6,
+        "byHabitatTag": []
+      },
+      "marking": {
+        "name": "Banded",
+        "description": "The pale side markings join into full bands.",
+        "frequency": 0.05
+      }
+    }
   },
   {
     "id": "riverkin",
     "registryNumber": 5,
     "name": "Riverkin",
     "description": "A compact freshwater Wildkin with a thick body, short legs, a subtly shimmering surface and a powerful swimming tail. Its survival depends on continuous freshwater habitat.",
-    "habitatAffinity": ["freshwater", "creek", "riparian"],
+    "habitatAffinity": [
+      "freshwater",
+      "creek",
+      "riparian"
+    ],
     "habitatSummary": "Flowing water, shaded banks and deeper pools.",
     "rarity": "TBD",
     "activityPattern": "crepuscular",
     "movementStyle": "roamer",
     "spawnModifiers": {
-      "timeOfDay": { "dawn": 1.8, "day": 0.8, "dusk": 1.8, "night": 0.6 },
-      "weather": { "clear": 0.9, "cloudy": 1.1, "rain": 1.5, "storm": 1.2, "fog": 1.2 }
+      "timeOfDay": {
+        "dawn": 1.8,
+        "day": 0.8,
+        "dusk": 1.8,
+        "night": 0.6
+      },
+      "weather": {
+        "clear": 0.9,
+        "cloudy": 1.1,
+        "rain": 1.5,
+        "storm": 1.2,
+        "fog": 1.2
+      }
     },
     "skills": [
-      { "name": "Tail Surge", "description": "A powerful tail-driven lunge.", "canon": "proposed" },
-      { "name": "Cool Shade", "description": "Rests in shade, cleansing one ailment.", "canon": "proposed" }
-    ]
+      {
+        "name": "Tail Surge",
+        "description": "A powerful tail-driven lunge.",
+        "canon": "proposed"
+      },
+      {
+        "name": "Cool Shade",
+        "description": "Rests in shade, cleansing one ailment.",
+        "canon": "proposed"
+      }
+    ],
+    "category": "aquatic",
+    "bodyTraits": [
+      "slick"
+    ],
+    "baseStats": {
+      "hp": 85,
+      "atk": 80,
+      "def": 60,
+      "spd": 75
+    },
+    "attacks": [
+      {
+        "name": "Splash Surge",
+        "approach": "surge",
+        "power": 40,
+        "description": "A tail-driven rush of water.",
+        "canon": "proposed"
+      },
+      {
+        "name": "Tail Slap",
+        "approach": "crush",
+        "power": 35,
+        "description": "A heavy blow with its powerful swimming tail.",
+        "canon": "proposed"
+      }
+    ],
+    "genePool": {
+      "build": {
+        "pAllele": 0.5,
+        "byHabitatTag": [
+          {
+            "tag": "deep-pool",
+            "pAllele": 0.65
+          }
+        ]
+      },
+      "temperament": {
+        "pAllele": 0.4,
+        "byHabitatTag": []
+      },
+      "marking": {
+        "name": "Deep-shimmer",
+        "description": "A darker, blue-green shimmer.",
+        "frequency": 0.05
+      }
+    }
   }
 ]

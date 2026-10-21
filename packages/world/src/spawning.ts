@@ -1,6 +1,6 @@
 import type { AvailableWildkin, SpawnModifiers } from "@wildbound/shared";
 import type { Environment } from "./conditions.ts";
-import { rollEncounter } from "./encounters.ts";
+import { rollEncounter, rollLevel } from "./encounters.ts";
 import type { LatLng } from "./movement.ts";
 
 export interface SpawnCandidate {
@@ -52,12 +52,14 @@ export function randomPointNear(center: LatLng, radiusM: number, random: () => n
 
 export interface PlannedSpawn extends LatLng {
   creatureId: string;
+  /** Rolled from the creature's level bands (one band by weight, then uniform in it). */
+  level: number;
 }
 
 /**
  * Decides which new Wildkin to place around a player: tops the player up to
- * `maxActive` spawns, picking species by modified weight and placing each at a
- * random point within `radiusM`. Pure: persistence happens in the API.
+ * `maxActive` spawns, picking species by modified weight, rolling a level from
+ * its level bands, and placing each at a random point within `radiusM`. Pure: persistence happens in the API.
  */
 export function planSpawns(args: {
   center: LatLng;
@@ -75,11 +77,13 @@ export function planSpawns(args: {
     args.modifiers,
     args.env,
   );
+  const bands = new Map(args.available.map((w) => [w.creatureId, w.levelBands]));
   const planned: PlannedSpawn[] = [];
   for (let i = 0; i < slots; i++) {
     const creatureId = rollEncounter(pool, args.random);
     if (!creatureId) break;
-    planned.push({ creatureId, ...randomPointNear(args.center, args.radiusM, args.random) });
+    const level = rollLevel(bands.get(creatureId) ?? [], args.random);
+    planned.push({ creatureId, level, ...randomPointNear(args.center, args.radiusM, args.random) });
   }
   return planned;
 }

@@ -1,6 +1,8 @@
 import {
+  PUBLISH_BATTLE_CHECKS,
   PUBLISH_REQUIRED_FIELDS,
   WildkinEntryInputSchema,
+  isBattleReady,
   type ArtKind,
   type CreatureDefinition,
   type ValidationIssue,
@@ -12,8 +14,8 @@ import {
   type WildkinUsage,
 } from "@wildbound/shared";
 import type { Database } from "./client.ts";
-import type { WildkinArt, WildkinEntry as WildkinEntryRow } from "./generated/prisma/client.ts";
-import type { Executor } from "./world-repo.ts";
+import type { Prisma, WildkinArt, WildkinEntry as WildkinEntryRow } from "./generated/prisma/client.ts";
+import { creatureColumns, type Executor } from "./world-repo.ts";
 
 /**
  * Wildkin encyclopedia (Creature Manager). An entry is the Bible record for a
@@ -98,18 +100,32 @@ export function creatureFromEntry(data: WildkinEntryData): CreatureDefinition {
     spawnModifiers: data.spawnModifiers,
     skills: data.skills,
     movementStyle: data.movementStyle,
+    category: data.category,
+    bodyTraits: data.bodyTraits,
+    baseStats: data.baseStats,
+    attacks: data.attacks,
+    genePool: data.genePool,
   };
 }
 
-/** Fields that must be filled before an entry can reach the game. */
+/** Fields that must be filled before an entry can reach the game (text fields, then battle fields). */
 export function publishIssues(data: WildkinEntryData): ValidationIssue[] {
-  return PUBLISH_REQUIRED_FIELDS.filter((f) => String(data[f] ?? "").trim() === "").map((f) => ({
-    severity: "error" as const,
-    code: "required",
-    entityType: "wildkin" as const,
+  const issue = (code: string, message: string): ValidationIssue => ({
+    severity: "error",
+    code,
+    entityType: "wildkin",
     entityId: data.id,
-    message: `${f} is required before publishing`,
-  }));
+    message,
+  });
+  return [
+    ...PUBLISH_REQUIRED_FIELDS.filter((f) => String(data[f] ?? "").trim() === "").map((f) =>
+      issue("required", `${f} is required before publishing`),
+    ),
+    ...PUBLISH_BATTLE_CHECKS.flatMap((c) => {
+      const problem = c.problem(data);
+      return problem ? [issue(`battle-${c.field}`, problem)] : [];
+    }),
+  ];
 }
 
 async function loadRow(db: Executor, id: string): Promise<RowWithArt> {
@@ -195,7 +211,8 @@ export async function publishWildkin(db: Database, id: string, now = new Date())
     await assertRegistryNumberFree(tx, id, current.registryNumber);
 
     const { id: _id, ...fields } = creatureFromEntry(current);
-    await tx.creature.upsert({ where: { id }, create: { id, ...fields }, update: { ...fields, deletedAt: null } });
+    const data = creatureColumns(fields);
+    await tx.creature.upsert({ where: { id }, create: { id, ...data }, update: { ...data, deletedAt: null } });
     const row = await tx.wildkinEntry.update({
       where: { id },
       // updatedAt = publishedAt so the entry reads as "no unpublished changes".
@@ -294,6 +311,7 @@ export async function wildkinStats(db: Executor): Promise<WildkinStats> {
     unpublishedChanges: live.filter((e) => e.hasUnpublishedChanges).length,
     deleted: all.length - live.length,
     withArt: live.filter((e) => e.art.icon).length,
+    battleReady: live.filter((e) => e.status === "published" && isBattleReady(e)).length,
     byRarity,
     nextRegistryNumber: next,
   };
@@ -333,6 +351,32 @@ export async function wildkinArtPrompt(db: Executor, entryId: string, kind: ArtK
 }
 
 // ------------------------------------------------------------------ seeding
+
+/** Battle and genetics fields added in v0.3.0 (filled into older entries by the seed). */
+const BATTLE_FIELDS = ["category", "bodyTraits", "baseStats", "attacks", "genePool"] as const;
+
+/**
+ * Fills the v0.3.0 battle fields into existing entries that never had them
+ * (entries created before v0.3.0), from the seed data. A field counts as
+ * missing when it is absent or still at its schema default (TBD, empty, null,
+ * the default gene pool); anything an author set is kept. Does not touch
+ * updatedAt, so the entry does not show as edited. Returns how many entries changed.
+ */
+export async function backfillBattleFields(db: Executor, list: WildkinEntryData[]): Promise<number> {
+  let changed = 0;
+  for (const data of list) {
+    const row = await db.wildkinEntry.findUnique({ where: { id: data.id }, select: { content: true } });
+    if (!row) continue;
+    const content = (row.content ?? {}) as Record<string, unknown>;
+    const defaults = WildkinEntryInputSchema.parse({ id: data.id, registryNumber: data.registryNumber, name: data.name });
+    const missing = BATTLE_FIELDS.filter((f) => !(f in content) || JSON.stringify(content[f]) === JSON.stringify(defaults[f]));
+    if (missing.length === 0) continue;
+    const next = { ...content, ...Object.fromEntries(missing.map((f) => [f, data[f]])) };
+    await db.wildkinEntry.update({ where: { id: data.id }, data: { content: next as Prisma.InputJsonObject } });
+    changed++;
+  }
+  return changed;
+}
 
 /**
  * Inserts encyclopedia entries that do not exist yet (never overwrites authored

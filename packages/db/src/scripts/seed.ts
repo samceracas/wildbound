@@ -4,7 +4,8 @@ import type { ValidationIssue } from "@wildbound/shared";
 import { createDb } from "../client.ts";
 import { requireEnv } from "../env.ts";
 import { seedArtFile, seedCreatures, seedMabunyiWorld, seedWildkinBible } from "../seed-data.ts";
-import { loadWildkinArt, saveWildkinArt, seedWildkinEntries } from "../wildkin-repo.ts";
+import { backfillBattleFields, loadWildkinArt, saveWildkinArt, seedWildkinEntries } from "../wildkin-repo.ts";
+import { clampCapturedHp } from "../player-repo.ts";
 import { ART_KINDS } from "@wildbound/shared";
 import { loadWorld, publishDraft, saveDraft, upsertCreatures } from "../world-repo.ts";
 import { runScript, ScriptError } from "./cli.ts";
@@ -30,8 +31,13 @@ await runScript("Seed", url, async () => {
     const creatures = seedCreatures();
     await upsertCreatures(handle.db, creatures);
     console.log(`Seeded ${creatures.length} Wildkin: ${creatures.map((c) => c.name).join(", ")}`);
+    const clamped = await clampCapturedHp(handle.db);
+    if (clamped) console.log(`Adjusted the HP of ${clamped} captured Wildkin to their species' maximum`);
 
-    const added = await seedWildkinEntries(handle.db, seedWildkinBible());
+    const bible = seedWildkinBible();
+    const added = await seedWildkinEntries(handle.db, bible);
+    const backfilled = await backfillBattleFields(handle.db, bible);
+    if (backfilled) console.log(`Filled in battle fields (v0.3.0) for ${backfilled} existing encyclopedia entries`);
     let imported = 0;
     for (const c of creatures) {
       for (const kind of ART_KINDS) {

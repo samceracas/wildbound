@@ -94,7 +94,8 @@
       "conditionRules": {
         "timeOfDay": [],
         "weather": []
-      }
+      },
+      "licenseRequirement": null
     },
     {
       "id": "20000000-0000-4000-8000-000000000002",
@@ -137,7 +138,8 @@
       "conditionRules": {
         "timeOfDay": [],
         "weather": []
-      }
+      },
+      "licenseRequirement": null
     },
     {
       "id": "20000000-0000-4000-8000-000000000003",
@@ -181,7 +183,8 @@
       "conditionRules": {
         "timeOfDay": [],
         "weather": []
-      }
+      },
+      "licenseRequirement": null
     }
   ],
   "pois": [
@@ -316,6 +319,8 @@
         "weather": []
       },
       "active": true,
+      "minLevel": 2,
+      "maxLevel": 6,
       "entries": [
         {
           "id": "50000000-0000-4000-8000-000000000001",
@@ -324,7 +329,9 @@
           "conditions": {
             "timeOfDay": [],
             "weather": []
-          }
+          },
+          "minLevel": null,
+          "maxLevel": null
         },
         {
           "id": "50000000-0000-4000-8000-000000000002",
@@ -333,7 +340,9 @@
           "conditions": {
             "timeOfDay": [],
             "weather": []
-          }
+          },
+          "minLevel": null,
+          "maxLevel": null
         },
         {
           "id": "50000000-0000-4000-8000-000000000003",
@@ -342,7 +351,9 @@
           "conditions": {
             "timeOfDay": [],
             "weather": []
-          }
+          },
+          "minLevel": null,
+          "maxLevel": null
         }
       ]
     },
@@ -356,6 +367,8 @@
         "weather": []
       },
       "active": true,
+      "minLevel": 3,
+      "maxLevel": 8,
       "entries": [
         {
           "id": "50000000-0000-4000-8000-000000000004",
@@ -367,7 +380,9 @@
               "day"
             ],
             "weather": []
-          }
+          },
+          "minLevel": null,
+          "maxLevel": null
         },
         {
           "id": "50000000-0000-4000-8000-000000000005",
@@ -376,7 +391,9 @@
           "conditions": {
             "timeOfDay": [],
             "weather": []
-          }
+          },
+          "minLevel": null,
+          "maxLevel": null
         },
         {
           "id": "50000000-0000-4000-8000-000000000006",
@@ -385,7 +402,9 @@
           "conditions": {
             "timeOfDay": [],
             "weather": []
-          }
+          },
+          "minLevel": null,
+          "maxLevel": null
         }
       ]
     },
@@ -399,6 +418,8 @@
         "weather": []
       },
       "active": true,
+      "minLevel": 4,
+      "maxLevel": 10,
       "entries": [
         {
           "id": "50000000-0000-4000-8000-000000000007",
@@ -407,7 +428,9 @@
           "conditions": {
             "timeOfDay": [],
             "weather": []
-          }
+          },
+          "minLevel": 5,
+          "maxLevel": 12
         },
         {
           "id": "50000000-0000-4000-8000-000000000008",
@@ -416,7 +439,9 @@
           "conditions": {
             "timeOfDay": [],
             "weather": []
-          }
+          },
+          "minLevel": null,
+          "maxLevel": null
         },
         {
           "id": "50000000-0000-4000-8000-000000000009",
@@ -428,7 +453,9 @@
               "rain",
               "cloudy"
             ]
-          }
+          },
+          "minLevel": null,
+          "maxLevel": null
         }
       ]
     }

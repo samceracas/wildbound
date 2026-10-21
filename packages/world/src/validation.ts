@@ -1,11 +1,14 @@
 import type { ValidationIssue, ValidationReport, WorldDocument } from "@wildbound/shared";
-import { WorldDocumentSchema } from "@wildbound/shared";
+import { RESEARCH_RULES, WorldDocumentSchema, levelRangeProblems, rankForLevel } from "@wildbound/shared";
+import { effectiveLevelRange } from "./encounters.ts";
 import { fractionOutside, isSimpleArea, overlapSquareMeters, pointInArea } from "./geometry.ts";
 
 /** More than this share of a habitat outside its region is "clearly outside" and blocks publishing. */
 export const HABITAT_OUTSIDE_ERROR_FRACTION = 0.5;
 /** Any share above this (but under the error threshold) produces a warning. */
 export const HABITAT_OUTSIDE_WARNING_FRACTION = 0.01;
+/** Every region needs a habitat whose wild Wildkin start at or below this level (players do not choose where they live). */
+export const ENTRY_HABITAT_MAX_LEVEL = 10;
 
 const err = (i: Omit<ValidationIssue, "severity">): ValidationIssue => ({ severity: "error", ...i });
 const warn = (i: Omit<ValidationIssue, "severity">): ValidationIssue => ({ severity: "warning", ...i });
@@ -20,9 +23,12 @@ export function schemaIssues(input: unknown): { doc: WorldDocument | null; issue
   if (parsed.success) return { doc: parsed.data, issues: [] };
   return {
     doc: null,
-    issues: parsed.error.issues.map((i) =>
-      err({ code: "schema", entityType: "world", message: `${i.path.join(".") || "(root)"}: ${i.message}` }),
-    ),
+    issues: parsed.error.issues.map((i) => {
+      const custom = i.code === "custom" ? (i.params as { code?: string } | undefined)?.code : undefined;
+      return custom
+        ? err({ code: custom, entityType: "encounterTable", message: i.message })
+        : err({ code: "schema", entityType: "world", message: `${i.path.join(".") || "(root)"}: ${i.message}` });
+    }),
   };
 }
 
@@ -99,6 +105,9 @@ export function checkIntegrity(doc: WorldDocument, creatureIds: ReadonlySet<stri
         issues.push(err({ code: "habitat-region-mismatch", entityType: "encounterTable", entityId: t.id, message: `Encounter table "${t.name}" habitat belongs to a different region` }));
       }
     }
+    for (const message of levelRangeProblems(t)) {
+      issues.push(err({ code: "invalid-level-range", entityType: "encounterTable", entityId: t.id, message }));
+    }
     const seenEntryIds = new Set<string>();
     for (const e of t.entries) {
       if (!creatureIds.has(e.creatureId)) {
@@ -172,6 +181,26 @@ export function validateWorld(doc: WorldDocument, creatureIds: ReadonlySet<strin
     const creatures = t.entries.map((e) => e.creatureId);
     if (new Set(creatures).size !== creatures.length) {
       issues.push(warn({ code: "duplicate-creature-entry", entityType: "encounterTable", entityId: t.id, message: `Encounter table "${t.name}" lists the same Wildkin more than once` }));
+    }
+    // A range that crosses a license band (a multiple of 20) puts some spawns out of reach of a rank.
+    const ranges = [{ minLevel: t.minLevel, maxLevel: t.maxLevel }, ...t.entries.map((e) => effectiveLevelRange(t, e))];
+    const crossing = ranges.find((r) => r.minLevel <= r.maxLevel && rankForLevel(r.minLevel) !== rankForLevel(r.maxLevel));
+    if (crossing) {
+      issues.push(warn({ code: "level-range-crosses-band", entityType: "encounterTable", entityId: t.id, message: `Encounter table "${t.name}" has wild levels ${crossing.minLevel} to ${crossing.maxLevel}, which crosses a license band (every ${RESEARCH_RULES.levelsPerRank} levels)` }));
+    }
+  }
+
+  // Every region needs an easy entry habitat: difficulty should rise within a region, not between neighbourhoods.
+  for (const r of doc.regions) {
+    if (!r.active) continue;
+    const easy = doc.encounterTables.some(
+      (t) =>
+        t.active &&
+        t.regionId === r.id &&
+        t.entries.some((e) => effectiveLevelRange(t, e).minLevel <= ENTRY_HABITAT_MAX_LEVEL),
+    );
+    if (!easy) {
+      issues.push(warn({ code: "region-without-entry-habitat", entityType: "region", entityId: r.id, message: `Region "${r.name}" has no habitat where wild Wildkin start at level ${ENTRY_HABITAT_MAX_LEVEL} or below; new players there could not battle anything` }));
     }
   }
 

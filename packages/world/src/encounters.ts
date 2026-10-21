@@ -1,11 +1,23 @@
 import type {
   AvailableWildkin,
+  EncounterEntry,
   EncounterTable,
+  LevelBand,
   ResolvedEncounterTable,
 } from "@wildbound/shared";
 import { conditionsMatch, type Environment } from "./conditions.ts";
 
 export type EncounterScope = "habitat" | "region";
+
+/** An entry's wild level range: its own override when both bounds are set, else its table's. */
+export function effectiveLevelRange(
+  table: Pick<EncounterTable, "minLevel" | "maxLevel">,
+  entry: Pick<EncounterEntry, "minLevel" | "maxLevel">,
+): { minLevel: number; maxLevel: number } {
+  return entry.minLevel !== null && entry.maxLevel !== null
+    ? { minLevel: entry.minLevel, maxLevel: entry.maxLevel }
+    : { minLevel: table.minLevel, maxLevel: table.maxLevel };
+}
 
 /**
  * Evaluates one encounter table under an environment.
@@ -39,17 +51,19 @@ export function evaluateEncounterTable(
       conditions: entry.conditions,
       available,
       probability: available && totalAvailable > 0 ? entry.weight / totalAvailable : 0,
+      ...effectiveLevelRange(table, entry),
     })),
   };
 }
 
 /**
  * Merges every available entry across applicable tables into one weighted
- * Wildkin list. Weights for the same creature are summed. Sorted by weight
- * (desc) then id so the output is deterministic.
+ * Wildkin list. Weights for the same creature are summed, and every entry
+ * keeps its own level band. Sorted by weight (desc) then id so the output is
+ * deterministic.
  */
 export function combineAvailableWildkin(tables: readonly ResolvedEncounterTable[]): AvailableWildkin[] {
-  const byCreature = new Map<string, { name: string; weight: number }>();
+  const byCreature = new Map<string, { name: string; weight: number; levelBands: LevelBand[] }>();
   for (const table of tables) {
     if (!table.applicable) continue;
     for (const entry of table.entries) {
@@ -58,6 +72,7 @@ export function combineAvailableWildkin(tables: readonly ResolvedEncounterTable[
       byCreature.set(entry.creatureId, {
         name: entry.creatureName,
         weight: (current?.weight ?? 0) + entry.weight,
+        levelBands: [...(current?.levelBands ?? []), { minLevel: entry.minLevel, maxLevel: entry.maxLevel, weight: entry.weight }],
       });
     }
   }
@@ -68,6 +83,7 @@ export function combineAvailableWildkin(tables: readonly ResolvedEncounterTable[
       name: c.name,
       weight: c.weight,
       probability: total > 0 ? c.weight / total : 0,
+      levelBands: c.levelBands,
     }))
     .sort((a, b) => b.weight - a.weight || a.creatureId.localeCompare(b.creatureId));
 }
@@ -89,6 +105,25 @@ export function rollEncounter(
     if (threshold < 0) return c.creatureId;
   }
   return pool[pool.length - 1]!.creatureId;
+}
+
+/** Picks a level band by weight, then a level uniformly in it. Bands with weight 0 are skipped. */
+export function rollLevel(bands: readonly LevelBand[], random: () => number): number {
+  const pool = bands.filter((b) => b.weight > 0);
+  if (pool.length === 0) return 1;
+  const total = pool.reduce((s, b) => s + b.weight, 0);
+  let threshold = random() * total;
+  let band = pool[pool.length - 1]!;
+  for (const b of pool) {
+    threshold -= b.weight;
+    if (threshold < 0) {
+      band = b;
+      break;
+    }
+  }
+  const lo = Math.min(band.minLevel, band.maxLevel);
+  const hi = Math.max(band.minLevel, band.maxLevel);
+  return lo + Math.min(hi - lo, Math.floor(random() * (hi - lo + 1)));
 }
 
 /** Small deterministic PRNG (mulberry32) for reproducible encounter rolls in tests and previews. */

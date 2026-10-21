@@ -17,8 +17,8 @@ const creature = (id: string, spawnModifiers: CreatureDefinition["spawnModifiers
 
 const creatures = [creature("kawi", { weather: { rain: 0.5 }, timeOfDay: { night: 0.1 } }), creature("mimu", { weather: {}, timeOfDay: {} })];
 const available: AvailableWildkin[] = [
-  { creatureId: "kawi", name: "Kawi", weight: 60, probability: 0.6 },
-  { creatureId: "mimu", name: "Mimu", weight: 40, probability: 0.4 },
+  { creatureId: "kawi", name: "Kawi", weight: 60, probability: 0.6, levelBands: [{ minLevel: 2, maxLevel: 6, weight: 60 }] },
+  { creatureId: "mimu", name: "Mimu", weight: 40, probability: 0.4, levelBands: [{ minLevel: 2, maxLevel: 6, weight: 40 }] },
 ];
 
 describe("formatSpawnModifiers", () => {

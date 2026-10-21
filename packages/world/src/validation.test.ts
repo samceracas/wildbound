@@ -124,3 +124,49 @@ describe("schemaIssues", () => {
     expect(schemaIssues(sampleWorld()).doc).not.toBeNull();
   });
 });
+
+describe("wild level rules", () => {
+  const codes = (doc: ReturnType<typeof sampleWorld>) => validateWorld(doc, CREATURE_IDS).issues.map((i) => i.code);
+
+  it("rejects an inverted range or a half-set override (schema and integrity)", () => {
+    const doc = sampleWorld();
+    doc.encounterTables[0]!.minLevel = 9;
+    doc.encounterTables[0]!.maxLevel = 3;
+    doc.encounterTables[1]!.entries[0]!.minLevel = 5;
+    const report = validateWorld(doc, CREATURE_IDS);
+    expect(report.ok).toBe(false);
+    expect(report.issues.filter((i) => i.code === "invalid-level-range")).toHaveLength(2);
+    const schema = schemaIssues(doc);
+    expect(schema.doc).toBeNull();
+    expect(schema.issues.map((i) => i.code)).toEqual(["invalid-level-range", "invalid-level-range"]);
+  });
+
+  it("rejects levels outside 1 to 100 in the schema", () => {
+    const doc = sampleWorld();
+    doc.encounterTables[0]!.maxLevel = 101;
+    expect(schemaIssues(doc).issues[0]?.code).toBe("schema");
+  });
+
+  it("warns when a range crosses a license band", () => {
+    const doc = sampleWorld();
+    expect(codes(doc)).not.toContain("level-range-crosses-band");
+    doc.encounterTables[0]!.entries[0] = { ...doc.encounterTables[0]!.entries[0]!, minLevel: 18, maxLevel: 24 };
+    expect(codes(doc)).toContain("level-range-crosses-band");
+    const band = sampleWorld();
+    band.encounterTables[0]!.minLevel = 21;
+    band.encounterTables[0]!.maxLevel = 40;
+    expect(codes(band)).not.toContain("level-range-crosses-band");
+  });
+
+  it("warns when a region has no easy entry habitat", () => {
+    const doc = sampleWorld();
+    expect(codes(doc)).not.toContain("region-without-entry-habitat");
+    for (const t of doc.encounterTables) {
+      t.minLevel = 30;
+      t.maxLevel = 35;
+    }
+    expect(codes(doc)).toContain("region-without-entry-habitat");
+    doc.encounterTables[0]!.entries[0] = { ...doc.encounterTables[0]!.entries[0]!, minLevel: 3, maxLevel: 5 };
+    expect(codes(doc)).not.toContain("region-without-entry-habitat");
+  });
+});

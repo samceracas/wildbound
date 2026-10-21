@@ -107,6 +107,7 @@ export function assembleWorldContext(input: ContextInputs): WorldContext {
           habitatTags: habitat.habitatTags,
           conditionRules: habitat.conditionRules,
           conditionsMet: habitatOpen,
+          licenseRequirement: habitat.licenseRequirement ?? null,
         }
       : null,
     nearbyPois,

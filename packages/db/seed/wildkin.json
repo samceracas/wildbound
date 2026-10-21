@@ -39,7 +39,7 @@
     "movementStyle": "darter",
     "ecology": "Likely contributes to seed dispersal and insect control; this ecological explanation is PROPOSED.",
     "fieldSigns": "Chirps or rustling in the canopy; a quick silhouette crossing between branches; a small bird landing on a lower branch or fallen log. Best introduced through sound and movement before a clear portrait.",
-    "gameplayProfile": "Tutorial observation/capture species. Battle role, stats, passive, skills, and field ability are TBD; define these after shared gameplay systems stabilize.",
+    "gameplayProfile": "Tutorial observation/capture species. Stats, category and body traits PROPOSED (v1.2); passive, skills and field ability TBD (skill system in 0.4.0).",
     "assetNeeds": "Proposed: recognizable short call, idle head-tilt, tail-flick, hop, short-flight animation, portrait, battle sprite, and Registry icon.",
     "openQuestions": [
       "Exact call",
@@ -74,7 +74,48 @@
         "description": "Studies the opponent, revealing its next move.",
         "canon": "proposed"
       }
-    ]
+    ],
+    "category": "aerial",
+    "bodyTraits": [
+      "feathered"
+    ],
+    "baseStats": {
+      "hp": 65,
+      "atk": 75,
+      "def": 50,
+      "spd": 110
+    },
+    "attacks": [
+      {
+        "name": "Peck",
+        "approach": "pierce",
+        "power": 40,
+        "description": "A quick, precise jab of the short hooked beak.",
+        "canon": "proposed"
+      },
+      {
+        "name": "Wing Buffet",
+        "approach": "strike",
+        "power": 35,
+        "description": "Beats its dark-edged wings into the opponent's face.",
+        "canon": "proposed"
+      }
+    ],
+    "genePool": {
+      "build": {
+        "pAllele": 0.4,
+        "byHabitatTag": []
+      },
+      "temperament": {
+        "pAllele": 0.4,
+        "byHabitatTag": []
+      },
+      "marking": {
+        "name": "Pale-tailed",
+        "description": "Pale tips on the long tail feathers.",
+        "frequency": 0.05
+      }
+    }
   },
   {
     "id": "mimu",
@@ -115,7 +156,7 @@
     "movementStyle": "skulker",
     "ecology": "Likely acts as both seed/insect consumer and prey for larger forest species; PROPOSED.",
     "fieldSigns": "Leaf litter shifting, tiny tracks in soft soil, a berry or seed being carried, or a quick movement beside a root. Observation should reward patience.",
-    "gameplayProfile": "Battle role, stats, passive, skills, and field ability are TBD. Do not add bespoke mechanics just to distinguish Mimu.",
+    "gameplayProfile": "Stats, category and body traits PROPOSED (v1.2); passive, skills and field ability TBD (skill system in 0.4.0). Do not add bespoke mechanics just to distinguish Mimu.",
     "assetNeeds": "Proposed: leaf-rustle cue, sniff/listen idle, quick retreat, portrait, battle sprite, and Registry icon.",
     "openQuestions": [
       "Tail length and shape",
@@ -150,7 +191,48 @@
         "description": "Eats a stored seed to restore a little HP.",
         "canon": "proposed"
       }
-    ]
+    ],
+    "category": "terrestrial",
+    "bodyTraits": [
+      "soft-bodied"
+    ],
+    "baseStats": {
+      "hp": 70,
+      "atk": 50,
+      "def": 80,
+      "spd": 100
+    },
+    "attacks": [
+      {
+        "name": "Nibble",
+        "approach": "pierce",
+        "power": 35,
+        "description": "A quick nip with small, sharp teeth.",
+        "canon": "proposed"
+      },
+      {
+        "name": "Scurry Strike",
+        "approach": "strike",
+        "power": 40,
+        "description": "Darts out from cover and bumps into the opponent before slipping back.",
+        "canon": "proposed"
+      }
+    ],
+    "genePool": {
+      "build": {
+        "pAllele": 0.3,
+        "byHabitatTag": []
+      },
+      "temperament": {
+        "pAllele": 0.7,
+        "byHabitatTag": []
+      },
+      "marking": {
+        "name": "Moss-backed",
+        "description": "A greener stripe along the back.",
+        "frequency": 0.05
+      }
+    }
   },
   {
     "id": "lumae",
@@ -187,7 +269,7 @@
     "movementStyle": "forager",
     "ecology": "Its population is a visible indicator of a functioning clearing. An unusual absence is a clue to investigate vegetation and soil, not definitive proof of a single cause.",
     "fieldSigns": "A flower-like shape moving among blossoms; a dorsal bloom opening and closing; a healthy patch of flowers with a Lumae nearby. Use it to teach comparison between healthy plants and a nearby dry or damaged patch.",
-    "gameplayProfile": "Ecological observation role established. Battle role, stats, passive, skills, and field ability are TBD.",
+    "gameplayProfile": "Ecological observation role established. Stats, category and body traits PROPOSED (v1.2); passive, skills and field ability TBD (skill system in 0.4.0).",
     "assetNeeds": "Proposed: simple petal-open/close animation, gentle movement, portrait, battle sprite, and Registry icon.",
     "openQuestions": [
       "Animal base silhouette",
@@ -224,7 +306,53 @@
         "description": "Shields itself with a ring of petals.",
         "canon": "proposed"
       }
-    ]
+    ],
+    "category": "verdant",
+    "bodyTraits": [
+      "leafy"
+    ],
+    "baseStats": {
+      "hp": 100,
+      "atk": 50,
+      "def": 80,
+      "spd": 70
+    },
+    "attacks": [
+      {
+        "name": "Spore Puff",
+        "approach": "spore",
+        "power": 40,
+        "description": "Its dorsal flower releases a puff of fine spores.",
+        "canon": "proposed"
+      },
+      {
+        "name": "Leaf Shove",
+        "approach": "strike",
+        "power": 35,
+        "description": "Pushes with its sturdy, leaf-like body.",
+        "canon": "proposed"
+      }
+    ],
+    "genePool": {
+      "build": {
+        "pAllele": 0.5,
+        "byHabitatTag": [
+          {
+            "tag": "sunny",
+            "pAllele": 0.6
+          }
+        ]
+      },
+      "temperament": {
+        "pAllele": 0.5,
+        "byHabitatTag": []
+      },
+      "marking": {
+        "name": "Twin-bloom",
+        "description": "Two dorsal flowers instead of one.",
+        "frequency": 0.05
+      }
+    }
   },
   {
     "id": "kantar",
@@ -264,7 +392,7 @@
     "movementStyle": "skulker",
     "ecology": "Predator of small invertebrates and other tiny creatures.",
     "fieldSigns": "Faint clicking, movement beneath a stone, a disturbed leaf edge, or a long segmented shape disappearing into a crack. When inspecting cover, the researcher should restore the rock carefully.",
-    "gameplayProfile": "Environmental inspection species. Battle role, stats, passive, skills, and field ability are TBD.",
+    "gameplayProfile": "Environmental inspection species. Stats, category and body traits PROPOSED (v1.2); passive, skills and field ability TBD (skill system in 0.4.0).",
     "assetNeeds": "Proposed: faint clicking cue, rapid retreat animation, several body-length variants if feasible, portrait, battle sprite, and Registry icon.",
     "openQuestions": [
       "Exact segment count",
@@ -299,7 +427,57 @@
         "description": "Slips under cover and re-emerges with a counter.",
         "canon": "proposed"
       }
-    ]
+    ],
+    "category": "terrestrial",
+    "bodyTraits": [
+      "plated"
+    ],
+    "baseStats": {
+      "hp": 70,
+      "atk": 90,
+      "def": 95,
+      "spd": 45
+    },
+    "attacks": [
+      {
+        "name": "Venom Nip",
+        "approach": "toxin",
+        "power": 40,
+        "description": "A defensive nip carrying a mild biological toxin. No real-world hazard is implied.",
+        "canon": "proposed"
+      },
+      {
+        "name": "Plate Slam",
+        "approach": "crush",
+        "power": 40,
+        "description": "Throws the weight of its armored segments against the opponent.",
+        "canon": "proposed"
+      }
+    ],
+    "genePool": {
+      "build": {
+        "pAllele": 0.5,
+        "byHabitatTag": [
+          {
+            "tag": "mature-woodland",
+            "pAllele": 0.75
+          },
+          {
+            "tag": "forest-floor",
+            "pAllele": 0.6
+          }
+        ]
+      },
+      "temperament": {
+        "pAllele": 0.6,
+        "byHabitatTag": []
+      },
+      "marking": {
+        "name": "Banded",
+        "description": "The pale side markings join into full bands.",
+        "frequency": 0.05
+      }
+    }
   },
   {
     "id": "riverkin",
@@ -335,7 +513,7 @@
     "movementStyle": "roamer",
     "ecology": "A freshwater-dependent species whose survival relies on continuous usable aquatic habitat. It can act as a visible indicator of waterway disruption.",
     "fieldSigns": "Ripples in a shaded pool, a smooth glint beneath the water, tracks or a damp trail away from the bank, or a sighting on a forest trail where it would not normally be found. The first displaced encounter is an investigation, not a standard catch-first encounter.",
-    "gameplayProfile": "Story/investigation role established. Battle role, stats, passive, skills, and field ability are TBD.",
+    "gameplayProfile": "Story/investigation role established. Stats, category and body traits PROPOSED (v1.2); passive, skills and field ability TBD (skill system in 0.4.0).",
     "assetNeeds": "Proposed: water-entry/exit motion, subtle wet-surface highlights, swimming loop, portrait, battle sprite, and Registry icon.",
     "openQuestions": [
       "Dominant silhouette reference",
@@ -374,6 +552,52 @@
         "description": "Rests in shade, cleansing one ailment.",
         "canon": "proposed"
       }
-    ]
+    ],
+    "category": "aquatic",
+    "bodyTraits": [
+      "slick"
+    ],
+    "baseStats": {
+      "hp": 85,
+      "atk": 80,
+      "def": 60,
+      "spd": 75
+    },
+    "attacks": [
+      {
+        "name": "Splash Surge",
+        "approach": "surge",
+        "power": 40,
+        "description": "A tail-driven rush of water.",
+        "canon": "proposed"
+      },
+      {
+        "name": "Tail Slap",
+        "approach": "crush",
+        "power": 35,
+        "description": "A heavy blow with its powerful swimming tail.",
+        "canon": "proposed"
+      }
+    ],
+    "genePool": {
+      "build": {
+        "pAllele": 0.5,
+        "byHabitatTag": [
+          {
+            "tag": "deep-pool",
+            "pAllele": 0.65
+          }
+        ]
+      },
+      "temperament": {
+        "pAllele": 0.4,
+        "byHabitatTag": []
+      },
+      "marking": {
+        "name": "Deep-shimmer",
+        "description": "A darker, blue-green shimmer.",
+        "frequency": 0.05
+      }
+    }
   }
 ]
