@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router";
 import type { RegistryEntryView } from "@wildbound/shared";
 import { Badge } from "@/components/ui/badge.tsx";
 import { FaceLetter } from "@/components/layout/Shell.tsx";
-import { wildkinSprite } from "@/lib/assets.ts";
+import { WildkinImage } from "@/components/WildkinImage.tsx";
 import { useRegistry } from "@/lib/queries.ts";
 
 /**
@@ -49,7 +49,7 @@ export function RegistryDetailPage() {
             </div>
             <div className="relative my-1 flex items-center justify-center">
               <span aria-hidden className="absolute size-20 rounded-full border border-success/40 bg-success/20" />
-              <img src={wildkinSprite(entry.creatureId)} alt={entry.name ?? ""} className="pixelated relative size-28" />
+              <WildkinImage creatureId={entry.creatureId} kind="sprite" alt={entry.name ?? ""} className="pixelated relative size-28" />
             </div>
           </div>
 

@@ -2,7 +2,7 @@
 
 > Detailed documentation: [docs/06-web-game.md](../../docs/06-web-game.md).
 
-The WILDBOUND game: username login → location sharing → radar, Registry, Satchel and Party. Mobile-first (designed at 390px), styled as a handheld "field nav" console after the six Stitch mockups in [`patches/0.1.0/mockups/`](../../patches/0.1.0/mockups/) (`1-login` … `6-party`, each as `.html` + `.png`), using the "Field Registry" design tokens.
+The WILDBOUND game: username login → location sharing → radar (with wandering Wildkin), Registry, Satchel and Party. Mobile-first (designed at 390px), styled as a handheld "field nav" console after the six Stitch mockups in [`patches/0.1.0/mockups/`](../../patches/0.1.0/mockups/) (`1-login` … `6-party`, each as `.html` + `.png`), using the "Field Registry" design tokens.
 
 Parts are intentionally unfinished: look for `TODO(you)` (see [`patches/0.1.0/EXERCISES.md`](../../patches/0.1.0/EXERCISES.md)).
 
@@ -21,22 +21,23 @@ src/
   lib/
     api.ts                 Typed fetch client; every response is parsed with Zod; ApiError(status, code)
     queries.ts             TanStack Query keys + hooks (useMe, useGameState, useObserve, useCapture, …)
-    assets.ts              Icon/sprite URLs, registry number formatting
+    assets.ts              Wildkin art URLs (API first), the API → static → placeholder fallback, registry number formatting
   components/
     ui/                    shadcn components restyled to the design system (button, badge, card, input)
+    WildkinImage.tsx       <img> for Wildkin art with the fallback chain
     layout/Shell.tsx       Console chassis (Shell), LcdScreen, ConsoleButton (A/B face buttons), Led, ScreenTitle
   features/
     auth/                  LoginPage (react-hook-form + zod), RequireSession
     location/              LocationProvider (watchPosition + Permissions API), LocationGatePage, usePositionReporter
     game/                  GameLayout (console header, PWR/GPS/weather/time strip, cartridge tabs, pause overlay), useClock, weather/time icons
-    radar/                 RadarMap (MapLibre markers), RadarPage (Observe / Capture sheet)
+    radar/                 RadarMap (MapLibre markers that walk/flip/fade), RadarPage (Observe / Capture sheet, "It wandered off.")
     registry/              RegistryPage (index roster with silhouettes + filters), RegistryDetailPage (dossier card)
     inventory/             InventoryPage ("Satchel")
     party/                 PartyPage, RenameForm (exercise)
 public/
   player/head.png          PixelLab player head (map marker)
-  wildkin/icons/*.png      PixelLab face icons (64px)
-  wildkin/sprites/*.png    PixelLab full sprites (128px)
+  wildkin/icons/*.png      PixelLab face icons (64px) of the seed species: fallback, and imported into the DB by the seed
+  wildkin/sprites/*.png    PixelLab full sprites (128px), same
 ```
 
 ## How the pieces fit
@@ -45,6 +46,7 @@ public/
 - **Location.** `LocationProvider` owns one `watchPosition` for the whole app and listens to permission changes. `status === "active"` is the only playable state; anything else shows the "Survey paused" overlay.
 - **Position reports.** `usePositionReporter` sends fixes to `POST /api/game/position` (throttled, plus a 30 s heartbeat while still). The server decides whether to accept them; the radar shows where the *server* thinks you are.
 - **Radar.** `useGameState` polls `/api/game/state` every 10 s. Markers are MapLibre `Marker`s synced in effects; the map itself is created once.
+- **Wandering (experimental, v0.2.0).** Spawns move on the server between polls. The radar walks each marker to its new position after its own random delay and for a distance-based time, so Wildkin do not move in sync (one `requestAnimationFrame` loop), mirrors the icon when it walks left, fades markers in and out, and shows "It wandered off." when the selected spawn disappears. Respects `prefers-reduced-motion`. May be removed by v0.3.0.
 - **Registry.** Fields the player has not unlocked arrive as `null` from the API; unknown species render as CSS silhouettes.
 - **Fonts.** Press Start 2P (console labels) and VT323 (dot-matrix body text) come from Google Fonts with Inter/Noto Serif (`index.html`), exposed as `font-pixel` and `font-vt`.
 - **Forms.** Use the shared Zod schema as the resolver so client and server validation match (see `LoginPage`).
@@ -61,4 +63,6 @@ Geolocation needs `https://` or `localhost`. To play on a desktop, use Chrome de
 
 ## Art
 
-Icons, sprites and the player head were generated with PixelLab (Pixen model, the cheapest option) from the descriptions in `documents/WILDBOUND_Wildkin_Bible_v1.1.docx`. They are placeholders until approved, as the Bible requires. The Kantar sprite was regenerated in v0.1.0 pass 2 so its pale side markings read clearly.
+Wildkin art is served by the API from the database: `wildkinIcon(id)` / `wildkinSprite(id)` return `/api/art/wildkin/<id>/icon.png` / `sprite.png` (through the Vite proxy). If that fails the image falls back to the static PNG in `public/wildkin/`, then to a neutral "?" placeholder (`wildkinArtFallback`, used by `<WildkinImage>` and the radar markers). So a Wildkin created and illustrated in the Creature Manager shows up without a rebuild.
+
+The seed icons, sprites and the player head were generated with PixelLab (Pixen model, the cheapest option) from the descriptions in `docs/WILDBOUND_Wildkin_Bible_v1.1.docx`. They are placeholders until approved, as the Bible requires. The Kantar sprite was regenerated in v0.1.0 pass 2 so its pale side markings read clearly. New art is generated in the Creature Manager ([docs/13](../../docs/13-creature-manager.md#pixellab-art)).

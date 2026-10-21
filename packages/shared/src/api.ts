@@ -15,7 +15,7 @@ export const PublicationStageSchema = z.enum(PUBLICATION_STAGES);
 
 // ---------------------------------------------------------------- validation
 
-export const ENTITY_TYPES = ["world", "region", "habitat", "poi", "encounterTable"] as const;
+export const ENTITY_TYPES = ["world", "region", "habitat", "poi", "encounterTable", "wildkin"] as const;
 export const EntityTypeSchema = z.enum(ENTITY_TYPES);
 export type EntityType = z.infer<typeof EntityTypeSchema>;
 
@@ -50,6 +50,9 @@ export const EditorWorldResponseSchema = z.object({
   status: WorldStatusSchema,
 });
 export type EditorWorldResponse = z.infer<typeof EditorWorldResponseSchema>;
+
+export const CreatureListResponseSchema = z.object({ creatures: z.array(CreatureDefinitionSchema) });
+export type CreatureListResponse = z.infer<typeof CreatureListResponseSchema>;
 
 export const SaveDraftResponseSchema = z.object({
   status: WorldStatusSchema,

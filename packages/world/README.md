@@ -15,6 +15,7 @@ Pure WILDBOUND domain logic. No database, no React, no network: the same functio
 | `context.ts` | `assembleWorldContext`: turns spatial lookup results plus environment into the `WorldContext` clients receive |
 | `movement.ts` | `distanceMeters` (haversine), `checkMovement` (the anti-teleport plausibility check), `canAct` |
 | `spawning.ts` | `applySpawnModifiers` (**exercise**), `randomPointNear`, `planSpawns` |
+| `wandering.ts` | Spawn wandering (experimental, v0.2.0): `WANDER_PROFILES` per movement style (`still`, `skulker`, `forager`, `roamer`, `darter`), `isActivePeriod` (35 % speed outside it), `offsetMeters`, `wanderStep` (one step: pause, turn, move), `wander` (steps of random length, `STEP_JITTER` ±50 % around 10 s, that fit the elapsed time; returns `usedMs`; capped; stops when leaving the radius), so spawns never move in lockstep |
 | `weather.ts` | `weatherFromWmoCode`: Open-Meteo WMO code → WILDBOUND weather (**exercise**) |
 | `capture.ts` | `captureChance` (observing first helps), `FLEE_CHANCE_ON_FAIL` |
 
@@ -28,6 +29,7 @@ Rules worth knowing:
 - Habitat tables are listed before region tables; each group is sorted by name then id, so output is deterministic.
 - Overlapping habitats are allowed (warning); the smaller one wins at resolution time.
 - A habitat more than 50% outside its region blocks publishing; a smaller overlap is a warning.
+- Wandering is deterministic given `random`: the API passes its injected RNG, tests pass `seededRandom()`. The API despawns a spawn when `wander` reports `outOfBounds` (beyond `GAME_RULES.spawnRadiusM`). This may be removed by v0.3.0.
 
 ## Tests
 

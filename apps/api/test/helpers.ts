@@ -9,5 +9,13 @@ export const testConfig = (over: Partial<ApiConfig> = {}): ApiConfig => ({
   worldTimeZone: "Asia/Manila",
   weatherApiUrl: "off",
   secureCookies: false,
+  groqApiKey: "",
+  groqModel: "test-model",
+  groqApiUrl: "http://groq.invalid",
+  pixellabApiKey: "",
+  pixellabApiUrl: "http://pixellab.invalid",
+  loreDocsDir: "",
+  loreSource: "brief",
+  loreMaxChars: 10_000,
   ...over,
 });

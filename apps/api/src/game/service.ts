@@ -5,9 +5,20 @@ import {
   type GameStateResponse,
   type PositionReport,
   type PositionResponse,
+  type CreatureDefinition,
   type SpawnView,
+  type TimeOfDay,
 } from "@wildbound/shared";
-import { canAct, checkMovement, distanceMeters, planSpawns, timeOfDayAt, type TrackedPosition } from "@wildbound/world";
+import {
+  canAct,
+  checkMovement,
+  distanceMeters,
+  isActivePeriod,
+  planSpawns,
+  timeOfDayAt,
+  wander,
+  type TrackedPosition,
+} from "@wildbound/world";
 import { HttpError } from "../http.ts";
 import { resolveWorldContext } from "../resolve.ts";
 import type { WeatherProvider } from "../weather.ts";
@@ -141,13 +152,21 @@ export async function gameState(deps: GameDeps, playerId: string): Promise<GameS
   const active = await deps.db.spawn.findMany({ where: { playerId, status: "active" }, orderBy: { createdAt: "asc" } });
   const tooFar = active.filter((s) => distanceMeters(tracked, s) > GAME_RULES.spawnRadiusM * 2).map((s) => s.id);
   if (tooFar.length) await deps.db.spawn.updateMany({ where: { id: { in: tooFar } }, data: { status: "fled" } });
-  const remaining = active.filter((s) => !tooFar.includes(s.id));
 
   const creatures = await listCreatures(deps.db);
+  const remaining = await wanderSpawns(deps, active.filter((s) => !tooFar.includes(s.id)), {
+    center: tracked,
+    creatures: new Map(creatures.map((c) => [c.id, c])),
+    timeOfDay: environment.timeOfDay,
+    now,
+  });
+
   if (context.region) {
+    const live = new Set(creatures.map((c) => c.id));
     const planned = planSpawns({
       center: tracked,
-      available: context.availableWildkin,
+      // Soft-deleted species (Creature Manager) never spawn, even if a published table still lists them.
+      available: context.availableWildkin.filter((w) => live.has(w.creatureId)),
       modifiers: new Map(creatures.map((c) => [c.id, c.spawnModifiers])),
       env: environment,
       activeCount: remaining.length,
@@ -168,6 +187,8 @@ export async function gameState(deps: GameDeps, playerId: string): Promise<GameS
             timeOfDay: environment.timeOfDay,
             weather: environment.weather,
             expiresAt: new Date(now.getTime() + GAME_RULES.spawnTtlMs),
+            // A random phase, so spawns created together do not take their first step together.
+            movedAt: new Date(now.getTime() - (deps.random ?? Math.random)() * GAME_RULES.spawnWanderStepMs),
           },
         }),
       );
@@ -183,6 +204,56 @@ export async function gameState(deps: GameDeps, playerId: string): Promise<GameS
     habitat: context.habitat ? { id: context.habitat.id, name: context.habitat.name } : null,
     spawns: remaining.map((s) => spawnView(s, numbers.get(s.creatureId) ?? 0, tracked)),
   };
+}
+
+/**
+ * Lets active spawns wander (one step per GAME_RULES.spawnWanderStepMs since
+ * they last moved). A spawn that wanders outside the spawn radius around the
+ * player is despawned ("fled"); so is one whose species was deleted.
+ */
+async function wanderSpawns(
+  deps: GameDeps,
+  spawns: SpawnModel[],
+  args: { center: TrackedPosition; creatures: Map<string, CreatureDefinition>; timeOfDay: TimeOfDay; now: Date },
+): Promise<SpawnModel[]> {
+  const random = deps.random ?? Math.random;
+  const kept: SpawnModel[] = [];
+  for (const spawn of spawns) {
+    const creature = args.creatures.get(spawn.creatureId);
+    if (!creature) {
+      await deps.db.spawn.update({ where: { id: spawn.id }, data: { status: "fled" } });
+      continue;
+    }
+    const result = wander(
+      { lat: spawn.lat, lng: spawn.lng, heading: spawn.heading },
+      {
+        style: creature.movementStyle,
+        active: isActivePeriod(creature.activityPattern, args.timeOfDay),
+        elapsedMs: args.now.getTime() - spawn.movedAt.getTime(),
+        stepMs: GAME_RULES.spawnWanderStepMs,
+        maxSteps: GAME_RULES.spawnWanderMaxSteps,
+        center: args.center,
+        radiusM: GAME_RULES.spawnRadiusM,
+        random,
+      },
+    );
+    if (result.steps === 0) {
+      kept.push(spawn);
+      continue;
+    }
+    // Keep the unused time so slow polling does not slow Wildkin down.
+    const movedAt = new Date(spawn.movedAt.getTime() + result.usedMs);
+    const data = {
+      lat: result.lat,
+      lng: result.lng,
+      heading: result.heading,
+      movedAt: result.steps === GAME_RULES.spawnWanderMaxSteps ? args.now : movedAt,
+      ...(result.outOfBounds ? { status: "fled" as const } : {}),
+    };
+    const updated = await deps.db.spawn.update({ where: { id: spawn.id }, data });
+    if (!result.outOfBounds) kept.push(updated);
+  }
+  return kept;
 }
 
 /**

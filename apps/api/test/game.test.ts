@@ -171,3 +171,58 @@ describe("spawns, observe and the Registry", () => {
     expect((await a.get("/api/game/party")).body.party).toHaveLength(6);
   });
 });
+
+describe("wandering spawns", () => {
+  it("moves spawns between state polls and despawns ones that leave the spawn radius", async () => {
+    const a = await login();
+    await report(a, FOREST);
+    const first = GameStateResponseSchema.parse((await a.get("/api/game/state")).body).spawns;
+    expect(first.length).toBeGreaterThan(0);
+
+    // Less than one wander step: nothing moves.
+    tick(5);
+    await report(a, FOREST);
+    const still = GameStateResponseSchema.parse((await a.get("/api/game/state")).body).spawns;
+    for (const s of first) expect(still.find((t) => t.id === s.id)).toMatchObject({ lat: s.lat, lng: s.lng });
+
+    // A minute later (6 steps) at least one has moved, and none is outside the radius.
+    tick(60);
+    await report(a, FOREST);
+    const later = GameStateResponseSchema.parse((await a.get("/api/game/state")).body).spawns;
+    const moved = first.filter((s) => {
+      const now = later.find((t) => t.id === s.id);
+      return now && (now.lat !== s.lat || now.lng !== s.lng);
+    });
+    const gone = first.filter((s) => !later.some((t) => t.id === s.id));
+    expect(moved.length + gone.length).toBeGreaterThan(0);
+    for (const s of later) expect(s.distanceM).toBeLessThanOrEqual(GAME_RULES.spawnRadiusM);
+
+    // Spawns pushed to the edge of the radius wander out and are despawned.
+    await handle.db.spawn.updateMany({
+      where: { status: "active" },
+      data: { lat: FOREST.lat + (GAME_RULES.spawnRadiusM - 0.5) / 111_320, lng: FOREST.lng, heading: 0 },
+    });
+    const edgeIds = (await handle.db.spawn.findMany({ where: { status: "active" } })).map((s) => s.id);
+    for (let i = 0; i < 10; i++) {
+      tick(60);
+      await report(a, FOREST);
+      await a.get("/api/game/state");
+    }
+    const fled = await handle.db.spawn.count({ where: { id: { in: edgeIds }, status: "fled" } });
+    expect(fled).toBeGreaterThan(0);
+  });
+
+  it("never spawns a species deleted in the Creature Manager", async () => {
+    await handle.db.creature.updateMany({ where: { id: { in: ["kawi", "mimu"] } }, data: { deletedAt: new Date() } });
+    const a = await login();
+    await report(a, FOREST);
+    for (let i = 0; i < 5; i++) {
+      const { spawns } = GameStateResponseSchema.parse((await a.get("/api/game/state")).body);
+      for (const s of spawns) expect(s.creatureId).toBe("kantar");
+      tick(20);
+      await report(a, FOREST);
+    }
+    const registry = RegistryResponseSchema.parse((await a.get("/api/game/registry")).body);
+    expect(registry.total).toBe(3);
+  });
+});

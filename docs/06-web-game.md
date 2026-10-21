@@ -182,6 +182,22 @@ flowchart TB
   `??? No. 004`. Tag colours: gold = selected, forest green = in range, moss = out of range.
 - The map is created **once** (`useEffect([])`); later effects add/move/remove markers by spawn id. The range-ring
   overlay is re-sent on several map events because a freshly mounted map isn't ready during the first effect.
+- **Wandering (v0.2.0, experimental).** Spawns move on the server (see
+  [07 · Wandering](07-game-systems.md#wandering-spawns-experimental)), so each poll can bring new coordinates. The
+  client only animates what the server says:
+  - a marker whose spawn moved **walks** from where it is drawn to the new spot, ease-in-out, in one
+    `requestAnimationFrame` loop for all markers (a new position mid-walk starts from the current drawn point);
+  - every walk is **desynchronised**: it waits its own random delay after the poll (so it still ends before the next
+    poll, `WALK_WINDOW_MS` 9 s) and lasts according to the distance (`WALK_PACE_MPS` 1.2 m/s, clamped to
+    `WALK_MIN_MS`–`WALK_MAX_MS`, 0.9–3.6 s). All positions arrive together with the poll, but Wildkin set off and
+    stop at different moments;
+  - the icon is **mirrored** (`scaleX(-1)`) when walking left, because the art faces right (it turns when the walk
+    starts, not when the poll arrives);
+  - new spawns **fade in** and vanished ones **fade out** (`FADE_MS` 350 ms) instead of popping;
+  - with `prefers-reduced-motion` markers jump straight to the new position.
+  If the spawn you have selected disappears (it wandered out of the spawn radius, expired or was deleted), the sheet
+  closes and a short **"It wandered off."** message shows for 3.5 s. A capture result ("Captured!", "It slipped away")
+  is shown instead when the spawn left because of a capture. This movement may be removed by v0.3.0 if it feels clunky.
 - Base map: OSM raster, desaturated (−0.8) and 60 % opacity over a pale green background, so the pixel art reads first.
   Zoom 14–19, controls for zoom in/out and recenter.
 - **Status line** (`radarStatus`) names the real reason when nothing shows: still scanning, server unreachable,
@@ -236,11 +252,28 @@ Reusable pieces in `src/components/layout/Shell.tsx`: `Shell`, `Wordmark`, `Led`
 | Asset | Path | Use |
 |---|---|---|
 | Player head | `public/player/head.png` | Radar marker, login avatar, favicon |
-| Wildkin icons (64 px faces) | `public/wildkin/icons/<creatureId>.png` | Radar markers, Registry roster, Party |
-| Wildkin sprites (128 px) | `public/wildkin/sprites/<creatureId>.png` | Registry dossier |
+| Wildkin icons (64 px faces) | API `/api/art/wildkin/<creatureId>/icon.png`, fallback `public/wildkin/icons/<creatureId>.png` | Radar markers, spawn sheet, Registry roster, Party |
+| Wildkin sprites (128 px) | API `/api/art/wildkin/<creatureId>/sprite.png`, fallback `public/wildkin/sprites/<creatureId>.png` | Registry dossier |
 
-File names **must equal the creature id**; `lib/assets.ts` builds URLs from it. Art was generated with PixelLab and is
-placeholder until approved against the Wildkin Bible. See [09](09-wildkin-and-content.md#art).
+### Wildkin art
+
+Since v0.2.0 Wildkin art lives in the **database** (`wildkin_art`) and is served by the API, so a species created and
+illustrated in the [Creature Manager](13-creature-manager.md) shows up in the game without rebuilding or copying files.
+`lib/assets.ts` builds the URLs with `wildkinArtPath` from `@wildbound/shared`, and every Wildkin image falls back in
+three steps (`wildkinArtFallback`, driven by the image's `onerror`):
+
+```mermaid
+flowchart LR
+    A["/api/art/wildkin/&lt;id&gt;/icon.png<br/>(database)"] -- "404 / error" --> B["/wildkin/icons/&lt;id&gt;.png<br/>(static, seed species only)"]
+    B -- "404 / error" --> C["neutral '?' pixel placeholder<br/>(inline SVG)"]
+```
+
+- React screens use `<WildkinImage creatureId kind>` (`components/WildkinImage.tsx`); the radar's DOM markers attach
+  the same fallback to their `<img>`.
+- The static PNGs in `public/wildkin/` stay as a fallback for the five seed species; `pnpm db:seed` imports them into the
+  database. File names **must equal the creature id**.
+- Art was generated with PixelLab and is placeholder until approved against the Wildkin Bible. See
+  [09](09-wildkin-and-content.md#art).
 
 ## Running and testing on a device
 

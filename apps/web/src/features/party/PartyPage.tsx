@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { PARTY_SIZE, type CapturedWildkinView } from "@wildbound/shared";
 import { ScreenTitle } from "@/components/layout/Shell.tsx";
-import { registryNo, wildkinIcon } from "@/lib/assets.ts";
+import { WildkinImage } from "@/components/WildkinImage.tsx";
+import { registryNo } from "@/lib/assets.ts";
 import { useParty } from "@/lib/queries.ts";
 import { RenameForm } from "./RenameForm.tsx";
 
@@ -94,7 +95,7 @@ function LeadCard({ member, onRename }: { member: CapturedWildkinView; onRename:
       <span className="absolute -top-px right-2 rounded-b bg-deep-forest px-2 py-0.5 font-pixel text-[7px] text-field-gold">● LEAD</span>
       <div className="flex gap-3">
         <div className="flex shrink-0 flex-col items-center rounded-md border-2 border-deep-forest bg-screen-inset p-1">
-          <img src={wildkinIcon(member.creatureId)} alt="" className="pixelated size-16" />
+          <WildkinImage creatureId={member.creatureId} className="pixelated size-16" />
           <span className="mt-1 font-pixel text-[7px] text-ink-muted">{registryNo(member.registryNumber)}</span>
         </div>
         <div className="min-w-0 flex-1 pt-2">
@@ -120,7 +121,7 @@ function MemberRow({ member, slot, onRename }: { member: CapturedWildkinView; sl
           {slot + 1}
         </span>
       )}
-      <img src={wildkinIcon(member.creatureId)} alt="" className="pixelated size-11 shrink-0 rounded-md border border-screen-edge bg-screen-inset" />
+      <WildkinImage creatureId={member.creatureId} className="pixelated size-11 shrink-0 rounded-md border border-screen-edge bg-screen-inset" />
       <div className="min-w-0 flex-1">
         <p className="truncate font-pixel text-[9px] text-deep-forest uppercase">
           {member.nickname ?? member.speciesName}{" "}

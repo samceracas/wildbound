@@ -1,0 +1,70 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/*
+ * Creature Manager theme: a dark "field research encyclopedia" admin tool.
+ * Same family as the Map Editor (apps/editor/src/styles.css): dark slate panels,
+ * green accent, plus the Field Registry gold for rarity and serif headings for
+ * encyclopedia entries. Components use these tokens as Tailwind utilities
+ * (bg-panel, border-line, text-muted, text-accent, font-serif, ...).
+ */
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-serif: "Noto Serif", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* The game's console fonts, for the in-game preview only. */
+  --font-pixel: "Press Start 2P", ui-monospace, monospace;
+  --font-vt: "VT323", ui-monospace, monospace;
+
+  /* palette */
+  --color-canvas: #0f1418; /* page background */
+  --color-panel: #161d24; /* cards, sidebar */
+  --color-panel-2: #1d2630; /* raised rows, hovers */
+  --color-field: #11171d; /* inputs */
+  --color-line: #2a3542; /* borders */
+  --color-line-strong: #3a4757;
+  --color-fg: #e6edf3;
+  --color-muted: #8b98a7;
+  --color-faint: #5d6a78;
+  --color-accent: #35c47a;
+  --color-accent-ink: #062b17;
+  --color-gold: #d5a84c;
+  --color-danger: #ff6b6b;
+  --color-warning: #f5c04e;
+  --color-info: #4cc3ff;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    color: var(--color-fg);
+    background: var(--color-canvas);
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden; /* the app shell scrolls <main>, never the document */
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--color-accent) 35%, transparent);
+  }
+}
+
+@layer components {
+  /* PixelLab art is tiny; scale it up without blurring. */
+  .pixelated {
+    image-rendering: pixelated;
+  }
+  /* Faint dotted "field notebook" backdrop for art frames. */
+  .art-frame {
+    background-color: var(--color-field);
+    background-image: radial-gradient(color-mix(in oklab, var(--color-line) 70%, transparent) 1px, transparent 1px);
+    background-size: 8px 8px;
+  }
+}

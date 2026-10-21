@@ -12,8 +12,8 @@ await runScript("Reset", url, async () => {
     await handle.db.$executeRawUnsafe(`
       DROP TABLE IF EXISTS encounter_entries, encounter_tables, points_of_interest, habitats, world_regions,
         creatures, world_meta, publications, players, player_sessions, player_positions, spawns,
-        registry_entries, inventory_items, captured_wildkin, _prisma_migrations CASCADE`);
-    await handle.db.$executeRawUnsafe(`DROP TYPE IF EXISTS publication_stage, spawn_status`);
+        registry_entries, inventory_items, captured_wildkin, wildkin_art, wildkin_entries, _prisma_migrations CASCADE`);
+    await handle.db.$executeRawUnsafe(`DROP TYPE IF EXISTS publication_stage, spawn_status, wildkin_entry_status`);
     await handle.db.$executeRawUnsafe(`DROP SCHEMA IF EXISTS drizzle CASCADE`);
   } finally {
     await handle.close();

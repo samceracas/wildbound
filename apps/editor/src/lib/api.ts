@@ -1,4 +1,5 @@
 import {
+  CreatureListResponseSchema,
   EditorWorldResponseSchema,
   PublishResponseSchema,
   SaveDraftResponseSchema,
@@ -62,6 +63,7 @@ async function request<S extends z.ZodType>(schema: S, path: string, init: Reque
 
 export const api = {
   loadWorld: () => request(EditorWorldResponseSchema, "/api/editor/world"),
+  creatures: () => request(CreatureListResponseSchema, "/api/editor/creatures"),
   saveDraft: (doc: WorldDocument) =>
     request(SaveDraftResponseSchema, "/api/editor/draft", { method: "PUT", body: JSON.stringify(doc) }),
   validate: (doc: WorldDocument) =>

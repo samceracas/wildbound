@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import type { RegistryEntryView, RegistryStatus } from "@wildbound/shared";
 import { ScreenTitle } from "@/components/layout/Shell.tsx";
-import { wildkinIcon } from "@/lib/assets.ts";
+import { WildkinImage } from "@/components/WildkinImage.tsx";
 import { useRegistry } from "@/lib/queries.ts";
 import { cn } from "@/lib/utils";
 
@@ -107,8 +107,8 @@ function RosterRow({ entry }: { entry: RegistryEntryView }) {
     >
       <span className="inset-panel shrink-0 px-1 py-0.5 font-pixel text-[7px] text-ink-muted">#{String(entry.registryNumber).padStart(3, "0")}</span>
       {/* The filter goes on the image only, so the row background stays paper-coloured. */}
-      <img
-        src={wildkinIcon(entry.creatureId)}
+      <WildkinImage
+        creatureId={entry.creatureId}
         alt={known ? "" : "Unknown Wildkin"}
         className={cn("pixelated size-9 shrink-0", !known && "silhouette")}
       />

@@ -33,8 +33,16 @@ const parseGeo = <T>(value: string): T => JSON.parse(value) as T;
 
 // ------------------------------------------------------------------ creatures
 
-export async function listCreatures(db: Executor): Promise<CreatureDefinition[]> {
-  const rows = await db.creature.findMany({ orderBy: [{ registryNumber: "asc" }] });
+/**
+ * Game data for every species. Soft-deleted species (Creature Manager) are
+ * left out unless `includeDeleted` is set, so they never spawn or show up in
+ * the editor's pickers.
+ */
+export async function listCreatures(db: Executor, opts: { includeDeleted?: boolean } = {}): Promise<CreatureDefinition[]> {
+  const rows = await db.creature.findMany({
+    where: opts.includeDeleted ? {} : { deletedAt: null },
+    orderBy: [{ registryNumber: "asc" }],
+  });
   // Json columns come back as `unknown`; the schema restores their shape and defaults.
   return rows.map((r) =>
     CreatureDefinitionSchema.parse({
@@ -48,11 +56,44 @@ export async function listCreatures(db: Executor): Promise<CreatureDefinition[]>
       activityPattern: r.activityPattern,
       spawnModifiers: r.spawnModifiers,
       skills: r.skills,
+      movementStyle: r.movementStyle,
     }),
   );
 }
 
-export async function upsertCreatures(db: Executor, list: CreatureDefinition[]): Promise<void> {
+/**
+ * Inserts or updates the given creatures (seed data). Registry numbers are
+ * unique, and an older database can have the same species under different
+ * numbers (migration 1_players backfilled them alphabetically: Kantar = 1,
+ * Kawi = 2, …), so the listed creatures are first moved to temporary out-of-range
+ * numbers and then given their real ones, in one transaction.
+ *
+ * Throws a readable error when a number belongs to a creature or encyclopedia
+ * entry that is *not* in the list (e.g. one made in the Creature Manager).
+ */
+export async function upsertCreatures(db: Database, list: CreatureDefinition[]): Promise<void> {
+  await db.$transaction((tx) => upsertCreaturesIn(tx, list), WORLD_TX);
+}
+
+async function upsertCreaturesIn(db: Prisma.TransactionClient, list: CreatureDefinition[]): Promise<void> {
+  const ids = list.map((c) => c.id);
+  const numbers = list.map((c) => c.registryNumber);
+  const [creatureClash, entryClash] = await Promise.all([
+    db.creature.findFirst({ where: { registryNumber: { in: numbers }, id: { notIn: ids }, deletedAt: null } }),
+    db.wildkinEntry.findFirst({ where: { registryNumber: { in: numbers }, id: { notIn: ids }, deletedAt: null } }),
+  ]);
+  const clash = creatureClash ?? entryClash;
+  if (clash) {
+    const wanted = list.find((c) => c.registryNumber === clash.registryNumber)!;
+    throw new Error(
+      `Registry number ${clash.registryNumber} is needed for "${wanted.id}" but is used by "${clash.id}". ` +
+        `Give "${clash.id}" another number in the Creature Manager, then seed again.`,
+    );
+  }
+
+  // Phase 1: park the listed creatures on unique out-of-range numbers (real ones stay below 10000).
+  await db.$executeRaw`UPDATE creatures SET registry_number = registry_number + 1000000 WHERE id = ANY(${ids}::text[])`;
+  // Phase 2: write the real data.
   for (const c of list) {
     const data = {
       registryNumber: c.registryNumber,
@@ -64,6 +105,7 @@ export async function upsertCreatures(db: Executor, list: CreatureDefinition[]):
       activityPattern: c.activityPattern,
       spawnModifiers: c.spawnModifiers,
       skills: c.skills,
+      movementStyle: c.movementStyle,
     };
     await db.creature.upsert({ where: { id: c.id }, create: { id: c.id, ...data }, update: data });
   }

@@ -1,9 +1,10 @@
 # 08 · Security model
 
-> **In plain English:** two kinds of people talk to the server: developers (with a secret editor token) and players
+> **In plain English:** two kinds of people talk to the server: developers (with a secret editor token, used by the Map
+> Editor and the Creature Manager) and players
 > (with a login cookie). The server never trusts what a player's phone *claims*; it checks that movements are
-> believable and only lets players act on Wildkin it placed for them, near where it believes they are. v0.1.0 is built
-> for local development: it has no passwords, so it is **not ready to put on the public internet** yet.
+> believable and only lets players act on Wildkin it placed for them, near where it believes they are. WILDBOUND (v0.2.0) is
+> built for local development: it has no passwords, so it is **not ready to put on the public internet** yet.
 
 ## Contents
 
@@ -25,6 +26,8 @@ flowchart LR
     anon --> login["POST /api/auth/login"]
     player(["Player<br/>wb_session cookie"]) --> game["/api/game/*<br/>only their own data,<br/>only near their tracked position"]
     editor(["Developer<br/>Bearer EDITOR_TOKEN"]) --> ed["/api/editor/*<br/>read whole world, resolve any coordinate,<br/>save, validate, publish"]
+    editor --> mg["/api/manager/*<br/>write & publish Wildkin, AI assist,<br/>PixelLab art (spends credits)"]
+    anon --> art["GET /api/art/wildkin/:id/:kind.png<br/>(non-deleted Wildkin art)"]
 ```
 
 | Capability | Anyone | Player | Editor |
@@ -35,6 +38,8 @@ flowchart LR
 | Resolve an arbitrary coordinate | | ❌ | ✅ |
 | Read the whole world (where every Wildkin lives) | | ❌ | ✅ |
 | Edit and publish the world | | ❌ | ✅ |
+| Create, publish, delete Wildkin; use the AI assistant and PixelLab (Creature Manager) | | ❌ | ✅ |
+| Download Wildkin art | ✅ | ✅ | ✅ |
 
 ## Threat model
 
@@ -53,17 +58,21 @@ flowchart LR
 | CSRF | Cookie is `SameSite=Lax`; game mutations are POST/PUT/PATCH with JSON | ⚠️ partial (no CSRF token) |
 | Account takeover | **Username-only login: anyone who knows a username can load that save** | ❌ known gap |
 | Editor token leak | Single shared token, sent from the browser | ❌ dev only |
+| Running up Groq / PixelLab bills | Keys stay on the server; both features need the editor token; PixelLab balance checked before each generation | ⚠️ as safe as the editor token |
+| Seeing unreleased Wildkin | Art of **draft** entries is public at a guessable URL (`/api/art/wildkin/<id>/…`); names and text are not | ⚠️ accepted for dev |
 | Brute force / flooding | No rate limiting | ❌ known gap |
 | GPS spoofing apps walking slowly | Cannot be detected by a browser game | ❌ inherent |
 
 ## Editor authentication
 
-- `requireEditor(EDITOR_TOKEN)` guards the whole `/api/editor` router.
+- `requireEditor(EDITOR_TOKEN)` guards the whole `/api/editor` and `/api/manager` routers (Map Editor and Creature
+  Manager share the token).
 - `Authorization: Bearer <token>` is compared with `crypto.timingSafeEqual` (no timing leak).
 - The editor reads `VITE_EDITOR_TOKEN` at build time and may store a typed token in `localStorage`. **Anything with a
   `VITE_` prefix is embedded in the browser bundle**, so the token is visible to whoever can load the editor. Fine
   locally; replace with real accounts (e.g. OAuth + roles) before hosting the editor anywhere.
 - The web game never reads `VITE_EDITOR_TOKEN`.
+- `GROQ_API_KEY` and `PIXELLAB_API_KEY` are read only by the API (no `VITE_` prefix), so they never reach a browser.
 
 ## Player sessions
 

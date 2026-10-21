@@ -1,8 +1,8 @@
 # 07 · Game systems
 
 > **In plain English:** this page explains the rules of the game: how the server works out which habitat you're in,
-> how it picks which Wildkin appear, how time and weather change the odds, how it spots fake GPS jumps, and how the
-> Registry fills in. Each section starts with the idea, then shows the exact formula and where the code lives.
+> how it picks which Wildkin appear, how time and weather change the odds, how spawned Wildkin wander around, how it
+> spots fake GPS jumps, and how the Registry fills in. Each section starts with the idea, then shows the exact formula and where the code lives.
 
 Almost every rule here is a **pure function in `packages/world`** (no database, no network), tested in
 `packages/world/src/*.test.ts`. The API's `apps/api/src/game/service.ts` glues them to the database.
@@ -15,6 +15,7 @@ Almost every rule here is a **pure function in `packages/world`** (no database, 
 - [Weather](#weather)
 - [Spawn modifiers](#spawn-modifiers)
 - [Spawning lifecycle](#spawning-lifecycle)
+- [Wandering spawns (experimental)](#wandering-spawns-experimental)
 - [Anti-teleport (movement checks)](#anti-teleport-movement-checks)
 - [Acting on a spawn: Observe and Capture](#acting-on-a-spawn-observe-and-capture)
 - [Registry unlocking](#registry-unlocking)
@@ -171,9 +172,10 @@ flowchart TD
     env --> ctx["resolveWorldContext(position, stage=published, env)"]
     ctx --> exp["UPDATE spawns SET status='expired'<br/>WHERE active AND expires_at ≤ now"]
     exp --> far["active spawns > 240 m away (2 × spawnRadius)<br/>→ status='fled'"]
-    far --> reg{"context.region?"}
+    far --> wan["wanderSpawns: move each remaining spawn<br/>(species deleted or left 120 m → 'fled')"]
+    wan --> reg{"context.region?"}
     reg -- no --> out
-    reg -- yes --> plan["planSpawns:<br/>slots = min(6, active + 2) − active<br/>pool = applySpawnModifiers(availableWildkin)<br/>for each slot: rollEncounter + randomPointNear(120 m)"]
+    reg -- yes --> plan["planSpawns:<br/>slots = min(6, active + 2) − active<br/>pool = applySpawnModifiers(availableWildkin minus deleted species)<br/>for each slot: rollEncounter + randomPointNear(120 m)"]
     plan --> ins["INSERT spawns (creature, lat/lng, region, habitat,<br/>timeOfDay, weather, expires = now + 10 min)"]
     ins --> out["respond with SpawnView[] (distance, inRange ≤ 60 m, observed)"]
 ```
@@ -183,7 +185,10 @@ stateDiagram-v2
     [*] --> active: planSpawns (server)
     active --> active: observed (observed_at set, stays active)
     active --> expired: 10 min passed
+    active --> active: wandered a few meters
     active --> fled: player > 240 m away
+    active --> fled: wandered out of the 120 m spawn radius
+    active --> fled: species deleted in the Creature Manager
     active --> captured: capture succeeded (exercise #3)
     active --> fled: capture failed and it fled (25 %)
     expired --> [*]
@@ -197,6 +202,97 @@ Notes:
 - `randomPointNear` places points uniformly in a disc (`r = R·√u`) using a flat-earth approximation, fine at 120 m.
 - Spawns belong to **one player**; two players standing together see different spawns.
 - Spawn rows are never deleted; old ones stay with their final status (useful for analytics; prune later if needed).
+- **Deleted species never spawn.** `availableWildkin` is filtered against the live creature list (soft-deleted
+  species are not in it), even when a published encounter table still names them.
+
+## Wandering spawns (experimental)
+
+> ⚠️ **Experimental (v0.2.0).** Wandering was added so the radar feels alive. It may be tuned or removed by v0.3.0 after
+> play-testing. Everything is in one pure module plus one function in the API, so it is easy to switch off (see the
+> end of this section).
+
+*"Wildkin shouldn't stand still like pins on a map."* On every radar poll the server moves each active spawn a little,
+like an animal going about its business: it keeps a rough heading with some drift, stops now and then, and its speed
+depends on its species.
+
+**Where:** `wanderStep()` / `wander()` in `packages/world/src/wandering.ts` (pure, tested in `wandering.test.ts`),
+called by `wanderSpawns()` in `apps/api/src/game/service.ts`.
+
+### How one step works
+
+```mermaid
+flowchart TD
+    s["spawn: lat, lng, heading (null = pick a random one)"] --> p{"random() &lt; pauseChance?"}
+    p -- yes --> stay["stay put (keep heading)"]
+    p -- no --> t["turn: heading ± random × maxTurn"]
+    t --> sp["speed = profile.speedMps × (active period ? 1 : 0.35)"]
+    sp --> d["distance = speed × 10 s × (0.5 … 1.5)"]
+    d --> mv["offsetMeters(position, heading, distance)"]
+```
+
+The **movement style** is a field of the species (`creatures.movement_style`, chosen in the
+[Creature Manager](13-creature-manager.md), default `forager`). Its profile (`WANDER_PROFILES`):
+
+| Style | Feels like | Speed while moving | Pause chance per step | Max turn per step | Typical drift per minute* |
+|---|---|---:|---:|---:|---:|
+| `still` | rooted, resting, hiding | 0.05 m/s | 85 % | 180° | < 1 m |
+| `skulker` | short cautious moves, long pauses | 0.35 m/s | 60 % | 120° | ~8 m |
+| `forager` | slow meandering | 0.4 m/s | 35 % | 90° | ~15 m |
+| `roamer` | steady travel in one general direction | 0.7 m/s | 20 % | 36° | ~35 m |
+| `darter` | quick bursts with frequent stops | 1.2 m/s | 50 % | 180° | ~35 m |
+
+\* Total path length over 6 steps in the active period; the straight-line displacement is smaller because of turns.
+
+**Activity period.** Outside the times its `activityPattern` counts as active, a Wildkin moves at **35 %** of its
+speed (`INACTIVE_SPEED_FACTOR`), so a nocturnal species found at noon mostly dozes:
+
+| Activity pattern | Active at |
+|---|---|
+| `diurnal` | dawn, day |
+| `nocturnal`, `sheltering_by_day` | dusk, night |
+| `crepuscular` | dawn, dusk |
+| `cathemeral`, `seasonal`, `TBD` | always |
+
+Seed species: Kawi `darter`, Mimu `skulker`, Lumae `forager`, Kantar `skulker`, Riverkin `roamer`.
+
+### How it is driven by the poll
+
+```
+each step lasts its own random time: spawnWanderStepMs (10 s) × 0.5–1.5   → 5–15 s
+steps    = as many steps as fit into (now − spawn.moved_at), at most spawnWanderMaxSteps (6)
+moved_at = moved_at + time those steps took   (keeps the leftover, so slow polling doesn't slow Wildkin)
+           or now, when the 6-step cap was hit (a player back from a break doesn't see Wildkin teleport)
+new spawn: moved_at = now − random × 10 s     (a random phase, so spawns created together don't step together)
+```
+
+**No lockstep.** Because every step has its own length and every spawn its own phase, a poll usually finds that some
+Wildkin took a step and others did not, and the radar then starts each walk at its own moment (below). Wildkin move
+on their own instead of all at once on the poll tick.
+
+- After each step, if the spawn is more than `spawnRadiusM` (**120 m**) from the player's tracked position, it stops
+  and is marked `fled` ("it wandered off"). The older 240 m "player walked away" rule still runs first.
+- A spawn whose species has been soft-deleted is marked `fled` without moving.
+- `heading` is stored on the spawn so the next poll continues the same general direction.
+- All randomness goes through `deps.random`, so tests with `seededRandom()` are deterministic.
+
+### What the player sees
+
+The radar animates the server's positions: each marker waits its **own random delay** after a poll before walking
+and walks for a time that depends on the distance (short hops are quick, long treks slower), so markers set off and
+stop at different moments. They face the direction they walk, fade in and out, and "It wandered off." appears when
+the selected Wildkin leaves. Details in
+[06 · Radar](06-web-game.md#radar).
+
+### Tuning or switching it off
+
+- Speeds and pause chances: `WANDER_PROFILES` and `INACTIVE_SPEED_FACTOR` in `packages/world/src/wandering.ts`.
+- Step length and catch-up cap: `GAME_RULES.spawnWanderStepMs` / `spawnWanderMaxSteps` in
+  `packages/shared/src/game.ts`; how much each step's length varies: `STEP_JITTER` (0.5 = ±50 %) in `wandering.ts`.
+- On-screen walk: `WALK_MIN_MS` / `WALK_MAX_MS`, `WALK_PACE_MPS` and `WALK_WINDOW_MS` in
+  `apps/web/src/features/radar/RadarMap.tsx`.
+- Per species: change its movement style in the Creature Manager and publish.
+- To disable it entirely, skip the `wanderSpawns(...)` call in `gameState()` (keep the active spawns as they are) or
+  give every species the `still` style. The database columns (`heading`, `moved_at`) are harmless if unused.
 
 ## Anti-teleport (movement checks)
 
@@ -332,6 +428,9 @@ tolerance for digitizing noise. The database's `ST_IsValid` CHECK is the final b
 | `GAME_RULES.interactRadiusM` | 60 m | 〃 | Observe/capture from further away; radar ring grows |
 | `GAME_RULES.maxActiveSpawns` | 6 | 〃 | More Wildkin on the radar |
 | `GAME_RULES.spawnTtlMs` | 10 min | 〃 | Spawns linger longer |
+| `GAME_RULES.spawnWanderStepMs` | 10 s | 〃 | Wildkin take fewer, longer-spaced steps (each step covers more ground) |
+| `GAME_RULES.spawnWanderMaxSteps` | 6 | 〃 | More catch-up movement after a gap between polls |
+| `WANDER_PROFILES`, `INACTIVE_SPEED_FACTOR` | see [Wandering](#wandering-spawns-experimental) | `world/src/wandering.ts` | Faster / more restless Wildkin, more of them wander off |
 | `GAME_RULES.maxSpeedMps` | 40 m/s | 〃 | More lenient anti-teleport |
 | `GAME_RULES.maxAccuracyM` | 200 m | 〃 | Accept fuzzier fixes (desktop Wi-Fi location is often 50–150 m) |
 | `GAME_RULES.jitterSlackM` | 25 m | 〃 | More GPS wobble tolerated |

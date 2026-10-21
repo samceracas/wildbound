@@ -26,6 +26,10 @@ export const GAME_RULES = {
   maxActiveSpawns: 6,
   /** How long a spawn stays before it wanders off. */
   spawnTtlMs: 10 * 60 * 1000,
+  /** Spawns take one wandering step per interval (see wanderStep in @wildbound/world). */
+  spawnWanderStepMs: 10 * 1000,
+  /** Most wandering steps applied at once (after the player was away for a while). */
+  spawnWanderMaxSteps: 6,
   /** Fastest plausible movement between two reports (~144 km/h, allows vehicles). */
   maxSpeedMps: 40,
   /** Reports worse than this are ignored (not accepted, not flagged). */

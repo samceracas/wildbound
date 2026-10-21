@@ -2,7 +2,8 @@
 
 > **In plain English:** this page is about the *content* of the game rather than the code: the five Wildkin, where
 > they live, how time and weather change how often you meet them, the sample nature reserve the game ships with, the
-> artwork, and the story documents that are the source of truth for all of it.
+> artwork, and the story documents that are the source of truth for all of it. Since v0.2.0 Wildkin are written in the
+> [Creature Manager](13-creature-manager.md), an encyclopedia app, instead of by editing JSON files.
 
 ## Contents
 
@@ -16,19 +17,22 @@
 
 ## The opening five Wildkin
 
-Data: [`packages/db/seed/creatures.json`](../packages/db/seed/creatures.json). Descriptions come from the Wildkin
-Bible; skills are all marked `proposed` (not yet approved canon).
+Seed data: [`packages/db/seed/creatures.json`](../packages/db/seed/creatures.json) (game fields) and
+[`packages/db/seed/wildkin.json`](../packages/db/seed/wildkin.json) (their full Wildkin Bible entries for the Creature
+Manager). Descriptions come from the Wildkin Bible; skills are all marked `proposed` (not yet approved canon). After
+seeding, the live versions are in the database and are edited in the Creature Manager.
 
-| No. | Icon | Sprite | Wildkin | Lives in | Rarity | Activity | Skills (proposed) |
-|---:|:-:|:-:|---|---|---|---|---|
-| 001 | <img src="../apps/web/public/wildkin/icons/kawi.png" width="48" alt="Kawi icon"> | <img src="../apps/web/public/wildkin/sprites/kawi.png" width="80" alt="Kawi sprite"> | **Kawi** — curious canopy bird, rust breast, expressive tail | Forest canopy, bright woodland edges | common | diurnal | Branch Hop, Curious Tilt |
-| 002 | <img src="../apps/web/public/wildkin/icons/mimu.png" width="48" alt="Mimu icon"> | <img src="../apps/web/public/wildkin/sprites/mimu.png" width="80" alt="Mimu sprite"> | **Mimu** — cautious green-brown forest mouse | Leaf litter, moss, roots, undergrowth | common | crepuscular | Leaf Litter Hide, Seed Cache |
-| 003 | <img src="../apps/web/public/wildkin/icons/lumae.png" width="48" alt="Lumae icon"> | <img src="../apps/web/public/wildkin/sprites/lumae.png" width="80" alt="Lumae sprite"> | **Lumae** — leaf-bodied quadruped with a dorsal flower; sign of a healthy clearing | Sunny clearings with flowering plants | TBD | diurnal | Bloom, Petal Veil |
-| 004 | <img src="../apps/web/public/wildkin/icons/kantar.png" width="48" alt="Kantar icon"> | <img src="../apps/web/public/wildkin/sprites/kantar.png" width="80" alt="Kantar sprite"> | **Kantar** — segmented, armoured, pale side markings | Under rocks, fallen branches, damp floor | common | sheltering by day | Plate Curl, Quick Retreat |
-| 005 | <img src="../apps/web/public/wildkin/icons/riverkin.png" width="48" alt="Riverkin icon"> | <img src="../apps/web/public/wildkin/sprites/riverkin.png" width="80" alt="Riverkin sprite"> | **Riverkin** — compact freshwater swimmer with a shimmering surface | Flowing water, shaded banks, pools | TBD | crepuscular | Tail Surge, Cool Shade |
+| No. | Icon | Sprite | Wildkin | Lives in | Rarity | Activity | Movement | Skills (proposed) |
+|---:|:-:|:-:|---|---|---|---|---|---|
+| 001 | <img src="../apps/web/public/wildkin/icons/kawi.png" width="48" alt="Kawi icon"> | <img src="../apps/web/public/wildkin/sprites/kawi.png" width="80" alt="Kawi sprite"> | **Kawi** — curious canopy bird, rust breast, expressive tail | Forest canopy, bright woodland edges | common | diurnal | darter | Branch Hop, Curious Tilt |
+| 002 | <img src="../apps/web/public/wildkin/icons/mimu.png" width="48" alt="Mimu icon"> | <img src="../apps/web/public/wildkin/sprites/mimu.png" width="80" alt="Mimu sprite"> | **Mimu** — cautious green-brown forest mouse | Leaf litter, moss, roots, undergrowth | common | crepuscular | skulker | Leaf Litter Hide, Seed Cache |
+| 003 | <img src="../apps/web/public/wildkin/icons/lumae.png" width="48" alt="Lumae icon"> | <img src="../apps/web/public/wildkin/sprites/lumae.png" width="80" alt="Lumae sprite"> | **Lumae** — leaf-bodied quadruped with a dorsal flower; sign of a healthy clearing | Sunny clearings with flowering plants | TBD | diurnal | forager | Bloom, Petal Veil |
+| 004 | <img src="../apps/web/public/wildkin/icons/kantar.png" width="48" alt="Kantar icon"> | <img src="../apps/web/public/wildkin/sprites/kantar.png" width="80" alt="Kantar sprite"> | **Kantar** — segmented, armoured, pale side markings | Under rocks, fallen branches, damp floor | common | sheltering by day | skulker | Plate Curl, Quick Retreat |
+| 005 | <img src="../apps/web/public/wildkin/icons/riverkin.png" width="48" alt="Riverkin icon"> | <img src="../apps/web/public/wildkin/sprites/riverkin.png" width="80" alt="Riverkin sprite"> | **Riverkin** — compact freshwater swimmer with a shimmering surface | Flowing water, shaded banks, pools | TBD | crepuscular | roamer | Tail Surge, Cool Shade |
 
 Each creature also has `habitatAffinity` tags (e.g. Kawi: `canopy, woodland-edge, forest-edge`). They are
-informational today; encounter tables decide where a Wildkin actually appears.
+informational today; encounter tables decide where a Wildkin actually appears. The **movement style** decides how a
+spawned Wildkin wanders on the radar (experimental, see [07 · Wandering](07-game-systems.md#wandering-spawns-experimental)).
 
 ## Spawn modifiers
 
@@ -82,7 +86,7 @@ Share of spawns rolled in each habitat, computed from the seed data by the same 
 
 | Scenario | Habitat | Kawi | Mimu | Lumae | Kantar | Riverkin |
 |---|---|---:|---:|---:|---:|---:|
-| Day · clear (tables only, as v0.1.0 ships) | Forest Edge | 40% | 35% | – | 25% | – |
+| Day · clear (tables only, until exercise #2 is done) | Forest Edge | 40% | 35% | – | 25% | – |
 | Day · clear (tables only) | Sunbreak Clearing | 25% | – | 60% | 15% | – |
 | Day · clear (tables only) | Silayan Creekside | – | – | – | 29% | 71% |
 | Day · clear (with modifiers, after exercise #2) | Forest Edge | 75% | 18% | – | 6% | – |
@@ -98,26 +102,34 @@ always "clear".
 
 ## Art
 
+Since v0.2.0 the **database is the home of Wildkin art** (`wildkin_art` table). The API serves it at
+`/api/art/wildkin/<id>/icon.png` and `…/sprite.png`, and the game and the Creature Manager both load it from there.
+New art is generated in the Creature Manager (**Generate sprites with PixelLab**, see
+[13 · PixelLab art](13-creature-manager.md#pixellab-art)).
+
 | Asset | Size | Path | Generated with |
 |---|---|---|---|
-| Wildkin face icons | 64 px | `apps/web/public/wildkin/icons/<id>.png` | PixelLab (Pixen model) |
-| Wildkin sprites | 128 px | `apps/web/public/wildkin/sprites/<id>.png` | PixelLab (Kantar regenerated in pass 2 for its pale side markings) |
+| Wildkin face icons | 64 px | database (`wildkin_art`, kind `icon`); seed copies in `apps/web/public/wildkin/icons/<id>.png` | PixelLab (Pixen model) |
+| Wildkin sprites | 128 px | database (`wildkin_art`, kind `sprite`); seed copies in `apps/web/public/wildkin/sprites/<id>.png` | PixelLab (Kantar regenerated in v0.1.0 pass 2 for its pale side markings) |
 | Player head | – | `apps/web/public/player/head.png` | PixelLab |
 | UI mockups | 6 screens | `patches/0.1.0/mockups/*.png/.html` | Google Stitch ("Wildbound Design System") |
 
 Rules from the project brief and the Bible:
 
 - Art is **placeholder until approved** against the Wildkin Bible.
-- AI tools produce art **offline**; they are never a runtime dependency and never the source of geographic truth.
-- File names must equal the creature `id`.
-- The repo's `.mcp.json` configures the PixelLab MCP server (needs `PIXELLAB_API_KEY`) for AI-assisted generation.
-  The brief asks to use the cheapest model and check the credit balance before generating.
+- AI tools are **authoring tools**, never something the game needs to run: generation happens in the Creature Manager
+  (an internal tool) and the result is stored in the database; players only download PNGs. AI is never the source of
+  geographic truth.
+- The cheapest PixelLab model (Pixen) is used and the credit balance is **checked before every generation**.
+- The five seed PNGs in `apps/web/public/wildkin/` are imported into the database by `pnpm db:seed` and stay as the
+  game's fallback. File names there must equal the creature `id`.
+- The repo's `.mcp.json` also configures the PixelLab MCP server for hand-driven generation from an AI coding assistant.
 
 `packages/assets` is reserved for future tile/creature/effect metadata for the Phaser field.
 
 ## Canon documents and authority
 
-[`documents/`](../documents/) holds the creative canon (Word files):
+The creative canon lives in [`docs/`](./) as Word files, next to this documentation:
 
 | Document | What it is |
 |---|---|
@@ -126,7 +138,16 @@ Rules from the project brief and the Bible:
 | `WILDBOUND_Wildkin_Biology_and_Ecology_Reference_v1.0.docx` | Worldbuilding rules: Wildkin are a distinct biological lineage (shared genetic signature, an unresolved ancient origin), reproduction, ecology |
 
 Authority order (from the Bible): the Bible for species canon, then the First Field Survey, then other references.
-Design rules from these documents that the code follows:
+
+These files are also the source of the **lore context of the Creature Manager's AI assistant**. By default the API
+sends a condensed summary of them, [`docs/lore/assistant-brief.md`](lore/assistant-brief.md) (~2,000 tokens, small
+enough for Groq's free tier); **when you change a canon document, update the brief too**. With `LORE_SOURCE=full` the
+API reads every `docs/WILDBOUND_*.docx` (and `.md`) file in this order instead and sends the text (up to
+`LORE_MAX_CHARS`); keep the `WILDBOUND_` prefix and the words `Wildkin_Bible`, `First_Field_Survey`,
+`Biology_and_Ecology` in the file names, which set the order. See
+[13 · AI assistant](13-creature-manager.md#ai-assistant).
+
+Design rules from these documents that the code (and the assistant's instructions) follow:
 
 - Wildkin are living species with ecology, **not** disposable battle units. **Observation precedes capture**
   (observing first raises capture chance).
@@ -140,8 +161,11 @@ Design rules from these documents that the code follows:
 | Want to… | Do this |
 |---|---|
 | Change where Wildkin appear, weights, conditions | In the **Map Editor** (no code). Save, validate, publish |
-| Change a Wildkin's text, rarity, modifiers or skills | Edit `packages/db/seed/creatures.json`, run `pnpm db:seed` (upserts creatures; keeps your draft) |
-| Add a new Wildkin | [Cookbook: add a Wildkin](11-cookbook.md#add-a-new-wildkin) |
+| Change a Wildkin's text, rarity, modifiers, skills or movement | In the **Creature Manager** (no code): edit, **Save draft**, then **Publish** so the game gets it |
+| Add a new Wildkin | In the **Creature Manager**: [Cookbook: add a Wildkin](11-cookbook.md#add-a-new-wildkin) |
+| Give a Wildkin new art | Creature Manager → **Generate sprites with PixelLab** |
+| Retire a Wildkin | Creature Manager → **Delete** (soft delete: stops spawning, restorable, players keep their Registry entry) |
+| Change the *seed* defaults for a fresh database | Edit `packages/db/seed/creatures.json` / `wildkin.json`, run `pnpm db:seed`. Note: this overwrites the five seed creatures' game data, but never existing encyclopedia entries |
 | Replace the sample world | Edit `mabunyi.world.json` and `pnpm db:seed --force [--publish]`, or draw it in the editor |
 | Refresh the charts on this page | `node docs/images/generate-charts.mjs` |
 

@@ -3,7 +3,9 @@ import { checkIntegrity, report, validateWorld } from "@wildbound/world";
 import type { ValidationIssue } from "@wildbound/shared";
 import { createDb } from "../client.ts";
 import { requireEnv } from "../env.ts";
-import { seedCreatures, seedMabunyiWorld } from "../seed-data.ts";
+import { seedArtFile, seedCreatures, seedMabunyiWorld, seedWildkinBible } from "../seed-data.ts";
+import { loadWildkinArt, saveWildkinArt, seedWildkinEntries } from "../wildkin-repo.ts";
+import { ART_KINDS } from "@wildbound/shared";
 import { loadWorld, publishDraft, saveDraft, upsertCreatures } from "../world-repo.ts";
 import { runScript, ScriptError } from "./cli.ts";
 
@@ -11,7 +13,10 @@ import { runScript, ScriptError } from "./cli.ts";
  * pnpm db:seed               creatures + sample Mabunyi draft (only if the draft is empty)
  * pnpm db:seed --force       overwrite the current draft with the sample world
  * pnpm db:seed --publish     also publish the draft after seeding
- * pnpm db:seed --creatures   creatures only
+ * pnpm db:seed --creatures   creatures (+ their encyclopedia entries and art) only
+ *
+ * Creatures are upserted every time. Encyclopedia entries (Creature Manager)
+ * and their art are only inserted when missing, so authored work is kept.
  */
 const args = new Set(process.argv.slice(2));
 
@@ -25,6 +30,19 @@ await runScript("Seed", url, async () => {
     const creatures = seedCreatures();
     await upsertCreatures(handle.db, creatures);
     console.log(`Seeded ${creatures.length} Wildkin: ${creatures.map((c) => c.name).join(", ")}`);
+
+    const added = await seedWildkinEntries(handle.db, seedWildkinBible());
+    let imported = 0;
+    for (const c of creatures) {
+      for (const kind of ART_KINDS) {
+        const png = seedArtFile(c.id, kind);
+        if (!png || (await loadWildkinArt(handle.db, c.id, kind))) continue;
+        if (!(await handle.db.wildkinEntry.findUnique({ where: { id: c.id }, select: { id: true } }))) continue;
+        await saveWildkinArt(handle.db, c.id, kind, png, { prompt: "imported", model: "pixellab (hand-generated)" });
+        imported++;
+      }
+    }
+    console.log(`Encyclopedia: ${added} new entries, ${imported} art files imported`);
 
     let keptDraft = false;
     if (!args.has("--creatures")) {

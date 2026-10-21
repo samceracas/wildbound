@@ -1,7 +1,7 @@
 # 01 · Architecture
 
-> **In plain English:** WILDBOUND is three programs (editor, game, server) plus four shared code libraries, all in one
-> repository. The server is the single source of truth: the browser apps only ask it questions. The game rules live in
+> **In plain English:** WILDBOUND is four programs (Map Editor, Creature Manager, game, server) plus shared code
+> libraries, all in one repository. The server is the single source of truth: the browser apps only ask it questions. The game rules live in
 > one small library with no database or screens, so the same rules run everywhere and are easy to test.
 
 ## Contents
@@ -25,16 +25,18 @@ wildbound/
 ├── apps/
 │   ├── api/          @wildbound/api     Express 5 REST API (port 4000)
 │   ├── editor/       @wildbound/editor  React + MapLibre Map Editor (port 5173)
-│   └── web/          @wildbound/web     React player game (port 5174)
+│   ├── web/          @wildbound/web     React player game (port 5174)
+│   └── manager/      @wildbound/manager React Creature Manager: Wildkin encyclopedia, AI assist, art (port 5175)
 ├── packages/
 │   ├── shared/       @wildbound/shared  Zod schemas + TS types: the data contract
 │   ├── world/        @wildbound/world   Pure domain rules (no DB, no React, no network)
 │   ├── db/           @wildbound/db      Prisma schema, migrations, PostGIS queries, seed data
 │   ├── game/         (reserved)         Future battle/game systems. Only a README
 │   └── assets/       (reserved)         Future tile/creature asset metadata. Only a README
-├── docs/             This documentation
-├── documents/        Game canon (.docx): Wildkin Bible, First Field Survey, Biology & Ecology
+├── docs/             This documentation + game canon (WILDBOUND_*.docx: Wildkin Bible, First Field Survey,
+│                     Biology & Ecology), which the Creature Manager's AI assistant reads as lore
 ├── patches/0.1.0/    The v0.1.0 brief, handovers, exercises list, Stitch mockups + DESIGN.md
+├── patches/0.2.0/    The v0.2.0 brief (Creature Manager, wandering spawns)
 ├── docker/initdb/    SQL run on first DB start (creates wildbound_test)
 ├── docker-compose.yml  PostGIS 16-3.4 container "wildbound-db"
 ├── vitest.config.ts  Test projects: unit, exercises, integration
@@ -56,6 +58,7 @@ flowchart TB
     subgraph apps["apps (runnable)"]
         editor["@wildbound/editor<br/><i>React · MapLibre · Zustand</i>"]
         web["@wildbound/web<br/><i>React · Router · MapLibre</i>"]
+        manager["@wildbound/manager<br/><i>React · Router · shadcn</i>"]
         api["@wildbound/api<br/><i>Express 5</i>"]
     end
     subgraph packages["packages (libraries)"]
@@ -66,6 +69,7 @@ flowchart TB
     editor --> world
     editor --> shared
     web --> shared
+    manager --> shared
     api --> db
     api --> world
     api --> shared
@@ -82,6 +86,7 @@ flowchart TB
 | `api` | `db`, `world`, `shared`, Express | React | Server |
 | `editor` | `world`, `shared` | `db` | Browser app; reads/writes only through the API |
 | `web` | `shared` only | `world`, `db` | The game must not compute rules client-side: the server is authoritative |
+| `manager` | `shared` only | `world`, `db` | Browser app; reads/writes only through the API (`/api/manager/*`) |
 
 > ⚠️ **`apps/web` deliberately does not depend on `@wildbound/world`.** If the game client could run the encounter or
 > movement rules, it would be tempting to trust its results. Keep game decisions on the server.
@@ -94,6 +99,9 @@ What runs where during development:
 flowchart LR
     subgraph browser1["Browser — designer"]
         E["Map Editor<br/>localhost:5173"]
+    end
+    subgraph browser3["Browser — designer"]
+        MG["Creature Manager<br/>localhost:5175"]
     end
     subgraph browser2["Browser — player (phone or devtools Sensors)"]
         W["Web game<br/>localhost:5174"]
@@ -109,9 +117,14 @@ flowchart LR
         PG[("PostgreSQL 16<br/>+ PostGIS 3.4<br/>DBs: wildbound, wildbound_test")]
     end
     OM["api.open-meteo.com"]
+    GQ["api.groq.com<br/>(AI assistant, optional)"]
+    PL["api.pixellab.ai<br/>(art, optional)"]
     TILES["Tile servers<br/>OpenFreeMap · OSM · Esri"]
 
     E -- "fetch + Authorization: Bearer EDITOR_TOKEN<br/>(CORS)" --> X
+    MG -- "fetch + Bearer EDITOR_TOKEN<br/>/api/manager/* (Vite proxy)" --> X
+    X -- "GROQ_API_KEY" --> GQ
+    X -- "PIXELLAB_API_KEY" --> PL
     W -- "same-origin fetch + wb_session cookie" --> PX --> X
     X -- "Prisma (pg driver adapter)" --> PG
     X --> WP --> OM
@@ -122,11 +135,16 @@ flowchart LR
 Key points:
 
 - **The editor calls the API cross-origin** (`VITE_API_URL`, default `http://localhost:4000`) with a bearer token, so
-  the API enables CORS for the origins in `CORS_ORIGINS`.
+  the API enables CORS for the origins in `CORS_ORIGINS` (default `:5173`, `:5174`, `:5175`).
+- **The Creature Manager calls `/api/*` on its own origin** with the bearer token; its Vite server proxies to the API
+  (`apps/manager/vite.config.ts`, target `API_PROXY_TARGET` or `VITE_API_URL`), so it works whatever `CORS_ORIGINS` says.
 - **The game calls the API same-origin.** Vite proxies `/api/*` from `:5174` to `:4000` (`apps/web/vite.config.ts`,
   override with `API_PROXY_TARGET`). That keeps the httpOnly `wb_session` cookie first-party with no CORS involved. In
   production you would serve the game and API under one domain (or a reverse proxy) for the same reason.
 - **Weather** is fetched by the server, never by the client, so a player cannot choose their own weather.
+- **Groq and PixelLab** are called only by the API, only for Creature Manager requests, and only when their keys are
+  set. API keys never reach a browser. The game never depends on them: art is stored in the database and served by
+  `GET /api/art/wildkin/:id/:kind.png`.
 - **Map tiles** are only decoration. The base map is "geographic truth" for drawing; it is never the game map.
 
 ## Three separate representations of the world
@@ -161,17 +179,19 @@ The editor's Test panel, the API's game service and the future Phaser field all 
 | Backend | Express 5 | Familiar; v5 forwards async errors to the error middleware | `apps/api` |
 | DB | PostgreSQL 16 + PostGIS 3.4 | Real spatial queries (point-in-polygon, distances in meters) | Docker |
 | DB access | Prisma 7 with `@prisma/adapter-pg` | Typed queries and migrations; raw SQL for geometry | `packages/db` |
-| Frontend | React 19 + Vite 7 | Standard, fast dev server | editor, web |
-| Server state | TanStack Query 5 | Caching, polling, invalidation instead of hand-rolled fetch state | editor, web |
+| Frontend | React 19 + Vite 7 | Standard, fast dev server | editor, web, manager |
+| Server state | TanStack Query 5 | Caching, polling, invalidation instead of hand-rolled fetch state | editor, web, manager |
 | Local editor state | Zustand 5 | Small store that the imperative map can subscribe to outside React | editor |
-| Forms | react-hook-form 7 + `zodResolver` | Same Zod schemas validate the form and the API | editor inspectors, web login |
-| Styling | Tailwind CSS 4 (+ shadcn/ui in web) | Utility classes with design tokens in CSS | editor, web |
-| Routing | React Router 7 | Route guards for login → location → game | web |
+| Forms | react-hook-form 7 + `zodResolver` | Same Zod schemas validate the form and the API | editor inspectors, web login, manager entry form |
+| Styling | Tailwind CSS 4 (+ shadcn/ui in web and manager) | Utility classes with design tokens in CSS | editor, web, manager |
+| Routing | React Router 7 | Route guards for login → location → game; manager pages | web, manager |
 | Maps | MapLibre GL JS 5 | Open-source WebGL maps, no API key | editor, web |
 | Client geometry | Turf.js 7 | Area, overlap, point-in-polygon for validation and drawing (PostGIS stays authoritative) | world, editor |
 | Weather | Open-Meteo | Free, key-free current weather + time zone | api |
+| AI assistant | Groq chat completions (JSON mode), default `llama-3.3-70b-versatile` | Fast, has a free tier, OpenAI-compatible; optional | api (`manager/assistant.ts`) |
+| Canon reading | mammoth | Extracts text from the `.docx` canon for the assistant | api (`manager/lore.ts`) |
 | Tests | Vitest 3 + supertest | Unit, exercises and real-PostGIS integration tests | root `vitest.config.ts` |
-| Art | PixelLab (generated offline) | Placeholder pixel art; never a runtime dependency | `apps/web/public` |
+| Art | PixelLab API v2 (Pixen, the cheapest model) | Generated from the Creature Manager, stored in the DB; the game only downloads PNGs | api (`manager/art.ts`), `wildkin_art` |
 | Future renderer | Phaser 3 | Top-down field view. Not started | – |
 
 ## Life of a request
@@ -206,6 +226,8 @@ sequenceDiagram
     S->>DB: findSpatialContext (region, habitat, POIs, tables)
     S->>WR: assembleWorldContext → availableWildkin
     S->>DB: expire old spawns, mark far ones "fled"
+    S->>WR: wander (move each spawn, out of 120 m → "fled")
+    S->>DB: update spawn positions / statuses
     S->>WR: planSpawns (applySpawnModifiers + rollEncounter + randomPointNear)
     S->>DB: insert new spawns
     S-->>R: GameStateResponse
@@ -252,12 +274,18 @@ These are the decisions the codebase is built around. Breaking one usually break
 4. **PostGIS answers *where*, `world` decides *what it means*.** Spatial lookups are SQL; all game logic about
    tables, conditions and probabilities is TypeScript.
 5. **Draft and published never mix.** Every world table is keyed by `(id, stage)` and relations include the stage.
-6. **The world is data, not code.** No region, habitat or Wildkin is hard-coded in UI or logic. The only code-defined
-   catalogue is `ITEMS` (inventory items).
+6. **The world is data, not code.** No region, habitat or Wildkin is hard-coded in UI or logic (Wildkin are authored
+   in the Creature Manager, their art is served from the database). The only code-defined catalogue is `ITEMS`
+   (inventory items).
 7. **Deterministic output.** Lists are sorted (by name then id, or weight then id), so tests and previews are stable.
 8. **Locked data is `null`, not hidden.** The Registry API sends `null` for fields the player has not unlocked; the
    UI never receives secrets it is supposed to hide.
 9. **Editor edits are pure functions** (`apps/editor/src/world-edit.ts`) so every edit is one undo step and unit-testable.
+10. **Delete softly.** Species are retired with `deleted_at`, never removed, so players' Registry and Party history
+    stays intact. Code that lists species for *new* things (spawning, pickers) uses `listCreatures(db)`; code that shows
+    *existing* things (Registry, Party) uses `listCreatures(db, { includeDeleted: true })`.
+11. **External AI is optional and server-side.** The assistant and art generator are interfaces injected into
+    `createApp`; without keys they are `null` and the features switch off cleanly.
 
 ## How TypeScript is wired
 

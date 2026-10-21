@@ -1,6 +1,6 @@
 {
   "name": "@wildbound/api",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -15,6 +15,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "express": "5.3.0",
+    "mammoth": "^1.13.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {

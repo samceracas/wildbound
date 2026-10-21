@@ -1,7 +1,7 @@
 # 03 · Database
 
-> **In plain English:** everything the game remembers (the world, the Wildkin catalogue, every player's progress) is
-> stored in a PostgreSQL database. A plug-in called PostGIS lets the database understand shapes on a map, so it can
+> **In plain English:** everything the game remembers (the world, the Wildkin catalogue and encyclopedia, every
+> player's progress) is stored in a PostgreSQL database. A plug-in called PostGIS lets the database understand shapes on a map, so it can
 > answer "which habitat contains this GPS point?" quickly and correctly.
 
 ## Contents
@@ -12,6 +12,7 @@
 - [Constraints that protect the data](#constraints-that-protect-the-data)
 - [Prisma and PostGIS together](#prisma-and-postgis-together)
 - [The repository functions (`world-repo.ts`)](#the-repository-functions-world-repots)
+- [The encyclopedia functions (`wildkin-repo.ts`)](#the-encyclopedia-functions-wildkin-repots)
 - [Saving and publishing: transactions and locks](#saving-and-publishing-transactions-and-locks)
 - [Spatial queries explained](#spatial-queries-explained)
 - [Migrations](#migrations)
@@ -27,7 +28,7 @@
 | Databases | `wildbound` (dev), `wildbound_test` (integration tests, created by `docker/initdb/01-test-db.sql`) |
 | Access library | Prisma 7, `prisma-client` generator, `@prisma/adapter-pg` driver adapter (pool of 10) |
 | Schema file | `packages/db/prisma/schema.prisma` |
-| Migrations | `packages/db/prisma/migrations/{0_init,1_players}/migration.sql` |
+| Migrations | `packages/db/prisma/migrations/{0_init,1_players,2_wildkin_manager,3_registry_description}/migration.sql` |
 | Generated client | `packages/db/src/generated/prisma/` (gitignored; `pnpm install` runs `prisma generate`) |
 | Entry point | `createDb(url)` → `{ db: PrismaClient, url, close }` in `packages/db/src/client.ts` |
 | SRID | 4326 (WGS84 lon/lat) for every geometry |
@@ -38,7 +39,7 @@
 erDiagram
     creatures {
         text id PK "slug, e.g. kawi"
-        int registry_number UK
+        int registry_number "unique among non-deleted"
         text name
         text description
         text_arr habitat_affinity
@@ -47,6 +48,26 @@ erDiagram
         text activity_pattern
         jsonb spawn_modifiers
         jsonb skills
+        text movement_style "still|skulker|forager|roamer|darter"
+        timestamptz deleted_at "soft delete"
+    }
+    wildkin_entries {
+        text id PK "canonical id = creatures.id once published"
+        int registry_number "unique among non-deleted"
+        text name
+        enum status "draft | published"
+        jsonb content "every other Bible field"
+        timestamptz updated_at
+        timestamptz published_at
+        timestamptz deleted_at "soft delete"
+    }
+    wildkin_art {
+        text entry_id PK "FK wildkin_entries, CASCADE"
+        text kind PK "icon | sprite"
+        bytea png
+        text prompt
+        text model
+        timestamptz created_at
     }
     world_regions {
         uuid id PK
@@ -139,6 +160,8 @@ erDiagram
         text weather
         enum status "active|captured|fled|expired"
         timestamptz observed_at
+        float heading "radians, wandering"
+        timestamptz moved_at "last wandering step"
         timestamptz expires_at
     }
     registry_entries {
@@ -178,15 +201,21 @@ erDiagram
     creatures ||--o{ spawns : ""
     creatures ||--o{ registry_entries : ""
     creatures ||--o{ captured_wildkin : "RESTRICT"
+    wildkin_entries ||--o{ wildkin_art : cascade
+    wildkin_entries |o..o| creatures : "publish copies game fields (same id, no FK)"
 ```
 
-The schema splits into three groups:
+The schema splits into four groups:
 
 ```mermaid
 flowchart LR
-    subgraph cat["Catalogue (seeded)"]
+    subgraph enc["Encyclopedia (Creature Manager)"]
+        wildkin_entries --- wildkin_art
+    end
+    subgraph cat["Catalogue (seeded + published from the manager)"]
         creatures
     end
+    wildkin_entries -- "Publish copies game fields" --> creatures
     subgraph world["World (draft + published, authored in the editor)"]
         world_regions --- habitats --- encounter_tables --- encounter_entries
         world_regions --- points_of_interest
@@ -213,7 +242,18 @@ flowchart LR
 
 | Table | Prisma model | Notes |
 |---|---|---|
-| `creatures` | `Creature` | One row per species. `spawn_modifiers` and `skills` are JSON validated by Zod on read. Upserted by `pnpm db:seed` (`upsertCreatures`). Deleting a creature that encounter entries or captured Wildkin reference is **blocked** (RESTRICT) |
+| `creatures` | `Creature` | One row per species: the **game data** the editor and the game read. `spawn_modifiers` and `skills` are JSON validated by Zod on read. `movement_style` (default `forager`) drives [wandering](07-game-systems.md#wandering-spawns-experimental). Written by `pnpm db:seed` (`upsertCreatures`) and by **Publish** in the Creature Manager. `deleted_at` marks a **soft-deleted** species (it stops spawning and disappears from editor pickers). A plain `DELETE` of a creature that encounter entries or captured Wildkin reference is **blocked** (RESTRICT); the Creature Manager's permanent delete (`purgeWildkin`) removes those rows first, in one transaction |
+
+### Encyclopedia (Creature Manager)
+
+| Table | Prisma model | Notes |
+|---|---|---|
+| `wildkin_entries` | `WildkinEntry` | One Wildkin Bible entry per species, authored in the [Creature Manager](13-creature-manager.md). `id`, `registry_number` (unique among non-deleted entries) and `name` are columns; every other field (prose, tags, spawn modifiers, skills, movement style…) is in `content` JSON, validated by `WildkinEntryInputSchema` from `@wildbound/shared` on every read. `status` is `draft` until the first publish; "unpublished changes" means `updated_at > published_at`. `deleted_at` = soft delete |
+| `wildkin_art` | `WildkinArt` | PNG bytes per entry and kind (`icon` 64 px, `sprite` 128 px; `CHECK kind IN ('icon','sprite')`), plus the PixelLab `prompt` and `model` used (`"imported"` for the hand-made seed art). PK `(entry_id, kind)`, so regenerating replaces the old image. Served publicly at `GET /api/art/wildkin/:id/:kind.png` |
+
+There is deliberately **no foreign key** between `wildkin_entries` and `creatures`. They share the id by convention:
+publishing an entry upserts `creatures` with the same id (`publishWildkin`). Registry numbers are checked across **both**
+tables, so a seeded creature without an entry still "owns" its number.
 
 ### World (authored, two stages)
 
@@ -234,7 +274,7 @@ flowchart LR
 | `players` | `Player` | `username` is lowercased (the login key); `display_name` is as typed |
 | `player_sessions` | `PlayerSession` | Only the **sha256 hash** of the cookie token is stored. Expires after 30 days |
 | `player_positions` | `PlayerPosition` | One row per player: the **server's** idea of where they are. Only `reportPosition` (via `checkMovement`) writes it, plus `environmentAt` updating `time_zone` |
-| `spawns` | `Spawn` | One Wildkin placed for one player. Index `(player_id, status, expires_at)` serves the radar query. Records the environment at spawn time |
+| `spawns` | `Spawn` | One Wildkin placed for one player. Index `(player_id, status, expires_at)` serves the radar query. Records the environment at spawn time. `lat`/`lng` change as the spawn wanders; `heading` (radians, null until the first step) and `moved_at` (last wandering step) belong to [wandering](07-game-systems.md#wandering-spawns-experimental) |
 | `registry_entries` | `RegistryEntry` | PK `(player_id, creature_id)`. Existence = observed; `first_captured_at` not null = captured |
 | `inventory_items` | `InventoryItem` | PK `(player_id, item_id)`. Item definitions live in code (`ITEMS`) |
 | `captured_wildkin` | `CapturedWildkin` | One captured individual. `party_slot` 0–5 or `NULL` (storage). Unique `(player_id, party_slot)`; Postgres allows many NULLs, so storage is unlimited |
@@ -249,11 +289,13 @@ The validation in code is the first line of defence; these database rules are th
 | `encounter_entries_weight_range CHECK (weight BETWEEN 1 AND 1000)` | `0_init` | Out-of-range weights |
 | Composite FKs including `stage` | `0_init` | Draft rows pointing at published rows |
 | Unique slugs per stage (and region) | `0_init` | Duplicate slugs |
-| `creatures_registry_number_positive`, unique `registry_number` | `1_players` | Bad Registry numbering |
+| `creatures_registry_number_positive` | `1_players` | Bad Registry numbering |
 | `inventory_items_quantity_non_negative CHECK (quantity >= 0)` | `1_players` | Spending capsules you don't have (even under races) |
 | `captured_wildkin_party_slot_range CHECK (party_slot IS NULL OR BETWEEN 0 AND 5)` + unique `(player_id, party_slot)` | `1_players` | Two Wildkin in one slot, slot 6+ |
 | `player_positions_lat_range`, `_lng_range` | `1_players` | Impossible coordinates |
 | `ON DELETE CASCADE` from `players` | `1_players` | Orphaned player data when a player is deleted |
+| `wildkin_art_kind_check`, `ON DELETE CASCADE` art → entry | `2_wildkin_manager` | Unknown art kinds; orphaned art |
+| Partial unique `registry_number` on `creatures` and `wildkin_entries` (`WHERE deleted_at IS NULL`) | `4_registry_number_reuse` | Two live Wildkin with one number (a deleted one may share it) |
 
 The API's error handler (`apps/api/src/errors.ts`) maps the Postgres error codes to HTTP: `23514` (check), `XX000`/`22023`
 (PostGIS invalid geometry) → 400 `invalid_geometry`; `23505` (unique) → 409 `conflict`; `23503` (FK) → 400 `invalid_reference`.
@@ -271,7 +313,7 @@ flowchart LR
     end
     subgraph orm["Prisma client API"]
         b1["encounter_tables / entries"]
-        b2["creatures"]
+        b2["creatures, wildkin_entries, wildkin_art"]
         b3["all player tables"]
         b4["world_meta / publications"]
     end
@@ -294,13 +336,32 @@ flowchart LR
 
 | Function | Does | Used by |
 |---|---|---|
-| `listCreatures(db)` | All creatures, ordered by registry number, re-parsed with Zod | API everywhere |
+| `listCreatures(db, { includeDeleted? })` | Creatures ordered by registry number, re-parsed with Zod. Soft-deleted species are left out unless `includeDeleted: true` (Registry, Party, observe and saving drafts use that) | API everywhere |
 | `upsertCreatures(db, list)` | Insert or update creatures by id | seed, tests |
 | `loadWorld(db, stage)` | Full `WorldDocument` for a stage (raw SQL for spatial tables, Prisma for tables) | editor GET, publish, seed |
 | `getWorldStatus(db)` | Draft/publish timestamps, version, `hasUnpublishedChanges` | editor |
 | `saveDraft(db, doc)` | Replace the whole draft (transaction + advisory lock) | `PUT /draft`, seed |
 | `publishDraft(db, validate)` | Validate the saved draft and copy to published atomically | `POST /publish`, seed `--publish` |
 | `findSpatialContext(db, {stage, lat, lng, radiusMeters})` | Region, habitat, nearby POIs, applicable tables and published version | `resolveWorldContext` |
+
+## The encyclopedia functions (`wildkin-repo.ts`)
+
+| Function | Does | Used by |
+|---|---|---|
+| `listWildkin(db, deleted)` | Summaries (`deleted`: `exclude` / `include` / `only`), ordered by registry number | `GET /api/manager/wildkin` |
+| `getWildkin(db, id)` | One full `WildkinEntry` (columns + `content` + status + art info) | manager routes |
+| `createWildkin(db, data)` | Insert a draft. 409 `conflict` if the id exists as an entry **or** a creature, or the registry number is taken | `POST /api/manager/wildkin` |
+| `updateWildkin(db, data)` | Replace the entry (id is immutable). Refused for deleted entries | `PUT /api/manager/wildkin/:id` |
+| `publishWildkin(db, id)` | Check `PUBLISH_REQUIRED_FIELDS`, then upsert `creatures` with `creatureFromEntry(entry)` (clearing its `deleted_at`) and mark the entry published, in one transaction | `POST …/publish` |
+| `softDeleteWildkin` / `restoreWildkin` | Set / clear `deleted_at` on the entry **and** the creature with the same id; restore moves to the next free registry number if its own was taken | `DELETE …`, `POST …/restore` |
+| `wildkinUsage` / `purgeWildkin` | Count / delete everything referencing a species (encounter entries, Registry records, captures, spawns), then the creature and the entry (art cascades) | `GET …/usage`, `DELETE …?permanent=1` |
+| `wildkinStats(db)` | Dashboard counts and `nextRegistryNumber` (max over entries and creatures + 1) | `GET /api/manager/stats` |
+| `saveWildkinArt` / `loadWildkinArt` | Upsert / read PNG bytes (`load` returns null for deleted entries) | art routes, seed |
+| `seedWildkinEntries(db, list)` | Insert entries that do not exist yet (never overwrites authored work); marked published when the creature already exists | seed |
+| `creatureFromEntry(data)` | The game projection: `description` = registry description, `habitatAffinity` = habitat tags, plus rarity, activity, modifiers, skills, movement style | publish |
+
+`WildkinRepoError` codes map to HTTP in `apps/api/src/routes/manager.ts`: `not_found` 404, `conflict` 409, `deleted`
+409, `publish_incomplete` 400. The full flow is in [13 · Creature Manager](13-creature-manager.md#encyclopedia-vs-creatures).
 
 ## Saving and publishing: transactions and locks
 
@@ -378,6 +439,9 @@ The **GiST indexes** on every `geom` column make "which shapes contain this poin
 |---|---|
 | `0_init` | `CREATE EXTENSION postgis`; the world tables, enums, composite keys, GiST indexes, `ST_IsValid` and weight CHECKs. Identical to the old Drizzle schema |
 | `1_players` | Registry columns on `creatures` (backfills `registry_number` alphabetically, then `NOT NULL`), `spawn_status` enum, all player tables, hand-written CHECKs |
+| `2_wildkin_manager` | v0.2.0: `wildkin_entry_status` enum, `wildkin_entries`, `wildkin_art` (+ kind CHECK), `creatures.movement_style` (default `forager`) and `creatures.deleted_at`, `spawns.heading` and `spawns.moved_at` |
+| `3_registry_description` | v0.2.0: fills the new `registryDescription` in `wildkin_entries.content` from `creatures.description` (or the identity line for drafts) |
+| `4_registry_number_reuse` | v0.2.0: registry numbers unique only among non-deleted rows: partial unique indexes `creatures_registry_number_live_key` and `wildkin_entries_registry_number_live_key` (`WHERE deleted_at IS NULL`) replace the plain unique indexes |
 
 `runMigrations(url)` (`packages/db/src/migrate.ts`):
 
@@ -397,10 +461,21 @@ Set `PRISMA_MIGRATE_VERBOSE=1` to see Prisma's own output. `pnpm db:migrate --te
 
 | Flag | Effect |
 |---|---|
-| *(none)* | Upsert the 5 Wildkin; save the Mabunyi sample world as the draft **only if the draft is empty** |
+| *(none)* | Upsert the 5 Wildkin into `creatures`; insert their encyclopedia entries and art if missing; save the Mabunyi sample world as the draft **only if the draft is empty** |
 | `--force` | Overwrite the current draft with the sample world |
 | `--publish` | Also publish (fails with a readable list if validation errors exist) |
-| `--creatures` | Creatures only |
+| `--creatures` | Creatures (plus their encyclopedia entries and art) only |
+
+Encyclopedia seeding (v0.2.0):
+
+- `packages/db/seed/wildkin.json` holds the five Wildkin Bible entries. `seedWildkinEntries` inserts only the ones that
+  are **missing**, so edits made in the Creature Manager survive a re-seed.
+- The hand-made PixelLab art in `apps/web/public/wildkin/{icons,sprites}/<id>.png` is imported into `wildkin_art`
+  (prompt `"imported"`) when an entry has no art of that kind yet.
+
+> ⚠️ `creatures` rows of the five seed Wildkin **are** overwritten from `creatures.json` on every `pnpm db:seed`. If you
+> changed Kawi's game fields in the manager, publish it again after seeding (the encyclopedia entry still has your
+> version).
 
 Seed files are validated with the shared schemas (`seed-data.ts`) and the sample world with `checkIntegrity` before
 saving. Contents are described in [09 · Wildkin and world content](09-wildkin-and-content.md).
@@ -413,7 +488,7 @@ into one-line messages instead of stack traces.
 `@wildbound/db/testing`:
 
 - `openTestDb()` requires `DATABASE_URL_TEST`, refuses to run if it equals `DATABASE_URL`, migrates it, and returns a handle.
-- `resetTestData(handle)` truncates every table and re-seeds the creatures. Integration tests call it in `beforeEach`.
+- `resetTestData(handle)` truncates every table (including `wildkin_entries` and `wildkin_art`) and re-seeds the creatures. Integration tests call it in `beforeEach`.
 
 ## How to change the schema
 

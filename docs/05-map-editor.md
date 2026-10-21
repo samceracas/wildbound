@@ -40,6 +40,10 @@ flowchart LR
 4. Select a habitat → **Add encounter table** → add Wildkin, set weights, optionally restrict by time/weather.
 5. **Save draft** (`Ctrl+S`), **Validate**, **Test** (`T`), then **Publish**.
 
+The Wildkin you can pick come from the database (the `creatures` table). New species are written and published in the
+[Creature Manager](13-creature-manager.md); switch back to the editor tab and they appear in the pickers (the catalogue
+is refetched when the window regains focus). See [Wildkin from the Creature Manager](#wildkin-from-the-creature-manager).
+
 | Tool / key | Action |
 |---|---|
 | Select `V` | Click a habitat (click again to cycle to its region) or a POI. Drag white vertex handles to reshape, drag midpoint handles to add a vertex, right-click a vertex to delete it (minimum 3) |
@@ -87,6 +91,7 @@ flowchart TB
     end
     subgraph tq["TanStack Query (lib/queries.ts)"]
         WQ["useWorldQuery<br/>['editor','world']"]
+        CQ["useCreatures<br/>['editor','creatures']<br/>refetch on focus"]
         RQ["useReport<br/>['editor','report']"]
         RS["useResolve<br/>['editor','resolve', q]"]
         MS["useSaveDraft · useValidate · usePublish"]
@@ -106,6 +111,7 @@ flowchart TB
     TB --> MS
     MS --> API
     WQ --> API
+    CQ --> API
     RS --> API
     PP --> RS
     MS -- "setQueryData(report)" --> RQ
@@ -136,11 +142,26 @@ The editor separates two kinds of state. Mixing them is the most common source o
 |---|---|---|
 | What | Saved draft, creatures, publish status, last validation report, resolve results | The world being edited, undo history, selection, tool, basemap, Test inputs, toasts |
 | Source of truth | The API | The browser, until saved |
-| Lifetime | Cached, `staleTime: Infinity` (only changes through the editor's own mutations) | Until reload |
+| Lifetime | Cached, `staleTime: Infinity` (only changes through the editor's own mutations). Exception: the creature catalogue, which the Creature Manager can change (see below) | Until reload |
 
 The rule: **the first successful `GET /api/editor/world` fills the store (`hydrate`); after that the store owns the
 edited world.** Save and Publish invalidate the world query (to refresh the status chip) but never overwrite local
 edits. **Reload** is the explicit "discard my edits" action.
+
+## Wildkin from the Creature Manager
+
+Since v0.2.0 species are authored in a separate app, the [Creature Manager](13-creature-manager.md), which writes the
+same `creatures` table. The editor keeps up like this:
+
+- `useCreatures()` (`lib/queries.ts`) reads `GET /api/editor/creatures` under the key `['editor','creatures']`, with
+  `staleTime: 15 s` and `refetchOnWindowFocus: true`. Until that answers it falls back to the creatures that came with
+  `GET /api/editor/world`. Save and Publish also invalidate it.
+- **Deleted species are excluded from the pickers.** A soft-deleted species is not in the catalogue, so you cannot add it
+  to a table.
+- **A draft that still references a deleted species can still be saved.** The save integrity check knows deleted species,
+  so your other edits are not lost. Validation (the Issues panel) and Publish report the entry as an **unknown Wildkin**;
+  remove it from the table (or restore the species in the manager) to publish.
+- Deleted species never spawn in the game even if the *published* world still lists them.
 
 ## The Zustand store and undo/redo
 
