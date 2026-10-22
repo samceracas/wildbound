@@ -139,6 +139,9 @@ importers:
       '@wildbound/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@wildbound/world':
+        specifier: workspace:*
+        version: link:../../packages/world
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1

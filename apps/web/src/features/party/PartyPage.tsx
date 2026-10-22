@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { PARTY_SIZE, type CapturedWildkinView } from "@wildbound/shared";
+import { Link } from "react-router";
+import { ConditionChip, HpBar } from "@/components/field.tsx";
 import { ScreenTitle } from "@/components/layout/Shell.tsx";
 import { WildkinImage } from "@/components/WildkinImage.tsx";
 import { registryNo } from "@/lib/assets.ts";
@@ -89,24 +91,43 @@ function RenameButton({ onClick }: { onClick: () => void }) {
   );
 }
 
+function DetailsLink({ id }: { id: string }) {
+  return (
+    <Link
+      to={`/play/party/${id}`}
+      className="rounded border-2 border-deep-forest bg-deep-forest px-2 py-1 font-pixel text-[7px] text-paper uppercase hover:bg-primary-forest"
+    >
+      Details
+    </Link>
+  );
+}
+
 function LeadCard({ member, onRename }: { member: CapturedWildkinView; onRename: () => void }) {
   return (
     <div className="relative rounded-lg border-2 border-deep-forest bg-screen-panel p-2.5 shadow-[0_2px_0_#183f36]">
-      <span className="absolute -top-px right-2 rounded-b bg-deep-forest px-2 py-0.5 font-pixel text-[7px] text-field-gold">● LEAD</span>
+      {member.lead && (
+        <span className="absolute -top-px right-2 rounded-b bg-deep-forest px-2 py-0.5 font-pixel text-[7px] text-field-gold">● LEAD</span>
+      )}
       <div className="flex gap-3">
         <div className="flex shrink-0 flex-col items-center rounded-md border-2 border-deep-forest bg-screen-inset p-1">
           <WildkinImage creatureId={member.creatureId} className="pixelated size-16" />
           <span className="mt-1 font-pixel text-[7px] text-ink-muted">{registryNo(member.registryNumber)}</span>
         </div>
         <div className="min-w-0 flex-1 pt-2">
-          <p className="truncate font-pixel text-[12px] leading-4 text-deep-forest uppercase">{member.nickname ?? member.speciesName}</p>
-          <span className="mt-1.5 inline-block rounded bg-moss px-1.5 py-0.5 font-pixel text-[7px] text-paper uppercase">{member.speciesName}</span>
-          <p className="mt-1.5 font-vt text-lg leading-5 text-ink-muted">
-            Captured {new Date(member.capturedAt).toLocaleDateString()}
-          </p>
+          <Link to={`/play/party/${member.id}`} className="block truncate font-pixel text-[12px] leading-4 text-deep-forest uppercase hover:underline">
+            {member.nickname ?? member.speciesName} <span className="text-[9px] text-primary-forest">Lv {member.level}</span>
+          </Link>
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            <span className="inline-block rounded bg-moss px-1.5 py-0.5 font-pixel text-[7px] text-paper uppercase">{member.speciesName}</span>
+            <ConditionChip condition={member.condition} />
+            {member.marking && <span className="inline-block rounded bg-field-gold px-1.5 py-0.5 font-pixel text-[7px] text-ink uppercase">{member.marking}</span>}
+          </div>
+          <HpBar fraction={member.hpFraction} className="mt-1.5" />
+          {member.restlessReason && <p className="mt-1 font-vt text-base leading-4 text-ink-muted">Restless. {member.restlessReason}</p>}
         </div>
       </div>
-      <div className="mt-2 flex justify-end">
+      <div className="mt-2 flex justify-end gap-2">
+        <DetailsLink id={member.id} />
         <RenameButton onClick={onRename} />
       </div>
     </div>
@@ -122,13 +143,19 @@ function MemberRow({ member, slot, onRename }: { member: CapturedWildkinView; sl
         </span>
       )}
       <WildkinImage creatureId={member.creatureId} className="pixelated size-11 shrink-0 rounded-md border border-screen-edge bg-screen-inset" />
-      <div className="min-w-0 flex-1">
+      <Link to={`/play/party/${member.id}`} className="min-w-0 flex-1 outline-none focus-visible:ring-2 focus-visible:ring-primary-forest">
         <p className="truncate font-pixel text-[9px] text-deep-forest uppercase">
-          {member.nickname ?? member.speciesName}{" "}
-          <span className="font-vt text-base text-ink-muted normal-case">#{String(member.registryNumber).padStart(3, "0")}</span>
+          {member.nickname ?? member.speciesName} <span className="text-primary-forest">Lv {member.level}</span>
+          {member.lead && <span className="ml-1 rounded-sm bg-deep-forest px-1 text-[6px] text-field-gold">LEAD</span>}
         </p>
-        <p className="truncate font-vt text-lg leading-5 text-ink-muted">{member.nickname ? member.speciesName : "No nickname"}</p>
-      </div>
+        <div className="mt-1 flex items-center gap-1.5">
+          <HpBar fraction={member.hpFraction} className="flex-1" />
+          <ConditionChip condition={member.condition} />
+        </div>
+        <p className="truncate font-vt text-base leading-4 text-ink-muted">
+          {member.restlessReason ? `Restless. ${member.restlessReason}` : member.nickname ? member.speciesName : "No nickname"}
+        </p>
+      </Link>
       <RenameButton onClick={onRename} />
     </div>
   );

@@ -1,6 +1,6 @@
 import { LogOut, MapPinOff } from "lucide-react";
-import { NavLink, Navigate, Outlet, useNavigate } from "react-router";
-import { PARTY_SIZE, type GameStateResponse } from "@wildbound/shared";
+import { Link, NavLink, Navigate, Outlet, useLocation as useRoute, useNavigate } from "react-router";
+import { CAPSULE_ITEM_IDS, PARTY_SIZE, type GameStateResponse } from "@wildbound/shared";
 import { ConsoleButton, Led, Shell } from "@/components/layout/Shell.tsx";
 import { useGameState, useInventory, useLogout, useMe, useParty, useRegistry } from "@/lib/queries.ts";
 import { cn } from "@/lib/utils";
@@ -23,10 +23,16 @@ export function GameLayout() {
   const playable = status === "active";
   const serverPosition = usePositionReporter(fix, playable);
   const state = useGameState(playable);
+  const { pathname } = useRoute();
 
   if (!me.data) return <Navigate to="/" replace />;
   // Never reached the game with location on: go back to the location step.
   if (!fix) return <Navigate to="/location" replace />;
+  // A new license holder chooses a starter before anything else (a battle needs a Wildkin).
+  if (state.data?.needsStarter && pathname !== "/play/starter") return <Navigate to="/play/starter" replace />;
+
+  const activeBattleId = state.data?.activeBattleId ?? null;
+  const onBattleScreen = pathname.startsWith("/play/battle/");
 
   const lockedUntil = state.data?.lockedUntil ?? serverPosition?.lockedUntil ?? null;
   return (
@@ -42,6 +48,14 @@ export function GameLayout() {
         )}
         {lockedUntil && (
           <Banner>Survey paused until {formatClock(new Date(lockedUntil))}: too many impossible jumps in a row.</Banner>
+        )}
+        {activeBattleId && !onBattleScreen && (
+          <Banner>
+            <Link to={`/play/battle/${activeBattleId}`} className="flex items-center justify-between gap-2">
+              <span>Battle in progress</span>
+              <span className="font-pixel text-[8px] uppercase underline">Return ►</span>
+            </Link>
+          </Banner>
         )}
         <main
           className={cn(
@@ -75,7 +89,7 @@ function ConsoleHeader() {
         </span>
         <div className="min-w-0">
           <p className="font-pixel text-[9px] leading-tight tracking-widest text-[#a8f1d8] uppercase">Wildbound nav</p>
-          <p className="font-vt text-sm leading-none tracking-wider text-chassis-text uppercase">Mabunyi cartography · v0.2</p>
+          <p className="font-vt text-sm leading-none tracking-wider text-chassis-text uppercase">Mabunyi cartography · v0.3</p>
         </div>
       </div>
       <button
@@ -129,16 +143,18 @@ function Tabs() {
   const registry = useRegistry();
   const inventory = useInventory();
   const party = useParty();
-  const capsules = inventory.data?.items.find((i) => i.itemId === "field-capsule")?.quantity;
+  const capsuleIds: readonly string[] = CAPSULE_ITEM_IDS;
+  const capsules = inventory.data?.items.filter((i) => capsuleIds.includes(i.itemId)).reduce((n, i) => n + i.quantity, 0);
   const partyCount = party.data?.party.filter(Boolean).length;
   const tabs = [
     { to: "/play", label: "Radar", end: true, count: undefined },
     { to: "/play/registry", label: "Registry", count: registry.data?.observedCount },
     { to: "/play/satchel", label: "Satchel", count: capsules },
     { to: "/play/party", label: "Party", count: partyCount === undefined ? undefined : `${partyCount}/${PARTY_SIZE}` },
+    { to: "/play/license", label: "License", count: undefined },
   ];
   return (
-    <nav className="mt-2 grid grid-cols-4 gap-1 px-0.5" aria-label="Game screens">
+    <nav className="mt-2 grid grid-cols-5 gap-0.5 px-0.5" aria-label="Game screens">
       {tabs.map(({ to, label, end, count }) => (
         <NavLink
           key={to}
@@ -146,7 +162,7 @@ function Tabs() {
           end={end}
           className={({ isActive }) =>
             cn(
-              "flex min-w-0 items-center justify-center gap-1 rounded-t-md px-1 py-2 font-pixel text-[7px] uppercase outline-none focus-visible:ring-2 focus-visible:ring-field-gold",
+              "flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-t-md px-0.5 py-1.5 font-pixel text-[7px] uppercase outline-none focus-visible:ring-2 focus-visible:ring-field-gold",
               isActive
                 ? "border-t-2 border-field-gold bg-screen text-deep-forest"
                 : "border-x border-t border-chassis-edge bg-chassis-deep/70 text-[#7fc4ad] hover:text-paper",
@@ -154,10 +170,12 @@ function Tabs() {
           }
         >
           {({ isActive }) => (
+            // Five tabs at 390 px: the label and its counter stack so neither is cut off.
             <>
-              {isActive && <span aria-hidden className="text-primary-forest">▶</span>}
-              <span className="truncate">{label}</span>
-              {count !== undefined && <span className={isActive ? "text-primary-forest" : "text-field-gold"}>{count}</span>}
+              <span className="max-w-full truncate">{label}</span>
+              <span className={cn("h-2.5 leading-[10px]", isActive ? "text-primary-forest" : "text-field-gold")}>
+                {count ?? (isActive ? "▲" : "")}
+              </span>
             </>
           )}
         </NavLink>

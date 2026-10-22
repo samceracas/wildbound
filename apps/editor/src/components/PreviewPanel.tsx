@@ -5,6 +5,7 @@ import { NEARBY_POI_MAX_RADIUS_M, TIME_OF_DAY, WEATHER } from "@wildbound/shared
 import { describeConditions } from "@wildbound/world";
 import { cn } from "@/lib/utils.ts";
 import { editorKeys, useCreatures, useResolve, useWorldStatus } from "../lib/queries.ts";
+import { battleLockLabel, formatLevelBands, formatLevelRange } from "../lib/level-form.ts";
 import { previewWithModifiers } from "../lib/spawn-preview.ts";
 import { useEditor } from "../store.ts";
 import { Bar, Button, Input, PanelTitle, Pill, Select, SubTitle, Tag } from "./ui.tsx";
@@ -52,19 +53,25 @@ function AvailableWildkin({ ctx }: { ctx: WorldContext }) {
   const creatures = useCreatures();
   if (ctx.availableWildkin.length === 0) return <p className="my-[1em] text-meta text-muted">Nothing can appear under these conditions.</p>;
   const preview = previewWithModifiers(ctx.availableWildkin, creatures, ctx.environment);
+  const levels = new Map(ctx.availableWildkin.map((w) => [w.creatureId, formatLevelBands(w.levelBands ?? [])]));
   return (
     <>
       <ul className="flex flex-col gap-1.5">
         {preview.wildkin.map((w) => {
           const changed = Math.abs(w.probability - w.rawProbability) >= 0.005;
           return (
-            <li key={w.creatureId} className={cn("flex items-center gap-2", w.probability === 0 && "opacity-50")}>
+            <li key={w.creatureId} className={cn("flex flex-wrap items-center gap-x-2", w.probability === 0 && "opacity-50")}>
               <span className="w-[70px] font-semibold">{w.name}</span>
               <Bar value={w.probability} title={`${(w.rawProbability * 100).toFixed(1)}% from encounter weights`} />
               <span className="w-9 text-right text-muted">{(w.probability * 100).toFixed(0)}%</span>
               {preview.status === "applied" && (
                 <span className="w-9 text-right text-tiny text-muted line-through" title="Before species spawn modifiers">
                   {changed ? `${(w.rawProbability * 100).toFixed(0)}%` : ""}
+                </span>
+              )}
+              {levels.get(w.creatureId) && (
+                <span className="basis-full pl-[78px] text-tiny text-muted" title="Wild level range(s) this Wildkin can spawn at here">
+                  {levels.get(w.creatureId)}
                 </span>
               )}
             </li>
@@ -114,6 +121,11 @@ function Result({ ctx }: { ctx: WorldContext }) {
             {!ctx.habitat.conditionsMet && (
               <div className="text-meta text-warning">Habitat conditions not met ({describeConditions(ctx.habitat.conditionRules)})</div>
             )}
+            {ctx.habitat.licenseRequirement && (
+              <div className="text-meta text-warning" title="Spawns can still be observed; battle and capture are refused below this rank">
+                {battleLockLabel(ctx.habitat.licenseRequirement)}
+              </div>
+            )}
           </>
         ) : (
           <div className="text-muted">None (open region ground)</div>
@@ -144,7 +156,7 @@ function Result({ ctx }: { ctx: WorldContext }) {
           <ul className="mt-1.5 list-disc pl-4">
             {t.entries.map((e) => (
               <li key={e.creatureId} className={e.available ? "" : "text-muted"}>
-                {e.creatureName} · w{e.weight} · {e.available ? `${(e.probability * 100).toFixed(0)}%` : `needs ${describeConditions(e.conditions)}`}
+                {e.creatureName} · w{e.weight} · {formatLevelRange(e.minLevel, e.maxLevel)} · {e.available ? `${(e.probability * 100).toFixed(0)}%` : `needs ${describeConditions(e.conditions)}`}
               </li>
             ))}
           </ul>

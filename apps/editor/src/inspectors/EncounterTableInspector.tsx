@@ -1,24 +1,43 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { EncounterTable } from "@wildbound/shared";
-import { ENCOUNTER_WEIGHT_MAX, ENCOUNTER_WEIGHT_MIN, EncounterTableSchema } from "@wildbound/shared";
+import { ENCOUNTER_WEIGHT_MAX, ENCOUNTER_WEIGHT_MIN, EncounterTableSchema, LEVEL_MAX, LEVEL_MIN } from "@wildbound/shared";
 import { describeConditions } from "@wildbound/world";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Controller, useForm, useFormContext, useWatch } from "react-hook-form";
-import { ConditionsField, EntityForm, Field, Section, TextField, ToggleField, useCommit, useFieldError } from "../components/fields.tsx";
+import { z } from "zod";
+import { ConditionsField, EntityForm, Field, Section, TextField, Toggle, ToggleField, useCommit, useFieldError } from "../components/fields.tsx";
 import { Bar, Button, Input, Select } from "../components/ui.tsx";
+import {
+  EntryFormSchema,
+  formatLevelRange,
+  hasLevelOverride,
+  levelInputSchema,
+  overrideLevels,
+  refineLevelRanges,
+} from "../lib/level-form.ts";
 import { useCreatures } from "../lib/queries.ts";
 import { formatSpawnModifiers } from "../lib/spawn-preview.ts";
 import { useEditor } from "../store.ts";
 import { changedFields, createEntry, updateEncounterTable } from "../world-edit.ts";
 import { IssueList } from "./common.tsx";
 
+/**
+ * The shared table fields, with friendlier messages for the wild levels and the
+ * cross-field range checks (min <= max, both override bounds or neither) that
+ * the world schema only runs on the whole document.
+ */
 const TableFormSchema = EncounterTableSchema.pick({
   name: true,
   habitatId: true,
   active: true,
   conditionRules: true,
-  entries: true,
-});
+})
+  .extend({
+    minLevel: levelInputSchema,
+    maxLevel: levelInputSchema,
+    entries: z.array(EntryFormSchema).max(64),
+  })
+  .superRefine(refineLevelRanges);
 
 export function EncounterTableInspector({ table }: { table: EncounterTable }) {
   const world = useEditor((s) => s.world);
@@ -32,6 +51,8 @@ export function EncounterTableInspector({ table }: { table: EncounterTable }) {
       habitatId: table.habitatId,
       active: table.active,
       conditionRules: table.conditionRules,
+      minLevel: table.minLevel,
+      maxLevel: table.maxLevel,
       entries: table.entries,
     }),
     [table],
@@ -45,6 +66,14 @@ export function EncounterTableInspector({ table }: { table: EncounterTable }) {
   };
   // Adding/removing rows is a structural edit: commit it directly, the form follows via `values`.
   const setEntries = (entries: EncounterTable["entries"]) => commit(updateEncounterTable(world, table.id, { entries }));
+
+  // One commit for both bounds, so switching the override is one undo step.
+  const setOverride = (index: number, on: boolean) => {
+    const levels = overrideLevels(on, table);
+    form.setValue(`entries.${index}.minLevel`, levels.minLevel, { shouldDirty: true });
+    form.setValue(`entries.${index}.maxLevel`, levels.maxLevel, { shouldDirty: true });
+    void form.handleSubmit(save)();
+  };
 
   // Live form values, so shares update while a weight is being edited.
   const entries = useWatch({ control: form.control, name: "entries" }) ?? table.entries;
@@ -79,6 +108,12 @@ export function EncounterTableInspector({ table }: { table: EncounterTable }) {
           )}
         />
         <ToggleField name="active" label="Active" />
+        <LevelRangeField
+          label="Wild levels"
+          minName="minLevel"
+          maxName="maxLevel"
+          hint={`Whole numbers ${LEVEL_MIN} to ${LEVEL_MAX}. Entries use this range unless they override it.`}
+        />
         <ConditionsField name="conditionRules" label="Table conditions" />
       </Section>
       <IssueList entityId={table.id} />
@@ -121,6 +156,7 @@ export function EncounterTableInspector({ table }: { table: EncounterTable }) {
                 <Bar value={share} title={`${(share * 100).toFixed(1)}% before conditions`} />
                 <div className="text-meta text-muted">
                   {(share * 100).toFixed(1)}% · {describeConditions(entry.conditions)}
+                  {hasLevelOverride(entry) ? "" : ` · ${formatLevelRange(table.minLevel, table.maxLevel)} (table)`}
                   {creature ? ` · ${creature.habitatAffinity.join(", ")}` : ""}
                 </div>
                 {creature && (
@@ -129,6 +165,7 @@ export function EncounterTableInspector({ table }: { table: EncounterTable }) {
                   </div>
                 )}
                 {openEntry === entry.id && <ConditionsField name={`entries.${i}.conditions`} />}
+                <LevelOverride index={i} on={hasLevelOverride(entry)} onToggle={(on) => setOverride(i, on)} />
               </li>
             );
           })}
@@ -185,5 +222,67 @@ function EntryRow({
       </div>
       {weightError && <div className="text-tiny text-danger">Weight: {weightError}</div>}
     </>
+  );
+}
+
+/**
+ * A min/max pair of level inputs. Like text fields, they commit on blur (Enter
+ * commits, Escape reverts), so typing a number is one undo step.
+ */
+function LevelRangeField({ label, minName, maxName, hint }: { label: string; minName: string; maxName: string; hint?: string }) {
+  const { register, resetField } = useFormContext();
+  const commit = useCommit();
+  const labelId = useId();
+  const minError = useFieldError(minName);
+  const maxError = useFieldError(maxName);
+  const error = minError ? `Min: ${minError}` : maxError ? `Max: ${maxError}` : undefined;
+  const input = (name: string, bound: "Min" | "Max", invalid: boolean) => (
+    <Input
+      type="number"
+      className="w-[70px]"
+      min={LEVEL_MIN}
+      max={LEVEL_MAX}
+      step={1}
+      aria-label={`${label}: ${bound.toLowerCase()}`}
+      aria-invalid={invalid ? true : undefined}
+      {...register(name, { valueAsNumber: true, onBlur: commit })}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          e.currentTarget.blur();
+        }
+        if (e.key === "Escape") resetField(name);
+      }}
+    />
+  );
+  return (
+    <div className="flex flex-col gap-1" role="group" aria-labelledby={labelId}>
+      <span id={labelId} className="text-meta text-muted">
+        {label}
+      </span>
+      <div className="flex items-center gap-1.5">
+        <span className="text-meta text-muted">Min</span>
+        {input(minName, "Min", !!minError)}
+        <span className="text-meta text-muted">Max</span>
+        {input(maxName, "Max", !!maxError)}
+      </div>
+      {error ? (
+        <span className="text-tiny text-danger" role="alert">
+          {error}
+        </span>
+      ) : hint ? (
+        <span className="text-tiny text-muted opacity-80">{hint}</span>
+      ) : null}
+    </div>
+  );
+}
+
+/** Per-entry "Override levels": off = the table's range (both null), on = its own min/max. */
+function LevelOverride({ index, on, onToggle }: { index: number; on: boolean; onToggle: (on: boolean) => void }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <Toggle label="Override levels" checked={on} onChange={onToggle} />
+      {on && <LevelRangeField label="Entry levels" minName={`entries.${index}.minLevel`} maxName={`entries.${index}.maxLevel`} />}
+    </div>
   );
 }

@@ -1,14 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router";
+import { useCallback, useEffect, useState } from "react";
 import { GAME_RULES, type GameStateResponse, type SpawnView } from "@wildbound/shared";
-import { ConsoleButton } from "@/components/layout/Shell.tsx";
-import { ApiError } from "@/lib/api.ts";
-import { WildkinImage } from "@/components/WildkinImage.tsx";
 import { registryNo } from "@/lib/assets.ts";
-import { useCapture, useGameState, useObserve, useRegistry } from "@/lib/queries.ts";
+import { useGameState, useRegistry } from "@/lib/queries.ts";
 import { cn } from "@/lib/utils";
 import { useLocation, type Fix } from "../location/LocationProvider.tsx";
+import { PoiSheet } from "./PoiSheet.tsx";
 import { RadarMap } from "./RadarMap.tsx";
+import { SpawnSheet } from "./SpawnSheet.tsx";
 
 /** Layout: Stitch screen 3 "Radar" (patches/0.1.0/mockups/3-radar.html). */
 export function RadarPage() {
@@ -16,13 +14,14 @@ export function RadarPage() {
   const state = useGameState(status === "active");
   const registry = useRegistry();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedPoiId, setSelectedPoiId] = useState<string | null>(null);
   /** Short message over the map, e.g. when the selected Wildkin wanders off. */
   const [notice, setNotice] = useState<string | null>(null);
-  /** Why a spawn will leave the list (capture result), so its exit is not reported as wandering off. */
-  const outcomes = useRef(new Map<string, string>());
 
   const spawns = state.data?.spawns ?? [];
+  const pois = state.data?.pois ?? [];
   const selected = spawns.find((s) => s.id === selectedId) ?? null;
+  const selectedPoi = pois.find((p) => p.id === selectedPoiId) ?? null;
 
   // Spawns wander server-side and despawn past the spawn radius: drop a selection
   // whose spawn is gone instead of leaving a stale sheet open.
@@ -30,11 +29,8 @@ export function RadarPage() {
     const data = state.data;
     if (!selectedId || !data || data.spawns.some((s) => s.id === selectedId)) return;
     setSelectedId(null);
-    const outcome = outcomes.current.get(selectedId);
-    outcomes.current.delete(selectedId);
     // With no usable position every spawn vanishes at once; the status line explains that.
-    if (outcome) setNotice(outcome);
-    else if (data.environment) setNotice("It wandered off.");
+    if (data.environment) setNotice("It wandered off.");
   }, [selectedId, state.data]);
 
   useEffect(() => {
@@ -66,7 +62,11 @@ export function RadarPage() {
               Sector: {state.data?.habitat?.name ?? state.data?.region?.name ?? "unsurveyed"}
             </h1>
           </div>
-          {player && (
+          {state.data?.habitatLocked ? (
+            <p className="shrink-0 rounded-sm bg-terracotta px-1 py-0.5 font-pixel text-[6px] leading-[9px] text-paper uppercase">
+              {state.data.habitatLocked}
+            </p>
+          ) : player && (
             <p className="shrink-0 font-vt text-sm leading-none text-primary-forest">
               {player.lat.toFixed(3)}°N · {player.lng.toFixed(3)}°E
             </p>
@@ -80,22 +80,26 @@ export function RadarPage() {
             selectedId={selectedId}
             onSelect={(s) => {
               setSelectedId(s.id);
+              setSelectedPoiId(null);
               setNotice(null);
             }}
             labelFor={labelFor}
+            pois={pois}
+            selectedPoiId={selectedPoiId}
+            onSelectPoi={(p) => {
+              setSelectedPoiId(p.id);
+              setSelectedId(null);
+              setNotice(null);
+            }}
           />
-          {selected && (
-            <SpawnSheet
-              spawn={selected}
-              name={labelFor(selected)}
-              onClose={() => setSelectedId(null)}
-              onOutcome={(id, message) => outcomes.current.set(id, message)}
-            />
+          {selected && state.data && (
+            <SpawnSheet spawn={selected} name={labelFor(selected)} state={state.data} onClose={() => setSelectedId(null)} />
           )}
-          {!selected && notice && (
+          {selectedPoi && <PoiSheet poi={selectedPoi} onClose={() => setSelectedPoiId(null)} />}
+          {!selected && !selectedPoi && notice && (
             <p
               role="status"
-              className="absolute inset-x-2 bottom-2 z-20 rounded-md border-4 border-[#143224] bg-[#f8fbf4] px-3 py-2 font-vt text-lg leading-5 text-lcd-ink shadow-[3px_3px_0_#27533c]"
+              className="absolute inset-x-2 bottom-2 z-20 rounded-md border-4 border-deep-forest bg-paper px-3 py-2 font-vt text-lg leading-5 text-lcd-ink shadow-[3px_3px_0_var(--primary-forest)]"
             >
               {notice}
             </p>
@@ -142,112 +146,7 @@ function radarStatus(state: { isPending: boolean; error: Error | null; data?: Ga
   }
   if (!region) return "No surveyed habitat here. Head into a published region to find Wildkin.";
   if (spawns.length === 0) return "Nothing stirring nearby. Wildkin come and go with the weather and time of day.";
-  return `${spawns.length} Wildkin nearby. Tap one to observe or capture it.`;
+  if (state.data.habitatLocked) return `${spawns.length} Wildkin nearby. Restricted zone: observe only.`;
+  return `${spawns.length} Wildkin nearby. Tap one to observe or battle it.`;
 }
 
-/** Dialogue panel for one spawn: Observe and Capture. */
-function SpawnSheet({
-  spawn,
-  name,
-  onClose,
-  onOutcome,
-}: {
-  spawn: SpawnView;
-  name: string;
-  onClose: () => void;
-  /** Called when a capture attempt removes the spawn, with the message to show once it is gone. */
-  onOutcome: (spawnId: string, message: string) => void;
-}) {
-  const registry = useRegistry();
-  const observe = useObserve();
-  const capture = useCapture();
-  const entry = registry.data?.entries.find((e) => e.creatureId === spawn.creatureId);
-  const known = entry && entry.status !== "unknown";
-  const busy = observe.isPending || capture.isPending;
-  const error = observe.error ?? capture.error;
-
-  return (
-    <div
-      role="dialog"
-      aria-label={name}
-      className="absolute inset-x-2 bottom-2 z-20 rounded-md border-4 border-[#143224] bg-[#f8fbf4] p-3 pt-4 shadow-[3px_3px_0_#27533c]"
-    >
-      <span className="absolute -top-2.5 left-3 rounded-sm bg-[#143224] px-1.5 py-0.5 font-pixel text-[7px] text-[#86efac]">
-        {spawn.inRange ? "IN RANGE" : "SIGHTING"}
-      </span>
-      <div className="flex items-start gap-3">
-        <div className="relative flex size-16 shrink-0 items-center justify-center rounded border-2 border-[#867c64] bg-screen-inset">
-          <span aria-hidden className="absolute size-12 rounded-full bg-success/20" />
-          <WildkinImage creatureId={spawn.creatureId} className={cn("pixelated relative size-14", !known && "silhouette")} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-pixel text-[8px] text-ink-muted">{registryNo(spawn.registryNumber)}</p>
-          <h2 className="mt-1 truncate font-pixel text-[12px] leading-4 text-deep-forest uppercase">
-            {known ? entry.name : "Unidentified"}
-          </h2>
-          <div className="mt-1.5 flex flex-wrap gap-1 font-pixel text-[7px] uppercase">
-            <span className={cn("rounded border px-1.5 py-0.5", spawn.inRange ? "border-success bg-success/15 text-success" : "border-screen-edge text-ink-muted")}>
-              {Math.round(spawn.distanceM)} m away
-            </span>
-            {spawn.observed && <span className="rounded border border-[#b08a3a] bg-field-gold/30 px-1.5 py-0.5 text-ink">Observed</span>}
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          className="rounded border-2 border-[#143224] px-1.5 py-0.5 font-pixel text-[8px] text-[#143224] hover:bg-[#143224] hover:text-paper"
-        >
-          ✕
-        </button>
-      </div>
-
-      <div className="mt-2 font-vt text-lg leading-5 text-lcd-ink" aria-live="polite">
-        {!spawn.inRange && <p>Get within 60 m to observe or capture. Walk toward the marker.</p>}
-        {observe.data && (
-          <p className="text-success">
-            {observe.data.firstObservation ? "New Registry entry: " : "Observation recorded: "}
-            <Link className="underline" to={`/play/registry/${spawn.creatureId}`}>
-              {observe.data.entry.name}
-            </Link>
-          </p>
-        )}
-        {capture.data && (
-          <p className="text-success">
-            {capture.data.success ? "Captured! " : capture.data.fled ? "It slipped away. " : "It broke free. "}
-            {capture.data.capsulesLeft} capsules left.
-          </p>
-        )}
-        {error && <p className="text-terracotta">{describe(error)}</p>}
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <ConsoleButton face="X" className="px-3 py-2.5" disabled={!spawn.inRange || busy} onClick={() => observe.mutate(spawn.id)}>
-          Observe
-        </ConsoleButton>
-        <ConsoleButton
-          face="A"
-          className="px-3 py-2.5"
-          disabled={!spawn.inRange || busy}
-          onClick={() =>
-            capture.mutate(spawn.id, {
-              onSuccess: (r) => {
-                if (r.success) onOutcome(spawn.id, `Captured! ${r.capsulesLeft} capsules left.`);
-                else if (r.fled) onOutcome(spawn.id, `It slipped away. ${r.capsulesLeft} capsules left.`);
-              },
-            })
-          }
-        >
-          Capture
-        </ConsoleButton>
-      </div>
-    </div>
-  );
-}
-
-function describe(error: Error): string {
-  if (error instanceof ApiError && error.status === 501) {
-    return "Capturing isn't built yet. Implement the TODO(you) in apps/api/src/routes/game.ts.";
-  }
-  return error.message;
-}

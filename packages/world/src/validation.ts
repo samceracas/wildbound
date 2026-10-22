@@ -25,9 +25,14 @@ export function schemaIssues(input: unknown): { doc: WorldDocument | null; issue
     doc: null,
     issues: parsed.error.issues.map((i) => {
       const custom = i.code === "custom" ? (i.params as { code?: string } | undefined)?.code : undefined;
-      return custom
-        ? err({ code: custom, entityType: "encounterTable", message: i.message })
-        : err({ code: "schema", entityType: "world", message: `${i.path.join(".") || "(root)"}: ${i.message}` });
+      if (custom) {
+        // Level range issues sit at ["encounterTables", index, ...]: point at that table so the editor can open it.
+        const index = i.path[0] === "encounterTables" && typeof i.path[1] === "number" ? i.path[1] : null;
+        const tables = (input as { encounterTables?: { id?: unknown }[] } | null)?.encounterTables;
+        const id = index !== null && Array.isArray(tables) ? tables[index]?.id : undefined;
+        return err({ code: custom, entityType: "encounterTable", ...(typeof id === "string" ? { entityId: id } : {}), message: i.message });
+      }
+      return err({ code: "schema", entityType: "world", message: `${i.path.join(".") || "(root)"}: ${i.message}` });
     }),
   };
 }

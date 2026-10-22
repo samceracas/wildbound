@@ -1,7 +1,16 @@
 import {
+  BODY_TRAITS,
   DEFAULT_GENE_POOL,
+  MARKING_FREQUENCY_MAX,
   SLUG_PATTERN,
+  STAT_BUDGET,
+  STAT_KEYS,
   WildkinEntryInputSchema,
+  type AlleleOdds,
+  type Attack,
+  type BaseStats,
+  type BodyTrait,
+  type MarkingVariant,
   type SpawnModifiers,
   type TimeOfDay,
   type Weather,
@@ -44,11 +53,22 @@ export function emptyEntry(registryNumber: number): WildkinEntryData {
   return { ...base, id: "", name: "" };
 }
 
-/** The editable part of a saved entry (drops status, timestamps, art). */
+/**
+ * The editable part of a saved entry (drops status, timestamps, art). A field
+ * the entry lacks (an older API or a row saved before v0.3.0) gets the schema
+ * default, so `reset()` never leaves a battle field undefined.
+ */
 export function entryToFormValues(entry: WildkinEntry): WildkinEntryData {
+  const defaults = emptyEntry(entry.registryNumber) as Record<FormKey, unknown>;
   const out = {} as Record<FormKey, unknown>;
-  for (const key of FORM_KEYS) out[key] = structuredClone(entry[key]);
-  return out as WildkinEntryData;
+  for (const key of FORM_KEYS) {
+    const value = (entry as Partial<WildkinEntryData>)[key];
+    out[key] = structuredClone(value === undefined ? defaults[key] : value);
+  }
+  const values = out as WildkinEntryData;
+  // Attacks saved without the reserved `priority` flag still validate; keep the form shape complete.
+  values.attacks = values.attacks.map((a) => ({ ...emptyAttack(), ...a }));
+  return values;
 }
 
 const isEmpty = (v: unknown) =>
@@ -161,6 +181,111 @@ export function setSpawnModifier(
   if (value === undefined) delete nextGroup[key];
   else nextGroup[key] = value;
   return { ...mods, [group]: nextGroup } as SpawnModifiers;
+}
+
+// ---------------------------------------------------------------- battle & genetics (v0.3.0)
+
+/** What "Set base stats" fills in: an even split of the budget (75 / 75 / 75 / 75). */
+export const DEFAULT_BASE_STATS: BaseStats = Object.fromEntries(STAT_KEYS.map((k) => [k, STAT_BUDGET / STAT_KEYS.length])) as BaseStats;
+
+/** Sum of the four base stats while the author types; blank (NaN) inputs count as 0. Null = not set. */
+export function baseStatsTotal(stats: Partial<Record<keyof BaseStats, number>> | null | undefined): number | null {
+  if (!stats) return null;
+  return STAT_KEYS.reduce((sum, k) => sum + (Number.isFinite(stats[k]) ? (stats[k] as number) : 0), 0);
+}
+
+export const MAX_BODY_TRAITS = 2;
+
+/** Adds or removes a body trait; adding a third does nothing. Keeps BODY_TRAITS order. */
+export function toggleBodyTrait(list: readonly BodyTrait[], trait: BodyTrait): BodyTrait[] {
+  if (list.includes(trait)) return list.filter((t) => t !== trait);
+  if (list.length >= MAX_BODY_TRAITS) return [...list];
+  return BODY_TRAITS.filter((t) => t === trait || list.includes(t));
+}
+
+/** A new placeholder attack: neutral approach, middle power, marked proposed. */
+export const emptyAttack = (): Attack => ({
+  name: "",
+  approach: "strike",
+  power: 40,
+  description: "",
+  canon: "proposed",
+  priority: false,
+});
+
+/**
+ * Phenotype shares for a two-allele gene where each allele is the "second"
+ * allele (L for Build, W for Temperament) with probability p:
+ * second/second = p^2, mixed = 2p(1 - p), first/first = (1 - p)^2.
+ */
+export function alleleShares(p: number) {
+  const q = 1 - p;
+  return { firstFirst: q * q, mixed: 2 * p * q, secondSecond: p * p };
+}
+
+/** Small (SS), Typical (SL), Large (LL) shares for Build p(L). */
+export function buildShares(pLarge: number) {
+  const s = alleleShares(pLarge);
+  return { small: s.firstFirst, typical: s.mixed, large: s.secondSecond };
+}
+
+/** Bold (BB), Steady (BW), Wary (WW) shares for Temperament p(W). */
+export function temperamentShares(pWary: number) {
+  const s = alleleShares(pWary);
+  return { bold: s.firstFirst, steady: s.mixed, wary: s.secondSecond };
+}
+
+/** Share of individuals that express a marking (mm) at allele frequency f. */
+export const markingShare = (frequency: number) => frequency * frequency;
+
+/** 0.5625 → "56.3%", 0.25 → "25%", 0.0025 → "0.25%" (more digits for tiny shares). */
+export function formatPercent(share: number): string {
+  const pct = share * 100;
+  const digits = pct !== 0 && Math.abs(pct) < 1 ? 2 : 1;
+  return `${Number(pct.toFixed(digits))}%`;
+}
+
+/** A fresh marking variant for the "Has a marking variant" switch. */
+export const defaultMarking = (): MarkingVariant => ({ name: "", description: "", frequency: 0.05 });
+
+export const clampMarkingFrequency = (f: number) => Math.min(MARKING_FREQUENCY_MAX, Math.max(0, f));
+
+export const MAX_HABITAT_OVERRIDES = 16;
+
+/**
+ * Adds a habitat override row. It picks the first of `suggested` (the species'
+ * own habitat tags) that has no override yet, else a blank tag the author fills in,
+ * and starts at the gene's default chance.
+ */
+export function addHabitatOverride(odds: AlleleOdds, suggested: readonly string[]): AlleleOdds {
+  if (odds.byHabitatTag.length >= MAX_HABITAT_OVERRIDES) return odds;
+  const used = new Set(odds.byHabitatTag.map((o) => o.tag));
+  const tag = suggested.find((t) => !used.has(t)) ?? "";
+  return { ...odds, byHabitatTag: [...odds.byHabitatTag, { tag, pAllele: odds.pAllele }] };
+}
+
+export function updateHabitatOverride(
+  odds: AlleleOdds,
+  index: number,
+  patch: Partial<AlleleOdds["byHabitatTag"][number]>,
+): AlleleOdds {
+  return { ...odds, byHabitatTag: odds.byHabitatTag.map((o, i) => (i === index ? { ...o, ...patch } : o)) };
+}
+
+export const removeHabitatOverride = (odds: AlleleOdds, index: number): AlleleOdds => ({
+  ...odds,
+  byHabitatTag: odds.byHabitatTag.filter((_, i) => i !== index),
+});
+
+/** Tags that more than one override row uses (only the first one would ever apply). */
+export function duplicateOverrideTags(odds: AlleleOdds): string[] {
+  const seen = new Set<string>();
+  const dupes = new Set<string>();
+  for (const { tag } of odds.byHabitatTag) {
+    if (tag && seen.has(tag)) dupes.add(tag);
+    seen.add(tag);
+  }
+  return [...dupes];
 }
 
 // ---------------------------------------------------------------- status

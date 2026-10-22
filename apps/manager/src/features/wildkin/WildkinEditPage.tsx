@@ -1,12 +1,16 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ACTIVITY_PATTERNS,
+  CATEGORIES,
+  CATEGORY_NAMES,
   GAME_FIELDS,
   MOVEMENT_STYLES,
+  PUBLISH_BATTLE_CHECKS,
   PUBLISH_REQUIRED_FIELDS,
   RARITIES,
   WildkinEntryInputSchema,
   type ActivityPattern,
+  type Category,
   type AssistResponse,
   type MovementStyle,
   type Rarity,
@@ -68,6 +72,8 @@ import {
 } from "@/lib/wildkin-form";
 import { ArtPanel } from "./ArtPanel";
 import { AssistPanel } from "./AssistPanel";
+import { BaseStatsEditor } from "./BaseStatsEditor";
+import { AttacksEditor, BodyTraitsPicker, GenePoolEditor } from "./BattleFields";
 import { DeleteWildkinDialog } from "./DeleteWildkinDialog";
 import { GamePreview } from "./GamePreview";
 import { asErrorInfo, ErrorNotice, StatusBadge } from "./common";
@@ -121,6 +127,19 @@ const MOVEMENT_OPTIONS: EnumOption<MovementStyle>[] = MOVEMENT_STYLES.map((v) =>
   description: MOVEMENT_HINTS[v],
 }));
 
+const CATEGORY_HINTS: Record<Category | "TBD", string> = {
+  aerial: "Canopy birds and other fliers",
+  aquatic: "Creek swimmers and water dwellers",
+  terrestrial: "Ground dwellers",
+  verdant: "Plant-bound Wildkin",
+  TBD: "Not decided yet (publishing needs a category)",
+};
+const CATEGORY_OPTIONS: EnumOption<Category | "TBD">[] = [...CATEGORIES, "TBD" as const].map((v) => ({
+  value: v,
+  label: v === "TBD" ? "TBD" : CATEGORY_NAMES[v],
+  description: CATEGORY_HINTS[v],
+}));
+
 const SECTIONS = [
   { id: "identity", title: "Identity" },
   { id: "habitat", title: "Habitat" },
@@ -130,9 +149,10 @@ const SECTIONS = [
   { id: "behaviour", title: "Behaviour" },
   { id: "ecology", title: "Ecology & field" },
   { id: "game", title: "Game" },
+  { id: "battle", title: "Battle & genetics" },
 ] as const;
 
-const REQUIRED = new Set<string>(PUBLISH_REQUIRED_FIELDS);
+const REQUIRED = new Set<string>([...PUBLISH_REQUIRED_FIELDS, ...PUBLISH_BATTLE_CHECKS.map((c) => c.field)]);
 const IN_GAME = new Set<string>(GAME_FIELDS);
 
 // ---------------------------------------------------------------- page
@@ -545,6 +565,51 @@ function WildkinForm({ entry, initial }: { entry: WildkinEntry | null; initial: 
                   </Field>
                 )}
               />
+            </Section>
+
+            <Section id="battle" number={9} title="Battle & genetics" description="Wild battles, capture and individual variation">
+              <Controller
+                control={control}
+                name="category"
+                render={({ field }) => (
+                  <Field
+                    label={<FieldLabel name="category" label="Category" />}
+                    error={errors.category?.message}
+                    hint="Which Field Registry license covers it."
+                  >
+                    {(id) => (
+                      <EnumSelect id={id} value={field.value} onChange={field.onChange} options={CATEGORY_OPTIONS} invalid={!!errors.category} />
+                    )}
+                  </Field>
+                )}
+              />
+              <div className="hidden md:block" />
+              <Controller
+                control={control}
+                name="bodyTraits"
+                render={({ field }) => (
+                  <Field
+                    label={<FieldLabel name="bodyTraits" label="Body traits" />}
+                    className="md:col-span-2"
+                    error={errorAt(errors, "bodyTraits")}
+                  >
+                    {() => <BodyTraitsPicker value={field.value} onChange={field.onChange} invalid={!!errors.bodyTraits} />}
+                  </Field>
+                )}
+              />
+              <Field label={<FieldLabel name="baseStats" label="Base stats" />} className="md:col-span-2">
+                {() => <BaseStatsEditor />}
+              </Field>
+              <Field label={<FieldLabel name="attacks" label="Attacks" />} className="md:col-span-2" error={errorAt(errors, "attacks")}>
+                {() => <AttacksEditor control={control} errors={errors} />}
+              </Field>
+              <Field
+                label={<FieldLabel name="genePool" label="Gene pool" />}
+                className="md:col-span-2"
+                hint="How wild individuals vary. Rolled per spawn from the habitat's tags."
+              >
+                {() => <GenePoolEditor control={control} errors={errors} />}
+              </Field>
             </Section>
           </div>
 

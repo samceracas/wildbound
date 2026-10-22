@@ -1,9 +1,19 @@
-import type { WildkinArtInfo, WildkinEntryData } from "@wildbound/shared";
-import { GamepadIcon, PawPrintIcon } from "lucide-react";
+import {
+  APPROACH_NAMES,
+  CATEGORY_NAMES,
+  STAT_BUDGET,
+  powerWord,
+  statTotal,
+  type WildkinArtInfo,
+  type WildkinEntryData,
+} from "@wildbound/shared";
+import { DicesIcon, GamepadIcon, PawPrintIcon, SwordsIcon } from "lucide-react";
 import { useState } from "react";
 import { useWatch, type Control } from "react-hook-form";
 
+import { Button } from "@/components/ui/button";
 import { artUrl } from "@/lib/api";
+import { rollSample, SAMPLE_LEVEL, statShape, traitMatchups, type SampleIndividual } from "@/lib/battle-preview";
 import { cn } from "@/lib/utils";
 
 /**
@@ -132,7 +142,7 @@ export function GamePreview({
                     {skills.map((s, i) => (
                       <li key={i}>
                         <span className="font-serif text-[12px] font-bold">{s.name || "Unnamed skill"}</span>
-                        {s.canon === "proposed" ? <span style={{ color: C.inkMuted }}> (proposed)</span> : null} — {s.description}
+                        {s.canon === "proposed" ? <span style={{ color: C.inkMuted }}> (proposed)</span> : null}: {s.description}
                       </li>
                     ))}
                   </ul>
@@ -172,6 +182,8 @@ export function GamePreview({
             </div>
           )}
         </div>
+
+        <BattlePreview control={control} />
 
         <p className="text-xs text-faint">
           Uses the form as you type and the saved art.{" "}
@@ -262,4 +274,143 @@ function Chip({ children }: { children: React.ReactNode }) {
 
 function Missing({ children }: { children: React.ReactNode }) {
   return <span style={{ color: "#c96a5b" }}>(no {children} yet)</span>;
+}
+
+// ---------------------------------------------------------------- battle & genetics
+
+/**
+ * Authoring view of §9 (manager tokens, not the game's look): stat shape bars
+ * with descriptors, category and body-trait matchups, attacks with their power
+ * word, and a locally rolled level 50 sample. The game never shows raw numbers;
+ * this panel does, because it is for the author.
+ */
+function BattlePreview({ control }: { control: Control<WildkinEntryData> }) {
+  const [category, bodyTraits, baseStats, attacks, genePool] = useWatch({
+    control,
+    name: ["category", "bodyTraits", "baseStats", "attacks", "genePool"],
+  });
+  const [sample, setSample] = useState<SampleIndividual | null>(null);
+  const shape = statShape(baseStats);
+  const total = baseStats ? statTotal(baseStats) : null;
+  const matchups = traitMatchups(bodyTraits);
+
+  return (
+    <div className="space-y-3 rounded-md border border-line bg-field/50 p-3 text-xs">
+      <div className="flex items-center gap-2">
+        <SwordsIcon className="size-3.5 text-accent" />
+        <h3 className="text-xs font-medium tracking-wide text-muted uppercase">Battle &amp; genetics</h3>
+        <span className="ml-auto rounded border border-line px-1.5 py-0.5 text-muted">
+          {category === "TBD" ? "Category TBD" : CATEGORY_NAMES[category]}
+        </span>
+      </div>
+
+      {/* stat shape */}
+      {shape ? (
+        <div className="space-y-1">
+          {shape.map((row) => (
+            <div key={row.key} className="grid grid-cols-[3.5rem_minmax(0,1fr)_2rem_7.5rem] items-center gap-2">
+              <span className="text-muted">{row.label}</span>
+              <div className="h-2 overflow-hidden rounded-full bg-panel-2">
+                <div
+                  className={cn("h-full rounded-full", row.descriptor === "Weak point" ? "bg-line-strong" : "bg-accent")}
+                  style={{ width: `${row.fraction * 100}%` }}
+                />
+              </div>
+              <span className="text-right font-mono text-fg tabular-nums">{Number.isFinite(row.base) ? row.base : "?"}</span>
+              <span className="truncate text-faint">{row.descriptor}</span>
+            </div>
+          ))}
+          {total !== null && total !== STAT_BUDGET ? (
+            <p className="text-danger">
+              Total {Number.isFinite(total) ? total : "?"}, needs exactly {STAT_BUDGET}.
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <p className="text-faint">Base stats not set (the game would use 75 / 75 / 75 / 75).</p>
+      )}
+
+      {/* body traits */}
+      {matchups.length ? (
+        <ul className="space-y-1">
+          {matchups.map((m) => (
+            <li key={m.trait}>
+              <span className="font-medium text-fg">{m.label}</span>
+              <span className="text-muted">
+                : weak to <span className="text-warning">{m.weakTo}</span>, resists <span className="text-info">{m.resists}</span>
+              </span>
+              <p className="text-faint">{m.reason}</p>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-faint">No body traits yet.</p>
+      )}
+
+      {/* attacks */}
+      {attacks.length ? (
+        <ul className="space-y-0.5">
+          {attacks.map((a, i) => (
+            <li key={i} className="flex flex-wrap items-baseline gap-x-1.5">
+              <span className="font-medium text-fg">{a.name || "Unnamed attack"}</span>
+              <span className="text-muted">
+                {APPROACH_NAMES[a.approach]}, {Number.isFinite(a.power) ? `${powerWord(a.power)} (${a.power})` : "power ?"}
+              </span>
+              {a.canon === "proposed" ? <span className="text-faint">proposed</span> : null}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-faint">No attacks yet (the game would fall back to Lunge).</p>
+      )}
+
+      {/* sample */}
+      <div className="space-y-2 border-t border-line pt-3">
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setSample(rollSample(baseStats, genePool))}>
+            <DicesIcon /> Roll a sample
+          </Button>
+          <span className="text-faint">Level {SAMPLE_LEVEL}, no habitat (gene pool defaults).</span>
+        </div>
+        {sample ? (
+          <div className="space-y-1.5">
+            <p className="text-muted">
+              <span className="text-fg">{sample.buildName}</span>, <span className="text-fg">{sample.temperamentName}</span>
+              {sample.marking ? (
+                <>
+                  , <span className="text-gold">{sample.marking}</span>
+                </>
+              ) : null}
+              <span className="ml-1.5 font-mono text-faint">
+                {sample.genotype.build} {sample.genotype.temperament} {sample.genotype.marking}
+              </span>
+            </p>
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-faint">
+                  <th className="font-normal">Stat</th>
+                  <th className="text-right font-normal">Lv {sample.level}</th>
+                  <th className="pl-3 font-normal">Grade</th>
+                  <th className="font-normal">Vigor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sample.rows.map((r) => (
+                  <tr key={r.key}>
+                    <td className="text-muted">{r.label}</td>
+                    <td className="text-right font-mono text-fg tabular-nums">{r.value}</td>
+                    <td className="pl-3 text-fg">{r.grade}</td>
+                    <td className="text-muted">
+                      {r.vigorWord} <span className="font-mono text-faint">({r.vigor})</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {sample.usedFallbackStats ? <p className="text-faint">Rolled on the 75 / 75 / 75 / 75 fallback.</p> : null}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
 }

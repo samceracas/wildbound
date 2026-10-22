@@ -13,6 +13,7 @@
     "@hookform/resolvers": "^5.9.2",
     "@tanstack/react-query": "^5.104.2",
     "@wildbound/shared": "workspace:*",
+    "@wildbound/world": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.55.0",

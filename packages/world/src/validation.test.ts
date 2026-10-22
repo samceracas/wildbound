@@ -139,6 +139,8 @@ describe("wild level rules", () => {
     const schema = schemaIssues(doc);
     expect(schema.doc).toBeNull();
     expect(schema.issues.map((i) => i.code)).toEqual(["invalid-level-range", "invalid-level-range"]);
+    // Each points at its table, so the editor's Issues panel can open it.
+    expect(schema.issues.map((i) => i.entityId)).toEqual([doc.encounterTables[0]!.id, doc.encounterTables[1]!.id]);
   });
 
   it("rejects levels outside 1 to 100 in the schema", () => {

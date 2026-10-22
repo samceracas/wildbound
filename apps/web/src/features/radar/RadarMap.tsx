@@ -1,6 +1,6 @@
 import maplibregl from "maplibre-gl";
 import { useCallback, useEffect, useRef } from "react";
-import { GAME_RULES, type SpawnView } from "@wildbound/shared";
+import { FIELD_STATION_TYPES, GAME_RULES, type PoiView, type SpawnView } from "@wildbound/shared";
 import { PLAYER_HEAD, wildkinArtFallback, wildkinIcon } from "@/lib/assets.ts";
 
 interface Props {
@@ -10,6 +10,27 @@ interface Props {
   onSelect: (spawn: SpawnView) => void;
   /** Text on the tag above a marker (the name once observed, else the registry number). */
   labelFor: (spawn: SpawnView) => string;
+  /** Points of interest within reach (supplies, field stations). */
+  pois: PoiView[];
+  selectedPoiId: string | null;
+  onSelectPoi: (poi: PoiView) => void;
+}
+
+const isStation = (poi: PoiView) => (FIELD_STATION_TYPES as readonly string[]).includes(poi.type);
+
+/** POI marker: a square pixel sign ("+" for a field station, a crate mark for supplies) with its name. */
+function poiElement(): HTMLElement {
+  const el = document.createElement("button");
+  el.type = "button";
+  el.className = "flex flex-col items-center gap-0.5 outline-none";
+  // Below Wildkin markers: a sighting always wins a tap over a POI.
+  el.style.zIndex = "0";
+  const sign = document.createElement("span");
+  sign.dataset.role = "sign";
+  const tag = document.createElement("span");
+  tag.dataset.role = "tag";
+  el.append(sign, tag);
+  return el;
 }
 
 const RANGE_SOURCE = "interact-range";
@@ -104,6 +125,7 @@ function spawnElement(creatureId: string): HTMLElement {
   const el = document.createElement("button");
   el.type = "button";
   el.className = "flex flex-col items-center gap-1 outline-none";
+  el.style.zIndex = "1";
   // Fades in once added (see the spawn effect); maplibre owns `transform`, so only opacity is animated here.
   el.style.opacity = "0";
   el.style.transition = `opacity ${FADE_MS}ms ease-out`;
@@ -149,7 +171,7 @@ function ensureRangeOverlay(m: maplibregl.Map): boolean {
  * The radar. MapLibre is imperative, so the map is created once and markers are
  * synced in effects (React never re-renders the map itself).
  */
-export function RadarMap({ player, spawns, selectedId, onSelect, labelFor }: Props) {
+export function RadarMap({ player, spawns, selectedId, onSelect, labelFor, pois, selectedPoiId, onSelectPoi }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const playerMarker = useRef<maplibregl.Marker | null>(null);
@@ -164,6 +186,9 @@ export function RadarMap({ player, spawns, selectedId, onSelect, labelFor }: Pro
   const syncRange = useRef<() => void>(() => {});
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
+  const poiMarkers = useRef(new Map<string, { marker: maplibregl.Marker; poi: PoiView }>());
+  const onSelectPoiRef = useRef(onSelectPoi);
+  onSelectPoiRef.current = onSelectPoi;
 
   useEffect(() => {
     if (!container.current) return;
@@ -214,6 +239,7 @@ export function RadarMap({ player, spawns, selectedId, onSelect, labelFor }: Pro
       map.current = null;
       playerMarker.current = null;
       spawnMarkers.current.clear();
+      poiMarkers.current.clear();
       centered.current = false;
     };
   }, []);
@@ -225,6 +251,10 @@ export function RadarMap({ player, spawns, selectedId, onSelect, labelFor }: Pro
     if (!playerMarker.current) {
       const el = markerElement(PLAYER_HEAD, "size-12 drop-shadow-[0_2px_0_rgba(24,63,54,0.6)]");
       el.setAttribute("aria-label", "You");
+      // Drawn above POI signs so standing on one never hides you, but taps go
+      // through to the POI underneath (your own marker does nothing when tapped).
+      el.style.zIndex = "2";
+      el.style.pointerEvents = "none";
       playerMarker.current = new maplibregl.Marker({ element: el }).setLngLat([player.lng, player.lat]).addTo(m);
     } else {
       playerMarker.current.setLngLat([player.lng, player.lat]);
@@ -321,7 +351,7 @@ export function RadarMap({ player, spawns, selectedId, onSelect, labelFor }: Pro
       const el = sm.marker.getElement();
       const label = labelFor(s);
       const selected = s.id === selectedId;
-      el.setAttribute("aria-label", `${label}${s.inRange ? ", in range" : ""}`);
+      el.setAttribute("aria-label", `${label}${s.inBattle ? ", in battle" : ""}${s.inRange ? ", in range" : ""}`);
       const tag = el.querySelector<HTMLElement>("[data-role=tag]");
       const icon = el.querySelector<HTMLElement>("[data-role=icon]");
       const art = el.querySelector<HTMLElement>("[data-role=art]");
@@ -329,8 +359,10 @@ export function RadarMap({ player, spawns, selectedId, onSelect, labelFor }: Pro
         tag.textContent = label;
         tag.className = [
           "whitespace-nowrap rounded border border-white/30 px-1.5 py-0.5 font-pixel text-[7px] shadow-md",
-          selected ? "bg-field-gold text-ink" : s.inRange ? "bg-primary-forest text-paper" : "bg-moss text-paper",
+          selected ? "bg-field-gold text-ink" : s.inBattle ? "bg-terracotta text-paper" : s.inRange ? "bg-primary-forest text-paper" : "bg-moss text-paper",
         ].join(" ");
+        // A spawn in a battle is frozen in place; say so on its tag.
+        if (s.inBattle) tag.textContent = `${label} · In battle`;
       }
       if (icon) {
         icon.className = [
@@ -344,6 +376,53 @@ export function RadarMap({ player, spawns, selectedId, onSelect, labelFor }: Pro
     }
     if (startWalk && walkFrame.current === null) walkFrame.current = requestAnimationFrame(walk);
   }, [spawns, selectedId, labelFor, walk]);
+
+  // POI markers: they never move, so just add, update and remove.
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+    const live = new Set(pois.map((p) => p.id));
+    for (const [id, pm] of poiMarkers.current) {
+      if (live.has(id)) continue;
+      pm.marker.remove();
+      poiMarkers.current.delete(id);
+    }
+    for (const p of pois) {
+      let pm = poiMarkers.current.get(p.id);
+      if (!pm) {
+        const el = poiElement();
+        const id = p.id;
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const current = poiMarkers.current.get(id);
+          if (current) onSelectPoiRef.current(current.poi);
+        });
+        pm = { marker: new maplibregl.Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(m), poi: p };
+        poiMarkers.current.set(p.id, pm);
+      }
+      pm.poi = p;
+      pm.marker.setLngLat([p.lng, p.lat]);
+      const el = pm.marker.getElement();
+      const selected = p.id === selectedPoiId;
+      const station = isStation(p);
+      el.setAttribute("aria-label", `${p.name}${station ? ", field station" : ""}${p.inRange ? ", in range" : ""}`);
+      const sign = el.querySelector<HTMLElement>("[data-role=sign]");
+      const tag = el.querySelector<HTMLElement>("[data-role=tag]");
+      if (sign) {
+        sign.textContent = station ? "+" : "▣";
+        sign.className = [
+          "flex size-7 items-center justify-center rounded-[3px] border-2 font-pixel text-[11px] shadow-md transition-transform",
+          station ? "bg-paper text-terracotta" : "bg-field-gold text-deep-forest",
+          selected ? "scale-125 border-field-gold" : p.inRange ? "border-primary-forest" : "border-deep-forest/60",
+          p.pickedUpToday && !station ? "opacity-60" : "",
+        ].join(" ");
+      }
+      if (tag) {
+        tag.textContent = p.name;
+        tag.className = "pointer-events-none max-w-28 truncate rounded bg-deep-forest/80 px-1 py-px font-pixel text-[6px] text-paper";
+      }
+    }
+  }, [pois, selectedPoiId]);
 
   const recenter = () => {
     if (map.current && player) map.current.easeTo({ center: [player.lng, player.lat], zoom: 17 });

@@ -7,6 +7,7 @@ import {
   ImageIcon,
   PencilLineIcon,
   PlusIcon,
+  SwordsIcon,
   type LucideIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -22,7 +23,7 @@ import { formatRegistryNumber } from "@/lib/wildkin-form";
 
 /** One number on the dashboard. Add new cards to STAT_CARDS as the stats grow. */
 interface StatCardDef {
-  key: "total" | "published" | "drafts" | "unpublishedChanges" | "deleted" | "withArt";
+  key: "total" | "published" | "drafts" | "unpublishedChanges" | "deleted" | "withArt" | "battleReady";
   label: string;
   hint: string;
   icon: LucideIcon;
@@ -35,6 +36,13 @@ const STAT_CARDS: StatCardDef[] = [
   { key: "published", label: "Published", hint: "Live in the creatures table", icon: CheckCircle2Icon, tone: "text-accent" },
   { key: "drafts", label: "Drafts", hint: "Never published", icon: FilePenLineIcon, tone: "text-warning" },
   { key: "unpublishedChanges", label: "Unpublished changes", hint: "Edited since last publish", icon: PencilLineIcon, tone: "text-info" },
+  {
+    key: "battleReady",
+    label: "Battle-ready",
+    hint: "Published with category, traits, stats and attacks",
+    icon: SwordsIcon,
+    tone: "text-accent",
+  },
   { key: "withArt", label: "With art", hint: "Have a PixelLab icon", icon: ImageIcon, tone: "text-gold" },
   { key: "deleted", label: "Deleted", hint: "Soft-deleted, restorable", icon: ArchiveIcon, tone: "text-danger" },
 ];
@@ -84,7 +92,7 @@ export function DashboardPage() {
       <div className="space-y-6 px-8 py-6">
         <ErrorNotice error={stats.error} title="Could not load stats" />
 
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
           {STAT_CARDS.map((def) => (
             <StatCard key={def.key} def={def} value={s ? s[def.key] : stats.isPending ? "…" : "–"} />
           ))}

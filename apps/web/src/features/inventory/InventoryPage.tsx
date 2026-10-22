@@ -1,12 +1,18 @@
 import { Backpack, BookMarked, Cookie, PackageOpen } from "lucide-react";
 import { useState } from "react";
-import type { InventoryItemView } from "@wildbound/shared";
+import type { CapturedWildkinView, InventoryItemView } from "@wildbound/shared";
+import { ConditionChip, errorText, HpBar } from "@/components/field.tsx";
 import { ScreenTitle } from "@/components/layout/Shell.tsx";
-import { useInventory } from "@/lib/queries.ts";
+import { WildkinImage } from "@/components/WildkinImage.tsx";
+import { useInventory, useParty, useUseItem } from "@/lib/queries.ts";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<string, typeof Backpack> = {
   "field-capsule": PackageOpen,
+  "canopy-capsule": PackageOpen,
+  "current-capsule": PackageOpen,
+  "burrow-capsule": PackageOpen,
+  "bloom-capsule": PackageOpen,
   "trail-ration": Cookie,
   "field-notebook": BookMarked,
 };
@@ -97,8 +103,57 @@ function ItemDetail({ item }: { item: InventoryItemView }) {
           <span className="rounded border border-success bg-success/15 px-1.5 py-0.5 font-pixel text-[7px] text-success">×{item.quantity} AVAIL</span>
         </div>
         <p className="inset-panel mt-1.5 bg-[#faf7ef] p-1.5 font-vt text-lg leading-5 text-ink">{item.description}</p>
+        {item.category === "capture" && <p className="mt-1 font-pixel text-[7px] text-ink-muted uppercase">Used in battle</p>}
+        {item.itemId === "trail-ration" && <RationPicker disabled={item.quantity === 0} />}
       </div>
     </section>
+  );
+}
+
+/** "Use" on a Trail Ration: pick the Wildkin to feed. Restless Wildkin refuse treatment. */
+function RationPicker({ disabled }: { disabled: boolean }) {
+  const [open, setOpen] = useState(false);
+  const party = useParty();
+  const use = useUseItem();
+  const all = party.data ? [...party.data.party.filter((m): m is CapturedWildkinView => m !== null), ...party.data.storage] : [];
+  const reason = (w: CapturedWildkinView) => (w.restless ? "Restless" : w.hpFraction >= 1 ? "Full strength" : null);
+  return (
+    <div className="mt-1.5">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen(!open)}
+        className="rounded border-2 border-deep-forest bg-deep-forest px-2 py-1 font-pixel text-[7px] text-paper uppercase hover:bg-primary-forest disabled:opacity-50"
+      >
+        {open ? "Cancel" : "Use"}
+      </button>
+      {use.isSuccess && !open && <p className="mt-1 font-vt text-base leading-4 text-success">{use.data.wildkin.nickname ?? use.data.wildkin.speciesName} looks a little stronger.</p>}
+      {use.error && <p className="mt-1 font-vt text-base leading-4 text-terracotta">{errorText(use.error)}</p>}
+      {open && (
+        <ul className="mt-1.5 flex flex-col gap-1" aria-label="Choose a Wildkin">
+          {all.map((w) => (
+            <li key={w.id}>
+              <button
+                type="button"
+                disabled={reason(w) !== null || use.isPending}
+                onClick={() => use.mutate({ itemId: "trail-ration", wildkinId: w.id }, { onSuccess: () => setOpen(false) })}
+                className="flex w-full items-center gap-2 rounded border border-screen-edge bg-paper p-1 text-left hover:border-primary-forest disabled:opacity-60"
+              >
+                <WildkinImage creatureId={w.creatureId} className="pixelated size-7 shrink-0" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-pixel text-[7px] text-deep-forest uppercase">
+                    {w.nickname ?? w.speciesName} Lv {w.level}
+                  </span>
+                  <HpBar fraction={w.hpFraction} className="mt-0.5" />
+                </span>
+                <ConditionChip condition={w.condition} />
+              </button>
+            </li>
+          ))}
+          {all.length === 0 && <li className="font-vt text-base text-ink-muted">No Wildkin to feed yet.</li>}
+        </ul>
+      )}
+    </div>
   );
 }
 
