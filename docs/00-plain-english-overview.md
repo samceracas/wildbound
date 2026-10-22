@@ -196,7 +196,8 @@ board game. Each turn you choose one thing to do:
   the wild Wildkin wanders off.
 
 The server plays out every turn. The phone only sends "turn 3: use Peck" and shows what the server says happened, so a
-modified phone cannot win battles or capture anything it should not.
+modified phone cannot win battles or capture anything it should not. The exact rules are in
+[14 · Battles and research](14-battles-and-research.md).
 
 ## Individual Wildkin, levels and EXP
 

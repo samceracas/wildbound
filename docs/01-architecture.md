@@ -203,8 +203,8 @@ v0.3.0 added stats, genetics, levels and EXP, wild battles, healing and Field Re
 split as everything else: **vocabularies, constants and Zod contracts in `shared`, pure formulas in `world`, persistence
 and orchestration in `apps/api/src/game/`, screens in the apps.** Every tunable number lives in one exported object
 (`GAME_RULES`, `EXP_RULES`, `BATTLE_RULES`, `RESEARCH_RULES`), so tuning after play-testing never touches logic. The
-formulas and numbers are documented in [07 · Game systems](07-game-systems.md); the routes in
-[04 · API reference](04-api-reference.md).
+formulas and numbers are documented in [07 · Game systems](07-game-systems.md) and
+[14 · Battles and research](14-battles-and-research.md); the routes in [04 · API reference](04-api-reference.md).
 
 ```mermaid
 flowchart LR

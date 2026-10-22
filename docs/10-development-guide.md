@@ -23,7 +23,7 @@
 | Node.js | ≥ 22 | Uses `process.loadEnvFile` |
 | pnpm | 10 (`packageManager: pnpm@10.28.0`) | `corepack enable` |
 | Docker Desktop | any recent | Runs PostGIS. Or install PostgreSQL 16 + PostGIS 3 natively (below) |
-| A Chromium-based browser | – | For DevTools → Sensors (fake location) |
+| A Chromium-based browser | any recent | For DevTools → Sensors (fake location) |
 
 ## First-time setup
 
@@ -33,7 +33,7 @@ cp .env.example .env            # Windows: copy .env.example .env
 pnpm db:up                      # PostGIS on localhost:5432 (creates wildbound + wildbound_test)
 pnpm db:migrate                 # apply migrations to the dev DB
 pnpm db:migrate --test          # …and to the test DB (tests also do this themselves)
-pnpm db:seed --publish          # 5 Wildkin (+ encyclopedia entries and art) + Mabunyi sample world, published
+pnpm db:seed --publish          # 5 Wildkin (with battle data, + encyclopedia entries and art) + Mabunyi sample world, published
 ```
 
 Optional, for the Creature Manager's AI helpers: put `GROQ_API_KEY` (free at <https://console.groq.com/keys>) and
@@ -79,6 +79,7 @@ All in the repo-root `.env` (read by the API and DB scripts via `process.loadEnv
 | `WORLD_TIMEZONE` | api | Fallback time zone | `Asia/Manila` |
 | `WEATHER_API_URL` | api | Open-Meteo endpoint, or `off` | `https://api.open-meteo.com/v1/forecast` |
 | `SECURE_COOKIES` | api | `true` behind HTTPS | `false` |
+| `ASSESSMENT_RELAX_WEATHER` | api | Clamps license assessment requirements "Observe in N different weathers" to 1. Keep `true` while exercise #1 (`weatherFromWmoCode`) is open, because live weather is always `clear` until then; set `false` once real weather works | `true` (anything but `false`) |
 | `GROQ_API_KEY` | api | Creature Manager AI assistant; empty = off | unset |
 | `GROQ_MODEL` | api | Groq chat model (JSON mode) | `llama-3.3-70b-versatile` |
 | `LORE_SOURCE` | api | Assistant lore: `brief` (condensed `docs/lore/assistant-brief.md`) or `full` (canon `.docx`) | `brief` |
@@ -123,14 +124,14 @@ suites share one test database.
 
 ```mermaid
 flowchart LR
-    subgraph unit["unit — pnpm test:unit"]
+    subgraph unit["unit: pnpm test:unit"]
         u1["packages/*/src/**/*.test.ts"]
         u2["apps/*/src/**/*.test.ts"]
     end
-    subgraph ex["exercises — pnpm test:exercises"]
+    subgraph ex["exercises: pnpm test:exercises"]
         e1["**/*.exercise.test.ts"]
     end
-    subgraph int["integration — pnpm test:integration"]
+    subgraph int["integration: pnpm test:integration"]
         i1["apps/api/test/**/*.test.ts"]
         i2["packages/db/test/**/*.test.ts"]
     end
@@ -141,22 +142,32 @@ flowchart LR
 | File | Covers |
 |---|---|
 | `packages/shared/src/schemas.test.ts` | Schemas (rings, slugs, coercion…) |
+| `packages/shared/src/battle.test.ts` | v0.3.0 contracts: stat budget, attacks and power words, genome, defaults for older data, obedience cap, Creature Manager publish checks, battle actions |
 | `packages/world/src/conditions.test.ts` | Condition matching, time-of-day bands, time zones |
-| `packages/world/src/encounters.test.ts` | Table evaluation, combining, weighted rolls, seeded RNG |
+| `packages/world/src/encounters.test.ts` | Table evaluation, combining, weighted rolls, level bands and level rolls, seeded RNG |
 | `packages/world/src/context.test.ts` | `assembleWorldContext` rules (habitat gate, ordering, empty context) |
 | `packages/world/src/geometry.test.ts` | Turf helpers |
 | `packages/world/src/movement.test.ts` | Haversine, `checkMovement` verdicts, strikes, lock, `canAct` |
-| `packages/world/src/spawning.test.ts` | `randomPointNear`, `planSpawns` |
-| `packages/world/src/validation.test.ts` | Integrity and publish rules |
+| `packages/world/src/spawning.test.ts` | `randomPointNear`, `planSpawns` (including the level per spawn) |
+| `packages/world/src/validation.test.ts` | Integrity and publish rules, the three level-range rules |
+| `packages/world/src/stats.test.ts`, `genetics.test.ts` | Stat formula, grades and descriptors; genome and vigor rolls (habitat overrides, frequencies over many seeded rolls), phenotypes, `inheritGenome` |
+| `packages/world/src/levels.test.ts`, `exp.test.ts` | EXP curve, level from EXP, cap clamping (EXP beyond the cap is lost); every EXP source and cap, rested bonus, shared and catch-up EXP |
+| `packages/world/src/battle/battle.test.ts` | Damage, dodge, statuses, turn resolution order, faint and replace, capture rules (passes before and after exercises #10 to #12) |
+| `packages/world/src/research.test.ts`, `pickups.test.ts` | Researcher EXP and the habitat split, assessment progress and clamping (every assessment completable with five species); pickup loot by POI type |
 | `packages/world/src/wandering.test.ts` | `offsetMeters`, activity periods, `wanderStep` speed/pauses, `wander` step cap and leaving the radius |
-| `packages/world/src/*.exercise.test.ts` | Exercises #1 (weather) and #2 (spawn modifiers) |
+| `packages/world/src/**/*.exercise.test.ts` | Exercises #1 (weather), #2 (spawn modifiers), #10 (turn order), #11 (matchups), #12 (capture), #13 (recovery) |
 | `apps/editor/src/world-edit.test.ts` | Pure edit operations |
 | `apps/editor/src/lib/spawn-preview.test.ts` | Spawn-modifier preview |
-| `apps/manager/src/lib/wildkin-form.test.ts` | Manager form helpers: slugify, registry number format, empty entry, suggestion merge, spawn modifiers |
+| `apps/editor/src/lib/level-form.test.ts` | Level inputs and ranges, override toggle, band labels, license requirement selects |
+| `apps/web/src/features/battle/battle-log.test.ts` | Battle log lines and HP playback |
+| `apps/manager/src/lib/wildkin-form.test.ts` | Manager form helpers: slugify, registry number format, empty entry, suggestion merge, spawn modifiers, gene pool percentages, stat budget total |
+| `apps/manager/src/lib/battle-preview.test.ts` | Game preview: stat shape bars, trait matchups, the "Roll a sample" level 50 individual |
 | `apps/api/src/manager/manager.test.ts` | `buildLoreContext` budget, `artPrompt`, `canAfford`, `sanitizeSuggestion` |
 | `packages/db/test/spatial.test.ts` | PostGIS: point-in-polygon, smallest wins, POI distances, draft/published isolation |
-| `apps/api/test/world.test.ts` | Editor auth, authoring → publish → resolve workflow, validation, isolation |
-| `apps/api/test/game.test.ts` | Login, anti-teleport and lockout, spawns, wandering and despawning, deleted species, observe ownership and range, Registry; exercise endpoints expect 501 |
+| `packages/db/test/migration.test.ts`, `seed.test.ts` | The v0.3.0 migration on a database with old data (backfills; creates and drops a scratch database, so the test user needs CREATEDB); seed: registry numbers, battle-ready species, level ranges and license requirements saved and published, battle fields filled into older encyclopedia entries |
+| `apps/api/test/world.test.ts` | Editor auth, authoring → publish → resolve workflow, validation, isolation, level ranges and license requirements |
+| `apps/api/test/game.test.ts` | Login, anti-teleport and lockout, spawns, wandering and despawning, deleted species, observe ownership and range, Registry; the removed capture route (404); exercise endpoints expect 501 |
+| `apps/api/test/battle.test.ts` | Starter, every battle guard, won / captured / lost / escaped / abandoned / replace, stale turns from parallel requests, items, frozen spawns, EXP sources and caps, restless rules, vets, Trail Rations, scanner depth, licenses and every assessment error, rank-up grants, POIs, exercise #14 (expects 501) |
 | `apps/api/test/manager.test.ts` | Creature Manager: auth, CRUD, draft → publish into `creatures`, duplicates, soft delete/restore, AI assistant and art with **fake** providers (no network, no credits spent) |
 
 **How integration tests are built:** `openTestDb()` migrates `DATABASE_URL_TEST`; `resetTestData()` truncates and
@@ -230,7 +241,11 @@ or rules changed.
 | "That GPS jump looked impossible" | You moved the simulated location too far at once; step smaller or wait. 3 in a row lock you for 2 min |
 | "GPS too imprecise" / `ACC` in red | Fix accuracy > 200 m; use precise location or set a Sensors location |
 | Weather always Clear | `WEATHER_API_URL=off`, Open-Meteo unreachable, or exercise #1 not done |
-| Capture says "isn't built yet" | Exercise #3 |
+| "Searching for supplies is not built yet" on a POI | Exercise #14 (`POST /pois/:poiId/collect` answers 501) |
+| The faster Wildkin always strikes first, no matchup field notes, injured Wildkin never heal on their own | Exercises #10, #11 and #13 are still open (their fallbacks); vets still heal |
+| An assessment needs "Observe in 3 different weathers" but shows 1 | `ASSESSMENT_RELAX_WEATHER=true` (the default) clamps weather requirements while exercise #1 is open |
+| Battle button disabled: "Your party needs rest" | Every party member is fainted or restless: visit the vet at East Research Gate |
+| Integration tests fail on the migration test with a permission error | The test DB user needs CREATEDB (the local `postgres` superuser has it) |
 | `pnpm db:seed --publish` fails with validation errors | Your edited draft has errors (the sample was skipped). Fix in the editor or `--force --publish` |
 
 ## Running without Docker
