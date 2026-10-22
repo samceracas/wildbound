@@ -1,6 +1,7 @@
 // Regenerates the SVG charts in docs/images/charts/ from the seed data.
 //   node docs/images/generate-charts.mjs
-// No dependencies. Re-run it after changing packages/db/seed/*.json or GAME_RULES.
+// No dependencies. Re-run it after changing packages/db/seed/*.json, GAME_RULES, the EXP curve
+// (packages/world/src/levels.ts) or BATTLE_RULES.turnOrderExponent.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -241,6 +242,101 @@ export const oddsTable = [];
   const m100 = (100 / 111_320) * kx * scale;
   body += `<line x1="${pad}" x2="${pad + m100}" y1="${H - 30}" y2="${H - 30}" stroke="${T.primary}" stroke-width="2"/>` + text(pad + m100 + 8, H - 26, "100 m", { size: 11, fill: T.secondary });
   writeFileSync(`${out}seed-world-map.svg`, svg(W, H, body, "Mabunyi seed world map"));
+}
+
+// ------------------------------------------------------------------ 6. EXP curve (v0.3.0)
+
+// Mirrors packages/world/src/levels.ts and RESEARCH_RULES.levelsPerRank (packages/shared/src/research.ts).
+// Keep these three in sync if you change the curve or the license bands.
+const totalExpForLevel = (level) => (level <= 1 ? 0 : Math.min(level, 100) ** 3);
+const nextLevelGap = (level) => (level >= 100 ? 0 : totalExpForLevel(level + 1) - totalExpForLevel(level));
+const LEVELS_PER_RANK = 20;
+
+{
+  // Two panels with their own y-axis (two measures of different scale: never one chart with two axes).
+  const W = 820, x0 = 90, pw = 680, ph = 190;
+  const panels = [
+    { y0: 96, title: "Total EXP needed to reach a level: totalExpForLevel(L) = L³", f: totalExpForLevel, max: 1_000_000, step: 250_000, color: SERIES[0] },
+    { y0: 96 + ph + 86, title: "EXP from one level to the next: nextLevelGap(L)", f: nextLevelGap, max: 30_000, step: 10_000, color: SERIES[1] },
+  ];
+  const px = (l) => x0 + ((l - 1) / 99) * pw;
+  const fmt = (v) => (v >= 1_000_000 ? `${v / 1_000_000}M` : v >= 1000 ? `${v / 1000}K` : String(v));
+  let body = text(24, 34, "Wildkin EXP curve, levels 1 to 100", { size: 17, weight: 700 });
+  body += text(24, 56, "Dashed lines: license caps (rank × 20). A Wildkin at its cap gains no more EXP; anything beyond is lost.", { fill: T.secondary });
+  for (const p of panels) {
+    const py = (v) => p.y0 + ph - (v / p.max) * ph;
+    body += text(x0, p.y0 - 14, p.title, { size: 13, weight: 600 });
+    for (let v = 0; v <= p.max; v += p.step) {
+      body += `<line x1="${x0}" x2="${x0 + pw}" y1="${py(v)}" y2="${py(v)}" stroke="${T.grid}" stroke-width="1"/>`;
+      body += text(x0 - 8, py(v) + 4, fmt(v), { anchor: "end", size: 11, fill: T.secondary });
+    }
+    for (let cap = LEVELS_PER_RANK; cap < 100; cap += LEVELS_PER_RANK) {
+      body += `<line x1="${px(cap)}" x2="${px(cap)}" y1="${p.y0}" y2="${p.y0 + ph}" stroke="${T.muted}" stroke-width="1" stroke-dasharray="4 4"/>`;
+      body += text(px(cap) + 4, p.y0 + 12, `rank ${cap / LEVELS_PER_RANK} cap`, { size: 10, fill: T.secondary });
+    }
+    const pts = Array.from({ length: 100 }, (_, i) => i + 1)
+      .filter((l) => p.f !== nextLevelGap || l < 100)
+      .map((l) => `${px(l).toFixed(1)},${py(p.f(l)).toFixed(1)}`)
+      .join(" ");
+    body += `<polyline points="${pts}" fill="none" stroke="${p.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    for (const l of [20, 40, 60, 80]) {
+      const v = p.f(l);
+      body += `<circle cx="${px(l)}" cy="${py(v)}" r="4" fill="${p.color}" stroke="${T.surface}" stroke-width="2"/>`;
+      body += text(px(l) - 6, py(v) - 8, v.toLocaleString("en-US"), { anchor: "end", size: 11, weight: 600 });
+    }
+    for (const l of [1, 20, 40, 60, 80, 100]) body += text(px(l), p.y0 + ph + 18, String(l), { anchor: "middle", size: 11, fill: T.secondary });
+    body += text(x0 + pw / 2, p.y0 + ph + 36, "Level", { anchor: "middle", size: 12, fill: T.secondary });
+  }
+  writeFileSync(`${out}exp-curve.svg`, svg(W, panels[1].y0 + ph + 56, body, "Wildkin EXP curve"));
+}
+
+// ------------------------------------------------------------------ 7. turn-order odds (v0.3.0)
+
+{
+  // P(A first) = SPD_A^k / (SPD_A^k + SPD_B^k), BATTLE_RULES.turnOrderExponent (packages/shared/src/battle.ts).
+  const W = 820, H = 430, x0 = 70, y0 = 84, pw = 660, ph = 250;
+  const rMin = 0.25, rMax = 4; // speed ratio on a log scale, so 1/2 and 2 sit symmetrically
+  const px = (r) => x0 + ((Math.log(r) - Math.log(rMin)) / (Math.log(rMax) - Math.log(rMin))) * pw;
+  const py = (p) => y0 + ph - p * ph;
+  const series = [
+    { label: "k = 1 (current)", color: SERIES[0], f: (r) => r / (r + 1), dash: "" },
+    { label: "k = 2 (if Speed matters too little)", color: SERIES[1], f: (r) => r * r / (r * r + 1), dash: "" },
+    { label: "Exercise #10 fallback: faster always first", color: T.muted, f: (r) => (r >= 1 ? 1 : 0), dash: "5 4" },
+  ];
+  let body = text(24, 34, "Turn order: chance that Wildkin A attacks first", { size: 17, weight: 700 });
+  body += text(24, 56, "P(A first) = SPD_A^k / (SPD_A^k + SPD_B^k), re-rolled every turn. Faster has better odds, never certainty.", { fill: T.secondary });
+  for (let p = 0; p <= 1.0001; p += 0.25) {
+    body += `<line x1="${x0}" x2="${x0 + pw}" y1="${py(p)}" y2="${py(p)}" stroke="${T.grid}" stroke-width="1"/>`;
+    body += text(x0 - 8, py(p) + 4, `${Math.round(p * 100)}%`, { anchor: "end", size: 11, fill: T.secondary });
+  }
+  for (const r of [0.25, 0.5, 1, 2, 4]) {
+    const label = r < 1 ? `1/${1 / r}×` : `${r}×`;
+    body += text(px(r), y0 + ph + 18, label, { anchor: "middle", size: 11, fill: T.secondary });
+  }
+  body += text(x0 + pw / 2, y0 + ph + 38, "Speed ratio SPD_A / SPD_B (log scale)", { anchor: "middle", size: 12, fill: T.secondary });
+  for (const s of series) {
+    const n = 200;
+    const pts = Array.from({ length: n + 1 }, (_, i) => {
+      const r = Math.exp(Math.log(rMin) + (i / n) * (Math.log(rMax) - Math.log(rMin)));
+      return `${px(r).toFixed(1)},${py(s.f(r)).toFixed(1)}`;
+    }).join(" ");
+    body += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"${s.dash ? ` stroke-dasharray="${s.dash}"` : ""}/>`;
+  }
+  // Labelled points: twice as fast, and level 5 Kawi (Speed 16) against level 5 Kantar (Speed 9).
+  for (const [r, name] of [[2, "twice as fast"], [16 / 9, "Kawi 16 vs Kantar 9"]]) {
+    for (const s of series.slice(0, 2)) {
+      const p = s.f(r);
+      body += `<circle cx="${px(r)}" cy="${py(p)}" r="4" fill="${s.color}" stroke="${T.surface}" stroke-width="2"/>`;
+      body += text(px(r) + (name.startsWith("Kawi") ? -8 : 8), py(p) + (name.startsWith("Kawi") ? -8 : 14), `${Math.round(p * 100)}%`, { anchor: name.startsWith("Kawi") ? "end" : "start", size: 11, weight: 600 });
+    }
+    body += text(px(r), y0 + ph - 8, name, { anchor: name.startsWith("Kawi") ? "end" : "start", size: 10, fill: T.secondary });
+  }
+  series.forEach((s, i) => {
+    const lx = 24 + i * 250;
+    body += `<line x1="${lx}" x2="${lx + 18}" y1="${H - 18}" y2="${H - 18}" stroke="${s.color}" stroke-width="3" stroke-linecap="round"${s.dash ? ` stroke-dasharray="${s.dash}"` : ""}/>` +
+      text(lx + 24, H - 14, s.label, { size: 12, fill: T.secondary });
+  });
+  writeFileSync(`${out}turn-order-odds.svg`, svg(W, H, body, "Turn-order odds by speed ratio"));
 }
 
 // Markdown table of the encounter odds, pasted into docs/09-wildkin-and-content.md.

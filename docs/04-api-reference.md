@@ -4,6 +4,10 @@
 > and the game send it requests like "save this world", "publish this Wildkin" or "what is around me?" and get JSON
 > answers back. Editor and manager requests need a secret token; game requests need a login cookie. The API is also the
 > only program that talks to the outside services (Open-Meteo weather, Groq AI, PixelLab art).
+>
+> Since v0.3.0 the game API also runs wild battles turn by turn (capture happens inside a battle), hands out the starter
+> Wildkin, heals Wildkin (Trail Rations, vets at field stations) and manages the four Field Registry licenses and their
+> assessments. The server decides everything; the game only says what the player wants to do.
 
 Base URL in development: `http://localhost:4000`. All bodies are JSON. All request and response shapes are Zod schemas
 in `@wildbound/shared` (names given below), so the TypeScript types are the real reference.
@@ -28,7 +32,7 @@ in `@wildbound/shared` (names given below), so the TypeScript types are the real
 ```mermaid
 flowchart TB
     server["server.ts<br/>loadConfig · createDb · pick WeatherProvider · listen · graceful shutdown"] --> app
-    subgraph app["createApp(deps) — app.ts"]
+    subgraph app["createApp(deps): app.ts"]
         direction TB
         m1["cors(CORS_ORIGINS, credentials)"] --> m2["express.json(limit 10mb)"] --> m3["cookieParser()"]
         m3 --> h["GET /api/health"]
@@ -39,7 +43,10 @@ flowchart TB
         m3 --> rart["/api/art → artRoutes (public PNGs)"]
         rm --> mgr["manager/assistant.ts (Groq)<br/>manager/art.ts (PixelLab)<br/>manager/lore.ts (docs/*.docx)"]
         rg --> svc["game/service.ts<br/>reportPosition · gameState · environmentAt · loadActionableSpawn"]
-        rg --> views["game/views.ts<br/>registryView"]
+        rg --> bsvc["game/battle-service.ts<br/>startBattle · currentBattle · getBattle · actInBattle"]
+        rg --> rsvc["game/research-service.ts<br/>observeSpawn · licensesView · takeAssessment · fieldKnowledge"]
+        rg --> csvc["game/care-service.ts<br/>starterOptions · chooseStarter · useItem · visitVet"]
+        rg --> views["game/views.ts · game/wildkin.ts<br/>registryView · spawnView · capturedView · wildkinDetail"]
         re --> resolve["resolve.ts<br/>resolveWorldContext"]
         svc --> resolve
         m3 --> nf["404 handler"] --> eh["errors.ts errorHandler"]
@@ -56,13 +63,19 @@ only when `PIXELLAB_API_KEY` is set (otherwise `null` = feature off), and logs w
 | `src/server.ts` | Process entry. `WEATHER_API_URL=off` ⇒ `StaticWeather` (always clear), else `OpenMeteoWeather` |
 | `src/app.ts` | Middleware, routers, 404, error handler |
 | `src/config.ts` | `loadConfig()` reads env (see [Configuration](#configuration)) |
-| `src/http.ts` | `HttpError(status, code, message, issues?)`, `parseOr400(schema, input)`, `notImplemented(what)` |
+| `src/http.ts` | `HttpError(status, code, message, issues?, details?)`, `conflict(code, message, details?)` (a 409), `parseOr400(schema, input)`, `notImplemented(what)` |
 | `src/errors.ts` | Error middleware |
 | `src/auth.ts` | `requireEditor`, `startSession`, `endSession`, `requirePlayer`, `SESSION_COOKIE = "wb_session"` |
 | `src/resolve.ts` | `resolveWorldContext(db, query, { timeZone, now })` |
 | `src/weather.ts` | `WeatherProvider` interface, `OpenMeteoWeather`, `StaticWeather` |
-| `src/game/service.ts` | Game logic that touches the DB |
-| `src/game/views.ts` | `registryView(creature, entry)` |
+| `src/game/service.ts` | `reportPosition` (with the walking-EXP meter), `gameState`, `loadActionableSpawn` |
+| `src/game/common.ts` | `GameDeps`, `playerDayKey`, `insertOnce` (the "only once" inserts), `loadLicenses`, `ensureLicenses`, `requirePosition` |
+| `src/game/battle-service.ts` | Wild battles: guards, turns, lazy endings, capture, battle EXP, matchup records |
+| `src/game/research-service.ts` | Observe, researcher EXP, condition/phenotype/matchup records, habitat visits, licenses and assessments |
+| `src/game/care-service.ts` | Starter, Trail Rations, vets, item grants (`grantItems`, stack cap 30) |
+| `src/game/wildkin.ts` | Owned Wildkin with stats, lazy HP, restless and lead; `capturedView`, `wildkinDetail` (scanner depth), `grantWildkinExp` |
+| `src/game/views.ts` | `registryView(creature, entry, knowledge)`, `spawnView(...)` |
+| `src/game/pois.ts` | POIs near the player, field-station range checks (PostGIS) |
 | `src/manager/assistant.ts` | `WildkinAssistant` interface, `GroqAssistant`, prompts, `sanitizeSuggestion` |
 | `src/manager/art.ts` | `ArtGenerator` interface, `PixelLabArt`, `artPrompt`, `canAfford` |
 | `src/manager/lore.ts` | Reads and caches the canon `.docx` files (mammoth), `buildLoreContext` |
@@ -92,20 +105,35 @@ Every error body is `ApiError`:
 
 `issues` (optional) is a list of `ValidationIssue` `{ severity, code, entityType, entityId?, message }`.
 
+`details` (optional, v0.3.0) is a small object with machine-readable extras, so a client can react without parsing the
+message:
+
+| `error` | `details` |
+|---|---|
+| `battle_in_progress` | `{ "battleId": "<uuid>" }`: the battle that is already running (go back to it) |
+| `habitat_locked` | `{ "requirement": { "category": "aquatic", "rank": 3 } }` |
+| `assessment_incomplete` | `{ "requirements": RequirementProgress[] }`: the checklist with `required`, `current` and `met` |
+| `exp_too_low` | `{ "exp": 420, "threshold": 600 }` |
+| `stale_turn` | `{ "turn": 4 }`: the battle's current turn (when caught before the write; refetch the battle either way) |
+
+```json
+409 { "error": "battle_in_progress", "message": "Finish your current battle first",
+      "details": { "battleId": "6c0e…" } }
+```
+
 | Status | `error` codes | When |
 |---|---|---|
 | 400 | `bad_request`, `invalid_world`, `invalid_geometry`, `invalid_reference`, `publish_incomplete` | Zod parse failure (`parseOr400`), malformed JSON, broken world document, DB CHECK/FK failure, Wildkin entry missing required fields |
 | 401 | `unauthorized` (editor), `unauthenticated` (player) | Missing/wrong token; no/expired session |
 | 402 | `insufficient_credits` | PixelLab balance too low for the requested art |
-| 404 | `not_found` | Unknown route; spawn not yours; unknown Wildkin entry; no art |
-| 409 | `validation_failed`, `conflict`, `deleted`, `out_of_range`, `location_unavailable`, `no_capsules`* | Publish blocked; unique violation or id/registry number taken; Wildkin entry is deleted; too far; no fresh position / locked |
+| 404 | `not_found` | Unknown route (including the removed `POST /spawns/:id/capture`); spawn, battle, Wildkin or POI not yours or unknown; no running battle; unknown Wildkin entry; no art |
+| 409 | `validation_failed`, `conflict`, `deleted`, `out_of_range`, `location_unavailable` | Publish blocked; unique violation or id/registry number taken; Wildkin entry is deleted; too far; no fresh position / locked |
+| 409 | game (v0.3.0): `in_battle`, `battle_in_progress`, `habitat_locked`, `no_usable_wildkin`, `stale_turn`, `invalid_action`, `battle_over`, `already_has_wildkin`, `restless`, `full_hp`, `no_items`, `not_a_station`, `not_at_station`, `exp_too_low`, `assessment_incomplete`, `max_rank` | See each endpoint below |
 | 410 | `gone` | Spawn expired, fled or already captured |
 | 501 | `not_implemented` | Exercise endpoints not built yet |
 | 502 | `assistant_failed`, `art_failed` | Groq or PixelLab answered with an error, timed out or returned garbage |
 | 503 | `assistant_unavailable`, `art_unavailable` | `GROQ_API_KEY` / `PIXELLAB_API_KEY` not set |
 | 500 | `internal` | Anything else (logged on the server, never returned) |
-
-\* `no_capsules` is the code suggested by the capture exercise.
 
 ## Endpoint summary
 
@@ -118,12 +146,23 @@ Every error body is `ApiError`:
 | POST | `/api/game/position` | session | `PositionReport` | `PositionResponse` |
 | GET | `/api/game/state` | session | – | `GameStateResponse` |
 | POST | `/api/game/spawns/:id/observe` | session | – | `ObserveResponse` |
-| POST | `/api/game/spawns/:id/capture` | session | – | `CaptureResponse` · **501 exercise** |
+| GET | `/api/game/starter` | session | – | `StarterOptionsResponse` |
+| POST | `/api/game/starter` | session | `StarterRequest` | `StarterResponse` |
+| POST | `/api/game/spawns/:id/battle` | session | – | `BattleResponse` |
+| GET | `/api/game/battles/current` | session | – | `BattleResponse` |
+| GET | `/api/game/battles/:id` | session | – | `BattleResponse` |
+| POST | `/api/game/battles/:id/actions` | session | `BattleActionRequest` | `BattleActionResponse` |
 | GET | `/api/game/registry` | session | – | `RegistryResponse` |
 | GET | `/api/game/inventory` | session | – | `InventoryResponse` |
 | GET | `/api/game/party` | session | – | `PartyResponse` |
-| PUT | `/api/game/party` | session | `UpdatePartyRequest` | 204 or `PartyResponse` · **501 exercise** |
-| PATCH | `/api/game/wildkin/:id` | session | `RenameWildkinRequest` | `CapturedWildkinView` · **501 exercise** |
+| PUT | `/api/game/party` | session | `UpdatePartyRequest` | 204 or `PartyResponse` · **501 exercise #7** |
+| GET | `/api/game/wildkin/:id` | session | – | `WildkinDetailResponse` |
+| PATCH | `/api/game/wildkin/:id` | session | `RenameWildkinRequest` | `CapturedWildkinView` |
+| POST | `/api/game/items/:itemId/use` | session | `UseItemRequest` | `UseItemResponse` |
+| POST | `/api/game/stations/:poiId/heal` | session | – | `VetResponse` |
+| POST | `/api/game/pois/:poiId/collect` | session | – | `PickupResponse` · **501 exercise #14** |
+| GET | `/api/game/licenses` | session | – | `LicensesResponse` |
+| POST | `/api/game/licenses/:category/assessment` | session | – | `AssessmentResponse` |
 | GET | `/api/editor/world` | editor | – | `EditorWorldResponse` |
 | GET | `/api/editor/creatures` | editor | – | `CreatureListResponse` |
 | GET | `/api/editor/published` | editor | – | `PublishedWorldResponse` |
@@ -148,6 +187,9 @@ Every error body is `ApiError`:
 
 Removed in v0.1.0 (they allowed coordinate "teleporting"): public `GET /api/world/resolve`, `GET /api/world/published`,
 `GET /api/creatures`.
+
+Removed in v0.3.0: `POST /api/game/spawns/:id/capture` (now 404 `not_found`; `CaptureResponse` is gone too). Capture
+happens inside a battle with the `capsule` action, and exercise #3 is retired.
 
 ## Health
 
