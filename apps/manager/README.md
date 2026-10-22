@@ -2,11 +2,11 @@
 
 > Detailed documentation: [docs/13-creature-manager.md](../../docs/13-creature-manager.md).
 
-The WILDBOUND Creature Manager: an encyclopedia-style admin tool for writing Wildkin entries (the Wildkin Bible, but editable), drafting and publishing them into the game's `creatures` table, brainstorming them with an AI assistant that knows the Wildbound canon, and generating their pixel art with PixelLab. Dark "field research" theme, desktop-first.
+The WILDBOUND Creature Manager: an encyclopedia-style admin tool for writing Wildkin entries (the Wildkin Bible, but editable), drafting and publishing them into the game's `creatures` table (including, since v0.3.0, their battle and genetics data), brainstorming them with an AI assistant that knows the Wildbound canon, and generating their pixel art with PixelLab. Dark "field research" theme, desktop-first.
 
 ## Stack
 
-React 19, Vite 7, React Router 7, TanStack Query 5, react-hook-form + `@hookform/resolvers/zod`, Tailwind CSS 4 + shadcn/ui (new-york, restyled dark), radix-ui, lucide icons, `@wildbound/shared` for every request/response schema (`packages/shared/src/wildkin.ts`).
+React 19, Vite 7, React Router 7, TanStack Query 5, react-hook-form + `@hookform/resolvers/zod`, Tailwind CSS 4 + shadcn/ui (new-york, restyled dark), radix-ui, lucide icons, `@wildbound/shared` for every request/response schema (`packages/shared/src/wildkin.ts`, `battle.ts`, `research.ts`), and `@wildbound/world` (v0.3.0) for the pure stat and genetics functions behind the preview's "Roll a sample".
 
 ## Run
 
@@ -15,7 +15,7 @@ pnpm dev:api        # the manager talks to the API
 pnpm dev:manager    # http://localhost:5175  (or: pnpm --filter @wildbound/manager dev; also part of `pnpm dev`)
 pnpm --filter @wildbound/manager build    # or pnpm build:manager (also part of `pnpm build`)
 pnpm --filter @wildbound/manager typecheck
-pnpm test:unit      # includes src/lib/wildkin-form.test.ts
+pnpm test:unit      # includes src/lib/wildkin-form.test.ts and src/lib/battle-preview.test.ts
 ```
 
 ### Environment (repo-root `.env`)
@@ -35,19 +35,20 @@ The manager calls `/api/...` on its own origin and the Vite dev/preview server p
 
 ## Pages
 
-- **`/` Dashboard.** Stat cards (total, published, drafts, unpublished changes, with art, deleted), rarity breakdown, next registry number, recently edited entries. Cards are a list (`STAT_CARDS` in `DashboardPage.tsx`), so adding one is a one-liner.
+- **`/` Dashboard.** Stat cards (total, published, drafts, unpublished changes, battle-ready, with art, deleted), rarity breakdown, next registry number, recently edited entries. Cards are a list (`STAT_CARDS` in `DashboardPage.tsx`), so adding one is a one-liner.
 - **`/wildkin` List.** Icon, `No. 001`, name, classification, rarity and status badges. Search by name, "Show deleted" toggle, Edit, Delete (confirm → soft delete) and Restore.
-- **`/wildkin/new`, `/wildkin/:id` Entry.** The Bible entry as eight sections (Identity, Habitat, Diet & temperament, Activity & rarity, Appearance, Behaviour, Ecology & field, Game), with selects for every enumerated property, a habitat-tag combobox (suggested tags + custom slugs), free tag inputs, list editors for open questions and skills, and 0–10 spawn-modifier boxes (blank = 1). The canonical ID is derived from the name on new entries until edited and is immutable afterwards. Leaving with unsaved changes asks first.
+- **`/wildkin/new`, `/wildkin/:id` Entry.** The Bible entry as nine sections (Identity, Habitat, Diet & temperament, Activity & rarity, Appearance, Behaviour, Ecology & field, Game, Battle & genetics), with selects for every enumerated property, a habitat-tag combobox (suggested tags + custom slugs), free tag inputs, list editors for open questions and skills, and 0–10 spawn-modifier boxes (blank = 1). The canonical ID is derived from the name on new entries until edited and is immutable afterwards. Leaving with unsaved changes asks first.
+- **Section 9 "Battle & genetics"** (v0.3.0): category (Aerial, Aquatic, Terrestrial, Verdant or TBD), body traits (chips with their weakness and resistance, max 2), base stats (`BaseStatsEditor.tsx`: HP, Attack, Defense, Speed, 10 to 150 each, summing to exactly 300; set or clear; the live "240 / 300, 60 left" counter is **exercise #16**, until then the total is checked on save), placeholder attacks (`AttacksEditor`: name, approach, power 30 to 60, canon, description; max 2) and the gene pool (`GenePoolEditor`: Build p(L) and Temperament p(W) sliders with the Small/Typical/Large and Bold/Steady/Wary percentages, habitat-tag overrides, optional marking variant with its frequency). The preview panel adds a "Battle & genetics" block (stat bars with descriptors, matchups, attacks) and **Roll a sample** (one level 50 individual rolled with the same functions the server uses).
 
 ## Draft → publish
 
-Entries live in their own table. **Save draft** creates/updates the entry only. **Publish** saves, then copies the entry's game fields (marked **IN GAME** on the form: id, registry number, name, registry description, habitat tags and summary, rarity, activity pattern, spawn modifiers, skills, movement style) into the `creatures` table that the editor and game read; the **In-game preview** panel shows how they look in the game's Registry, list and radar. Publishing requires `name`, `registryDescription` and `habitatSummary` (marked `*`); the API answers `publish_incomplete` with an issue list, shown in the action bar. Editing a published entry marks it **Published · edited** until you publish again. **Delete** offers two choices: **Move to deleted** (soft delete of the entry and its creature: the species stops spawning and leaves the editor's pickers, players who met it keep it in their Registry; restore it from the list with "Show deleted") or **Delete permanently** (erases the entry, its art, the creature and everything referencing it, after showing what that is). Both free the registry number for a new Wildkin.
+Entries live in their own table. **Save draft** creates/updates the entry only. **Publish** saves, then copies the entry's game fields (marked **IN GAME** on the form: id, registry number, name, registry description, habitat tags and summary, rarity, activity pattern, spawn modifiers, skills, movement style, category, body traits, base stats, attacks, gene pool) into the `creatures` table that the editor and game read; the **In-game preview** panel shows how they look in the game's Registry, list and radar. Publishing requires `name`, `registryDescription` and `habitatSummary` (marked `*`) and, since v0.3.0, a category other than TBD, at least one body trait, base stats adding up to exactly 300 and at least one attack; the API answers `publish_incomplete` with an issue list, shown in the action bar. `pnpm db:seed` fills the battle fields into the five seed species' older entries; any other species from before v0.3.0 needs section 9 filled in before it can be published again. Editing a published entry marks it **Published · edited** until you publish again. **Delete** offers two choices: **Move to deleted** (soft delete of the entry and its creature: the species stops spawning and leaves the editor's pickers, players who met it keep it in their Registry; restore it from the list with "Show deleted") or **Delete permanently** (erases the entry, its art, the creature and everything referencing it, after showing what that is). Both free the registry number for a new Wildkin.
 
 **Art generation runs in the background.** The generate dialog can be minimized into a dock at the bottom right, so you can keep using other pages; the dock shows progress, then the result. Closing or reloading the tab cancels running generations (the API stops the PixelLab calls and saves nothing).
 
 ## AI assist
 
-The panel at the top of the entry page sends your idea plus the current (valid, non-empty) form values to `POST /api/manager/assist`. The API prompts Groq with the Wildbound docs as context and validates the answer; the suggestion is merged into the form (marked dirty, nothing is saved), with the assistant's notes (canon conflicts, overlaps with existing Wildkin) and any dropped fields shown below. The registry number is never suggested; the id is only taken on a new entry whose id you have not typed yourself. The API builds the prompt from the canon documents in `docs/` (Bible > First Field Survey > Biology & Ecology, trimmed to `LORE_MAX_CHARS`), the existing roster and your form values; see the docs for details.
+The panel at the top of the entry page sends your idea plus the current (valid, non-empty) form values to `POST /api/manager/assist`. The API prompts Groq with the Wildbound docs as context and validates the answer; the suggestion is merged into the form (marked dirty, nothing is saved), with the assistant's notes (canon conflicts, overlaps with existing Wildkin) and any dropped fields shown below. The registry number is never suggested; the id is only taken on a new entry whose id you have not typed yourself. The API builds the prompt from the lore (by default the condensed `docs/lore/assistant-brief.md`; with `LORE_SOURCE=full` the canon documents in `docs/`, Bible > First Field Survey > Biology & Ecology, trimmed to `LORE_MAX_CHARS`), the existing roster and your form values; see the docs for details. The battle fields are suggestible too: the assistant picks a category and 1 to 2 body traits from the anatomy, base stats summing to exactly 300 (a suggestion that does not is dropped), 1 to 2 `proposed` placeholder attacks with fitting approaches, and leaves the gene pool at its defaults unless the idea implies variation.
 
 ## PixelLab art
 
@@ -63,11 +64,14 @@ src/
   lib/
     api.ts                 Bearer-token fetch client, Zod-validated; ApiRequestError(status, code, issues)
     queries.ts             Query keys + hooks; mutations invalidate stats, lists and the entry
-    wildkin-form.ts        Pure form helpers (slugify, defaults, suggestion merge, spawn modifiers, status) + tests
+    wildkin-form.ts        Pure form helpers (slugify, defaults, suggestion merge, spawn modifiers, status, body traits, gene pool
+                           shares and overrides, marking, baseStatsTotal) + tests
+    battle-preview.ts      Pure helpers for the preview's "Battle & genetics" block (statShape, traitMatchups, rollSample) + tests
   components/
     ui/                    shadcn-style components (button, input, textarea, select, dialog, alert-dialog, popover, …)
     layout/                AppLayout (sidebar, PageHeader), TokenSettings
   features/
     dashboard/             DashboardPage
-    wildkin/               WildkinListPage, WildkinEditPage, AssistPanel, ArtPanel, fields, common (badges, art, errors)
+    wildkin/               WildkinListPage, WildkinEditPage, BattleFields (body traits, attacks, gene pool), BaseStatsEditor
+                           (exercise #16), GamePreview, AssistPanel, ArtPanel, fields, common (badges, art, errors)
 ```

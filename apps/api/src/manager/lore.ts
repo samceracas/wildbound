@@ -6,7 +6,7 @@ import mammoth from "mammoth";
  * Lore context for the Creature Manager assistant. Two sources:
  *
  * - brief (default): `docs/lore/assistant-brief.md`, a hand-condensed summary of
- *   the three canon documents (~7k characters, ~2k tokens). Small enough for
+ *   the three canon documents (~9k characters, ~2k tokens). Small enough for
  *   free-tier token limits; the existing species are sent separately (roster).
  * - full: the canon documents in `docs/` (Word files) in the Bible's authority
  *   order, trimmed to LORE_MAX_CHARS.

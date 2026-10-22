@@ -9,9 +9,13 @@ The WILDBOUND **Map Editor**: an internal developer tool for authoring the world
 - Draw, reshape and delete **regions** and **habitats** (polygons) on a MapLibre map.
 - Place and move **points of interest**.
 - Author **encounter tables**: pick Wildkin, set weights, and add time-of-day and weather conditions.
+- Set each table's **wild levels** (min and max, 1 to 100, default 1 to 10) and, per entry, an optional **Override levels** range (v0.3.0). Spawns get a level from the effective range. Design rule: every region needs an easy entry habitat (a table starting at level 10 or lower), because players do not choose where they live.
+- Give a habitat a **license requirement** (None, or a category and rank 2 to 5; v0.3.0). Players below it can still observe there, but cannot battle or capture.
 - **Save draft**, **Validate**, and **Publish**.
 - **Test mode**: drop a simulated player and see the exact context the API resolves (`/api/editor/resolve`, token required), for the draft or the published world, under any time of day and weather. Players cannot do this: the game only resolves their server-tracked position. The Available Wildkin list also runs the result through `applySpawnModifiers` from `@wildbound/world` (exercise #2), so it shows the odds after species spawn modifiers; until that exercise is done it shows raw weights and a hint.
 - The encounter-table inspector shows each Wildkin's species spawn modifiers (e.g. `rain ×0.5 · night ×0.1`).
+- The Test panel shows each available Wildkin's level range(s) (e.g. "Lv 3-8") and each entry's effective range, and for a locked habitat "Battle locked: needs Aquatic rank 3".
+- The Issues panel shows the level rules: `invalid-level-range` (blocks saving: min above max, outside 1 to 100, or only one override bound), and the warnings `level-range-crosses-band` (a range crossing a multiple of 20, a license band boundary) and `region-without-entry-habitat`.
 
 ## Wildkin come from the database
 
@@ -41,6 +45,8 @@ src/
     queries.ts             Query keys, queries (world, creatures, report, resolve) and mutations (save, validate, publish) with invalidation
     query-client.ts        QueryClient; central error handling (401 opens the token dialog, toasts)
     spawn-preview.ts       Pure helpers: format spawn modifiers, preview odds through applySpawnModifiers
+    level-form.ts          Pure helpers for wild levels and license requirements: parsing and range checks, override toggle,
+                           band labels ("Lv 3-8"), requirement select values, the "Battle locked" note (+ tests)
     utils.ts               cn() (clsx + tailwind-merge, aware of the custom tokens)
   world-edit.ts            Pure, immutable edit operations (create, update, cascade delete, vertex edits)
   world-edit.test.ts       Unit tests for those operations
@@ -53,7 +59,7 @@ src/
     fields.tsx             react-hook-form fields (TextField, SlugField, SelectField, TagsField, ConditionsField, ...)
     legacy-fields.tsx      Old controlled inputs, used only by PoiInspector until exercise #9 is done
     Toolbar, Sidebar, PreviewPanel, IssuesPanel, Overlays
-  inspectors/              Region, Habitat, POI and EncounterTable inspectors
+  inspectors/              Region, Habitat (license requirement), POI and EncounterTable (wild levels, per-entry override) inspectors
   styles.css               Tailwind import, @theme tokens, styles for the map's imperative DOM markers
 ```
 
