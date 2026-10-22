@@ -1,8 +1,8 @@
 # WILDBOUND lore brief (Creature Manager AI assistant)
 
 Condensed from the three canon documents in `docs/` for the AI assistant, so a request stays within small model limits.
-Authority: (1) Wildkin Bible v1.1 for species canon, (2) The First Field Survey v1.0 for the opening story,
-(3) Wildkin Biology & Ecology Reference v1.0 for biological rules. If something here conflicts with them, they win:
+Authority: (1) Wildkin Bible v1.2 for species canon, (2) The First Field Survey v1.0 for the opening story,
+(3) Wildkin Biology & Ecology Reference v1.1 for biological rules. If something here conflicts with them, they win:
 update this brief. Details of the existing species are sent separately (the roster), so they are not repeated here.
 
 ## Setting (The First Field Survey)
@@ -45,6 +45,17 @@ update this brief. Details of the existing species are sent separately (the rost
   signalling, unusual metabolism, symbiosis…), readable in play, and built from reusable effects.
 - The Field Registry is the world's institutional record: species, morphology, habitats, diet, behaviour, human
   interaction, population observations, historical vs current data, and **uncertainty labels**.
+- **Individual variation** (ESTABLISHED): individuals inherit two performance traits, Build (smaller or larger than
+  typical) and Temperament (bolder or warier), plus rare cosmetic markings; extremes need the same variant from both
+  parents and local conditions shape which variants are common. Vigor (health, development) is condition, not
+  inheritance.
+- **Capture, care and bonding** (ESTABLISHED): a wild Wildkin is feral toward humans and resists a capsule while it
+  has the strength, so researchers weaken it in a controlled bout first. Bouts never aim to kill; a fainted Wildkin
+  has withdrawn exhausted. Every injured Wildkin gets first aid, then recovers slowly in its capsule; vets at field
+  stations treat faster. The bond grows with shared experience (the level). A Wildkin the researcher's license does
+  not cover cannot be safely treated or directed: it is **restless**, travels along but does not cooperate.
+- **Friendly battles** are an everyday, respected part of regional life (children spar, some people live from
+  sparring circuits); fieldwork is one path among many.
 
 ## Canon rules (Wildkin Bible)
 
@@ -66,7 +77,20 @@ update this brief. Details of the existing species are sent separately (the rost
 
 - Identity formula: concept → visual hook → ecological role → gameplay role → stat shape (HP, Attack, Defense, Speed)
   → one simple passive → four skills from reusable effects (damage, heal, shield, stat change, damage over time, short
-  control, cleanse, counter) → field use → lore blurb. Species battle details stay TBD until systems stabilise.
+  control, cleanse, counter) → field use → lore blurb. Passive, skills and field use stay TBD (skill system in 0.4.0).
+- **Stat budget:** base stats (HP, Attack, Defense, Speed, each 10 to 150) sum to **exactly 300** for every species,
+  shaped by anatomy and behaviour (armoured: high Defense; darting flier: high Speed). Rarity never adds strength.
+- **Categories** (decide which Field Registry license covers it): aerial, aquatic, terrestrial, verdant (plant-bound).
+- **Body traits** (1 or 2, from anatomy; weak to / resists): plated (crush / pierce), feathered (surge / crush),
+  soft-bodied (pierce / spore), leafy (toxin / surge), slick (toxin / pierce).
+- **Attack approaches:** strike (always neutral), pierce, crush, surge, toxin, spore.
+- **Placeholder attacks:** 1 or 2 per species, power 30 to 60, approach matching the anatomy (beak: pierce; tail
+  slam: crush; water: surge), marked PROPOSED. They are not skills.
+- **Genetics:** Build (S/L alleles: Small, Typical, Large) and Temperament (B/W: Bold, Steady, Wary) are inherited
+  with trade-offs; a species' gene pool sets allele odds, optionally per habitat tag (larger Kantar in mature
+  woodland). Vigor (0 to 5 per stat) is rolled per individual, not inherited.
+- **Marking variant:** optional, cosmetic only, recessive; name it after a visible difference ("Banded"), frequency
+  0.02 to 0.1. Leave the gene pool at defaults unless the concept implies variation.
 - Field encounters use lightweight clues: sound, movement, tracks, habitat, time of day. Reusable interactions:
   observe, inspect cover, scan habitat, record evidence.
 - Visuals: start from a recognisable silhouette; one or two signature features readable at small sprite sizes;
@@ -79,6 +103,6 @@ update this brief. Details of the existing species are sent separately (the rost
 ## Open questions (do not silently resolve)
 
 The nature, arrival and mechanism of the ancient biological influence; how much of it remains in modern Wildkin;
-detailed reproduction and cross-species pairing; limits of Wildkin intelligence and communication; how capture, care,
-training and bonding work and their ethics; what causes the current habitat changes (climate, local damage, a fictional
+detailed reproduction and cross-species pairing; the limits of bonding, intelligence and communication, and the ethics
+of keeping Wildkin long term; what causes the current habitat changes (climate, local damage, a fictional
 phenomenon, or several). Describe these as unknowns or competing hypotheses.

@@ -1,8 +1,9 @@
 # 05 · Map Editor (`apps/editor`)
 
 > **In plain English:** the Map Editor is a drawing tool for the game world. You trace regions and habitats over a real
-> map, pin points of interest, decide which Wildkin live in each habitat and how common they are, then save, check and
-> publish. A "Test" tool lets you drop a pretend player anywhere and see exactly what the game would see there.
+> map, pin points of interest, decide which Wildkin live in each habitat, how common and how strong (what levels) they
+> are, and optionally restrict a habitat to players with a high enough license, then save, check and publish. A "Test"
+> tool lets you drop a pretend player anywhere and see exactly what the game would see there.
 
 ![The editor with the Mabunyi world loaded](images/screenshots/editor-overview.png)
 
@@ -18,6 +19,7 @@
 - [Pure edit operations (`world-edit.ts`)](#pure-edit-operations-world-editts)
 - [The map controller (`editor-map.ts`)](#the-map-controller-editor-mapts)
 - [Inspectors and forms](#inspectors-and-forms)
+- [Wild levels and license requirements](#wild-levels-and-license-requirements)
 - [Save, Validate, Publish](#save-validate-publish)
 - [Test mode](#test-mode)
 - [Styling](#styling)
@@ -37,8 +39,11 @@ flowchart LR
    Backspace removes the last point, Esc cancels. Rename it in the inspector.
 2. **Habitat (`H`)**: same drawing; the habitat is assigned to the region containing its centroid (or the selected one).
 3. **POI (`P`)**: click inside a region to place one; the tool stays active for more.
-4. Select a habitat → **Add encounter table** → add Wildkin, set weights, optionally restrict by time/weather.
-5. **Save draft** (`Ctrl+S`), **Validate**, **Test** (`T`), then **Publish**.
+4. Select a habitat → **Add encounter table** → add Wildkin, set weights and the table's **Wild levels**, optionally
+   restrict by time/weather and override levels per entry. Keep at least one easy habitat per region (see
+   [the design rule](#design-rule-every-region-needs-an-easy-entry-habitat)).
+5. Optionally set the habitat's **License requirement** to make it a restricted research zone.
+6. **Save draft** (`Ctrl+S`), **Validate**, **Test** (`T`), then **Publish**.
 
 The Wildkin you can pick come from the database (the `creatures` table). New species are written and published in the
 [Creature Manager](13-creature-manager.md); switch back to the editor tab and they appear in the pickers (the catalogue
@@ -59,7 +64,7 @@ is refetched when the window regains focus). See [Wildkin from the Creature Mana
 
 ```mermaid
 flowchart TB
-    subgraph top["Toolbar — tools · undo/redo · basemap · status chip · Reload · Validate · Save draft · Publish"]
+    subgraph top["Toolbar: tools · undo/redo · basemap · status chip · Reload · Validate · Save draft · Publish"]
     end
     subgraph mid[" "]
         direction LR
@@ -67,7 +72,7 @@ flowchart TB
         map["MapView<br/>(MapLibre canvas, imperative)<br/>+ ToolHint"]
         prev["PreviewPanel<br/>(Test mode only)"]
     end
-    subgraph bottom["IssuesPanel — counts · validation issues (click to select)"]
+    subgraph bottom["IssuesPanel: counts · validation issues (click to select)"]
     end
     top --> mid --> bottom
 ```
@@ -128,6 +133,7 @@ flowchart TB
 | `src/lib/queries.ts` | Query keys, queries and mutations |
 | `src/lib/query-client.ts` | `QueryClient` with central error handling (401 → token dialog; `meta.errorMessage` → toast) |
 | `src/lib/spawn-preview.ts` | Format spawn modifiers; preview odds through `applySpawnModifiers` (+ tests) |
+| `src/lib/level-form.ts` | Level inputs and cross-field range checks, the override toggle, "Lv 3-8" labels, license requirement select values, "Battle locked: needs Aquatic rank 3" (+ `level-form.test.ts`) |
 | `src/map/editor-map.ts` | Imperative MapLibre controller |
 | `src/map/basemaps.ts` | Streets (OpenFreeMap), OSM raster, Esri satellite; default view Metro Manila |
 | `src/map/MapView.tsx` | Mounts/destroys `EditorMap` |
@@ -254,7 +260,7 @@ sequenceDiagram
         I-->>F: show schema message (nothing committed)
     else valid
         I->>I: changedFields(current, parsed)
-        I->>S: commit(updateHabitat(world, id, patch)) — one undo step
+        I->>S: commit(updateHabitat(world, id, patch)): one undo step
         S->>I: new entity → new values → form resets
     end
 ```
@@ -265,8 +271,64 @@ sequenceDiagram
   `SelectField`, `ToggleField`, `TagsField` (with suggestions), `ConditionsField`, `UnlockField`, `useCommit`,
   `useFieldError`.
 - `HabitatInspector` is the reference implementation. `EncounterTableInspector` shows field arrays (entries with
-  weight, share %, conditions and the species' spawn modifiers formatted like `rain ×0.5 · night ×0.1`).
+  weight, share %, conditions, level range and the species' spawn modifiers formatted like `rain ×0.5 · night ×0.1`).
+- v0.3.0 fields, all react-hook-form, one undo step per commit:
+
+| Inspector | Field | Behaviour |
+|---|---|---|
+| Encounter table | **Wild levels** (min, max) | Two number inputs, whole numbers 1 to 100. Like text fields they commit on blur or Enter (Escape reverts). A bad range (max below min, outside 1 to 100) shows inline under the field and is not committed. Default for new tables: 1 to 10 |
+| Encounter table, per entry | **Override levels** toggle | Off: the entry uses the table's range (the row shows "Lv 2-6 (table)"). On: starts from the table's range and reveals its own min/max ("Entry levels"). Both bounds are set or neither |
+| Habitat | **License requirement** | "None", or a category (Aerial, Aquatic, Terrestrial, Verdant) plus a rank 2 to 5 (rank 1 is everyone). The hint reads "Battle locked: needs Aquatic rank 3. Observing stays open to everyone." The habitat's table list also shows each table's level range |
 - Inspectors read the world with `useEditor.getState()` inside `save` so they never commit against a stale closure.
+
+## Wild levels and license requirements
+
+The data model is in [02 · World model](02-world-model.md#wild-levels); here is how to author it well.
+
+### Design rule: every region needs an easy entry habitat
+
+**Players do not choose where they live.** Their real neighbourhood decides which region and habitat they start in, and
+everyone starts at license rank 1 (obedience cap 20) with a level 5 companion. So:
+
+- Every region needs at least one habitat whose wild Wildkin start at level 10 or below, so a new player there has
+  something to battle.
+- Let difficulty rise **within** a region (a calm meadow at the edge, a tougher creek deeper in), not between
+  neighbourhoods. A region that is hard everywhere punishes people for where they live.
+- Players are expected to observe in areas that are too strong for them until they level up; observing is never
+  locked.
+
+The seed world follows this: Forest Edge 2 to 6, Sunbreak Clearing 3 to 8, Silayan Creekside 4 to 10 (Riverkin 5 to 12).
+
+### Validation
+
+The Issues panel lists the level rules with the others (message plus code); clicking one opens the table or region.
+
+| Code | Severity | When | Fix |
+|---|---|---|---|
+| `invalid-level-range` | **Error, blocks saving** | A table or entry range has min above max, a level outside 1 to 100, or an entry with only one override bound | Correct the numbers (the inspector refuses to commit such a range, so this mostly appears for imported or hand-edited drafts) |
+| `level-range-crosses-band` | Warning | A table's range or an entry's effective range crosses a license band boundary (bands are 1 to 20, 21 to 40, ...; e.g. 18 to 24) | Keep each range inside one band, or split the entry, so a rank never sees half a table out of reach |
+| `region-without-entry-habitat` | Warning | An active region has no active encounter table with an entry whose effective range starts at level 10 or below | Add an easy table (see the design rule above) |
+
+The level rules live in `levelRangeProblems` (`packages/shared/src/world.ts`, used by the schema) and `validateWorld`
+(`packages/world/src/validation.ts`). The full list of rules is in
+[07 · World validation](07-game-systems.md#world-validation).
+
+### Locking a habitat for testing
+
+The seed world has no restricted research zones. To try one:
+
+1. Select a habitat (for example **Silayan Creekside**) and, in the Habitat inspector, set **License requirement** to
+   **Aquatic** and rank **2**.
+2. **Save draft** and **Publish** (players only see the published world).
+3. Optional: press `T`, drop the simulated player inside the habitat and check the Test panel shows
+   "Battle locked: needs Aquatic rank 2".
+4. In the game, walk into the habitat with a player whose Aquatic license is rank 1. The radar header shows
+   "Restricted research zone: Aquatic rank 2", the spawn sheet's **Battle** button is disabled with that reason, and
+   `POST /api/game/spawns/:id/battle` answers 409 `habitat_locked`. **Observe still works.**
+5. Set the requirement back to **None** and publish again when you are done.
+
+The lock is looked up in the published world each time, by the habitat a spawn was created in, so it applies at once,
+even to spawns already on the radar.
 
 ## Save, Validate, Publish
 
@@ -298,6 +360,10 @@ Press `T`, click the map. The pink marker is the simulated player; the circle is
 - **Available Wildkin** are also run through `applySpawnModifiers` (`lib/spawn-preview.ts`) so you see the odds players
   will get in that weather/time. Statuses: `applied`, `neutral` (no modifier applies), `unchanged` (exercise #2 not
   implemented; a yellow hint says so, as in the screenshot), `error`.
+- **Levels (v0.3.0).** Each available Wildkin shows its level band(s), lowest first ("Lv 2-6, Lv 5-12" when it comes from
+  two tables with different ranges), and every encounter entry shows its effective range ("w60 · Lv 5-12 · 60%").
+- **License lock.** For a habitat with a license requirement the panel shows "Battle locked: needs Aquatic rank 3"
+  under the habitat (spawns there can still be observed).
 
 In the screenshot it is night, so Lumae (whose entry is `dawn/day` only) is unavailable in Sunbreak Clearing and the
 remaining weights Kawi 25 / Kantar 15 become 63 % / 38 %.
@@ -318,8 +384,10 @@ token and stores it in `localStorage` (`wildbound.editorToken`), which then wins
 
 ## Extending the editor
 
-- **New field on an entity:** add it to the Zod schema (shared), the DB ([03](03-database.md#how-to-change-the-schema)),
-  the inspector's `pick({...})` and `values`, and a field component. Commit logic needs no change.
+- **New field on an entity:** add it to the Zod schema (shared) with a `.default(...)` so older drafts still parse, the
+  DB ([03](03-database.md#how-to-change-the-schema)) including the draft-to-published copy in `world-repo.ts`, the
+  inspector's `pick({...})` and `values`, and a field component. Commit logic needs no change. The v0.3.0 level and
+  license fields are a worked example.
 - **New entity kind:** add it to `WorldDocument`, `EntityKind`/`Selection`, `world-edit.ts` (create/update/delete,
   `entityExists`), the world tree, a new inspector, map layers in `editor-map.ts`, and the DB save/publish/load.
 - **New tool:** add to `Tool` and `TOOLS` (Toolbar), a key in `TOOL_KEYS` (App), and a `case` in

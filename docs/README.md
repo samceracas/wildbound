@@ -6,7 +6,7 @@ source file first. Each page starts with a plain-English summary, then goes into
 > **Version covered:** v0.3.0 (Map Editor, Creature Manager, API and the playable web game).
 > New in v0.3.0: **stats, genetics, levels and EXP, wild battles, capture through battle, healing and Field Registry
 > licenses**. Every species has a stat shape (HP, Attack, Defense, Speed summing to 300), a category, body traits,
-> placeholder attacks and a gene pool, authored in the [Creature Manager](13-creature-manager.md#9-battle--genetics).
+> placeholder attacks and a gene pool, authored in the [Creature Manager](13-creature-manager.md#section-9-battle--genetics).
 > Each wild Wildkin is an individual with a level, genome and vigor. Players start with a level 5 companion, weaken
 > Wildkin in turn-based battles before capturing them, heal through first aid and vets, and earn license ranks through
 > researcher EXP and assessments at field stations. See [14 · Battles and research](14-battles-and-research.md).
