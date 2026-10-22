@@ -109,7 +109,7 @@ Only when the species should exist in every fresh database (and in tests):
 ## Change a Wildkin's stats, text or spawn modifiers
 
 Open it in the Creature Manager, edit, **Save draft** (the game is unchanged; the entry shows *Published · edited*),
-then **Publish**. Modifier values must be 0–10 (`SpawnModifiersSchema`); blank means ×1. The canonical id cannot be
+then **Publish**. Modifier values must be 0 to 10 (`SpawnModifiersSchema`); blank means ×1. The canonical id cannot be
 changed (encounter entries, spawns, Registry and art reference it); create a new species instead.
 
 > `pnpm db:seed` resets the five **seed** species' game fields from `creatures.json`. If you changed one of them in the
@@ -178,7 +178,7 @@ heartbeat (30 s) must stay below `positionStaleMs`; charts in the docs (re-run t
 Example: add `"snow"` weather.
 
 1. `packages/shared/src/constants.ts` → add to `WEATHER`. Everything typed `Weather` now includes it.
-2. `packages/world/src/weather.ts` → map WMO snow codes (71–77, 85–86) to `"snow"`; update `weather.exercise.test.ts`.
+2. `packages/world/src/weather.ts` → map WMO snow codes (71 to 77, 85 to 86) to `"snow"`; update `weather.exercise.test.ts`.
 3. `apps/web/src/features/game/environment.tsx` → `WEATHER_LABEL` and the icon map (TypeScript errors until you do).
 4. Optionally add `"snow"` modifiers to creatures in `creatures.json`.
 5. The editor's condition chips, Test-panel select and modifier formatting iterate `WEATHER`, so they update themselves.

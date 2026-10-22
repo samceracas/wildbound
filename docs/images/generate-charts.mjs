@@ -341,6 +341,6 @@ const LEVELS_PER_RANK = 20;
 
 // Markdown table of the encounter odds, pasted into docs/09-wildkin-and-content.md.
 const md = ["| Scenario | Habitat | " + creatures.map((c) => c.name).join(" | ") + " |", "|---|---|" + creatures.map(() => "---:|").join("")];
-for (const r of oddsTable) md.push(`| ${r.scenario} | ${r.habitat} | ` + r.rows.map((x) => (x.p ? `${Math.round(x.p * 100)}%` : "–")).join(" | ") + " |");
+for (const r of oddsTable) md.push(`| ${r.scenario} | ${r.habitat} | ` + r.rows.map((x) => (x.p ? `${Math.round(x.p * 100)}%` : "-")).join(" | ") + " |");
 writeFileSync(`${out}encounter-odds.md`, md.join("\n") + "\n");
 console.log("Charts written to", out);
