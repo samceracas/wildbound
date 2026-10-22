@@ -14,6 +14,9 @@
 - [Tune or switch off wandering](#tune-or-switch-off-wandering)
 - [Add an inventory item](#add-an-inventory-item)
 - [Tune a game rule](#tune-a-game-rule)
+- [Tune EXP](#tune-exp)
+- [Add an attack approach or body trait](#add-an-attack-approach-or-body-trait)
+- [Add an assessment requirement type](#add-an-assessment-requirement-type)
 - [Add a weather state or time-of-day band](#add-a-weather-state-or-time-of-day-band)
 - [Add a POI type](#add-a-poi-type)
 - [Add an API endpoint](#add-an-api-endpoint)
@@ -36,7 +39,11 @@
 | Retire a Wildkin | Creature Manager → Delete (restorable) | No |
 | Change the five *seed* Wildkin for fresh databases | `packages/db/seed/creatures.json` / `wildkin.json` → `pnpm db:seed` | Data only |
 | Spawn radius, interact range, anti-cheat limits, wandering step | `GAME_RULES` | One constant |
-| New item, weather state, POI type, endpoint, screen | See recipes | Yes |
+| A Wildkin's category, body traits, base stats, placeholder attacks, gene pool | Creature Manager section 9 → Publish | No |
+| Wild levels of a habitat, or locking a habitat behind a license rank | Map Editor (encounter table "Wild levels", habitat "License requirement") → Publish | No |
+| EXP amounts, battle, capture, healing and license numbers | `EXP_RULES`, `BATTLE_RULES`, `RESEARCH_RULES` ([Tune EXP](#tune-exp)) | One constant |
+| An assessment checklist (counts, which requirement at which rank) | `ASSESSMENTS` in `packages/shared/src/research.ts` | Data only |
+| New item, attack approach, body trait, requirement type, weather state, POI type, endpoint, screen | See recipes | Yes |
 
 ## General workflow for any feature
 
@@ -60,6 +67,10 @@ flowchart LR
     f --> g["Map Editor:<br/>add to encounter tables"] --> h["Save · Validate · Publish"]
     h --> i["🦎 It spawns in the game"]
 ```
+
+Since v0.3.0 a species also needs its **battle data** before it can be published (section 9 "Battle & genetics"):
+a category, at least one body trait, base stats summing to exactly 300 and at least one placeholder attack. The AI
+assistant proposes them; check them against [09 · Battle data](09-wildkin-and-content.md#battle-data-proposed).
 
 1. **Start the apps.** `pnpm dev` (or `pnpm dev:api` + `pnpm dev:manager` + `pnpm dev:editor`). For the AI helpers set
    `GROQ_API_KEY` and `PIXELLAB_API_KEY` in `.env` (optional).
@@ -155,12 +166,31 @@ behaviour; update them with the change.
 
 ## Add an inventory item
 
-1. `packages/shared/src/game.ts` → add to `ITEMS` (`name`, `description`, `category`). `ItemIdSchema` updates itself.
+There is no currency or shop: items reach players through `STARTER_INVENTORY`, rank-up grants and daily pickups.
+
+1. `packages/shared/src/game.ts` → add to `ITEMS` (`name`, `description` in the field-research voice, `category`:
+   `capture`, `field` or `key`). `ItemIdSchema` updates itself. Stacks are capped at `ITEM_STACK_MAX` (30) by
+   `grantItems` (`apps/api/src/game/care-service.ts`), so a new item needs nothing for that.
 2. Optional: add to `STARTER_INVENTORY` (only affects **new** players; existing players need a backfill, e.g. a
    one-off script with `db.inventoryItem.upsert` per player).
 3. `apps/web/src/features/inventory/InventoryPage.tsx` → add an icon in `ICONS`; if it's a new `category`, add a filter
    in `CATEGORIES`.
-4. If it does something, add an endpoint (recipe below) and a button.
+4. How players get it (pick any):
+   - **Pickups:** `rollPickup` / `PICKUP_RULES` in `packages/world/src/pickups.ts` (+ `pickups.test.ts`).
+   - **Rank-up grants:** the `grantItems` call in `takeAssessment` (`apps/api/src/game/research-service.ts`), with the
+     amount as a new key in `RESEARCH_RULES`.
+5. What it does:
+   - **A capsule:** add its id to `CAPSULE_ITEM_IDS` (`packages/shared/src/battle.ts`). The `capsule` battle action,
+     the battle view's satchel counts and the battle Satchel menu all read that list. For a category bonus, map it in
+     `CATEGORY_CAPSULES` (`research.ts`) or extend `capsuleBonus` in `packages/world/src/battle/capture.ts`.
+   - **A battle healing item:** the `item` action only accepts `itemId: z.literal("trail-ration")` in
+     `BattleActionSchema`; widen it to an enum, give the engine's `item` case in `battle/engine.ts` the item's effect
+     (a rule in `BATTLE_RULES`), add it to the battle view's item query in `battle-service.ts` (`battleView`) and to
+     the Satchel menu in `apps/web/src/features/battle/BattlePage.tsx`.
+   - **Used outside battle:** `useItem` in `care-service.ts` refuses everything but Trail Rations (400); extend it, and
+     the Satchel's "Use" button in `InventoryPage.tsx`.
+   - Anything else: an endpoint (recipe below) and a button.
+6. Tests: `apps/api/test/battle.test.ts` has item, capsule and grant cases to copy.
 
 **What can break:** nothing else; unknown item ids in the DB are silently skipped by `GET /inventory`.
 
@@ -172,6 +202,95 @@ both sides change together.
 
 **What can break:** tests that assert specific distances or timings (`movement.test.ts`, `game.test.ts`); the web
 heartbeat (30 s) must stay below `positionStaleMs`; charts in the docs (re-run the generator).
+
+## Tune EXP
+
+Every EXP number is one constant; the formulas never change. All of them are listed in
+[07 · All tunable numbers](07-game-systems.md#all-tunable-numbers).
+
+| To change | Edit | Notes |
+|---|---|---|
+| How much a battle gives | `EXP_RULES.battleBase` / `battleDivisor` (`packages/shared/src/battle.ts`) | `floor(60 × L_opp / 7 × gap)` |
+| How little beating weak Wildkin gives | `EXP_RULES.gapMin` / `gapMax` | 0.2 to 1.5 today |
+| Shared and catch-up EXP | `sharedShare`, `catchUpShare`, `catchUpLevelGap` | |
+| Walking, observation, exploration, capture | `walkingShare`, `observationShare`, `explorationShare`, `captureShare` (shares of `nextLevelGap`) and their caps `walkingUnitsPerDay`, `observationsPerDay`, `explorationsPerDay` | `walkingMaxSpeedMps` decides what counts as walking |
+| Rested bonus | `restedChargeMs`, `restedMaxCharges`, `restedMultiplier` | Raising `restedMaxCharges` above 10 also needs a migration for the CHECK `players_rested_charges_range` |
+| The level curve itself | `totalExpForLevel` in `packages/world/src/levels.ts` | Changes what every stored `exp` means: existing `captured_wildkin.level` values must be recomputed in a migration. Also update the copy in `docs/images/generate-charts.mjs` |
+| License caps | `RESEARCH_RULES.levelsPerRank` (`packages/shared/src/research.ts`) | Also moves the `level-range-crosses-band` warning and restless rules |
+| Researcher EXP and rank thresholds | `RESEARCH_RULES` amounts and `rankThresholds` | |
+
+Steps:
+
+1. Measure first. Run the "split of EXP by source" SQL in [07 · EXP log](07-game-systems.md#exp-log-and-the-split-by-source)
+   on real play data and compare it with the target split (battles about 40 %, walking about 25 %, observation and
+   exploration about 20 %, captures about 15 %).
+2. Change the constant(s). Because `packages/shared` is imported by the API and the web app, both pick it up.
+3. Run `pnpm test:unit` (`packages/world/src/exp.test.ts` and `levels.test.ts` assert today's numbers; update the
+   expected values) and `pnpm test:integration` (`apps/api/test/battle.test.ts` checks EXP sources, caps and the
+   rested bonus).
+4. Update the worked examples in [07](07-game-systems.md#wildkin-exp-sources) and regenerate the charts
+   (`node docs/images/generate-charts.mjs`) if the curve or caps changed.
+
+**What can break:** existing `exp_events` rows keep their old amounts (they are a log, not a balance), so compare
+splits only over days after the change. The EXP cap clamp (`applyExpGain`) is not a tuning knob: EXP beyond the
+license cap is lost by design.
+
+## Add an attack approach or body trait
+
+Example: a new approach `chill` and a new body trait `furred` (its weakness and resistance should follow from its biology, like the existing five).
+
+1. **Vocabulary** in `packages/shared/src/battle.ts`:
+   - approach: add it to `APPROACHES` and `APPROACH_NAMES`;
+   - body trait: add it to `BODY_TRAITS`, `BODY_TRAIT_NAMES` and a `MATCHUPS` entry (`weak`, `resist`, a one-line
+     biological `reason`, `weakLine` and `resistLine` in the field-note voice). Strike stays neutral, so never use it
+     as `weak` or `resist`.
+   - A new approach that should matter needs at least one trait that is weak to it or resists it (edit those traits'
+     `MATCHUPS` entries).
+2. **TypeScript does the rest of the search.** `APPROACH_NAMES`, `BODY_TRAIT_NAMES` and `MATCHUPS` are typed
+   `Record<...>`, so `pnpm typecheck` fails until every name exists. Everything else iterates the lists: the manager's
+   trait chips and approach select (`apps/manager/src/features/wildkin/BattleFields.tsx`), the Game preview
+   (`apps/manager/src/lib/battle-preview.ts`), the battle and Registry chips in the web app, the battle log
+   (`battle-log.ts`), the AI assistant's prompt (`apps/api/src/manager/assistant.ts`).
+3. **Database:** nothing. `creatures.body_traits` is `text[]` and `matchup_records.body_trait` / `approach` are plain
+   text (only `effect` has a CHECK). Existing records stay valid.
+4. **Rules:** nothing in `packages/world/src/battle/matchups.ts` (it reads `MATCHUPS`). Add cases to
+   `matchups.exercise.test.ts` and `packages/world/src/battle/battle.test.ts`.
+5. **Assessments:** `achievableAssessmentLimits` counts 2 matchups per body trait, so a trait automatically raises the
+   `recordMatchups` limit of the categories whose species carry it.
+6. **Canon and docs:** the matchup table and reason in the Wildkin Bible ("Categories and body traits"),
+   `docs/lore/assistant-brief.md` (keep it around 2,000 tokens), [14 · Matchups](14-battles-and-research.md#matchups)
+   and the glossary.
+7. **Content:** give the trait to species (or attacks the new approach) in the Creature Manager and publish.
+
+**What can break:** a species may only have 2 traits (`bodyTraits` max 2); `matchupMultiplier` is exercise #11, so
+while it is open no matchup has any effect.
+
+## Add an assessment requirement type
+
+Example: `observeAtNight`, "Observe {n} species at night". Assessments are **data**; a new requirement type is a small
+amount of code in four places.
+
+1. **Contract** in `packages/shared/src/research.ts`:
+   - add the type to `ASSESSMENT_REQUIREMENT_TYPES`;
+   - add its label to `ASSESSMENT_REQUIREMENT_LABELS` (`{n}` is the clamped count);
+   - use it in `ASSESSMENTS` (`{ type: "observeAtNight", count: 2 }` at some rank).
+   `RequirementCounts` and `emptyRequirementCounts` are keyed by the list, so TypeScript now shows the gaps.
+2. **Achievable limit** in `achievableAssessmentLimits` (`packages/world/src/research.ts`): return the most the
+   current published world allows for the category (use `categoryPresence`, extend it if you need new facts), so the
+   checklist is never impossible. Return `UNLIMITED` only if the world never caps it.
+3. **The player's progress** in `requirementCounts` (`apps/api/src/game/research-service.ts`): one Prisma count over
+   the existing tables (`registry_entries`, `condition_records`, `battles`, `matchup_records`, `phenotype_records`,
+   `habitat_visits`), filtered to the category's species. If nothing records the fact yet, add a player-data table
+   (recipe below) and write it where the action happens, with a primary key and `insertOnce` so it is recorded once.
+4. **Tests:** `packages/world/src/research.test.ts` (the limit, and "makes every 0.3.0 assessment completable for every
+   category in the sample world" must still pass), and an assessment case in `apps/api/test/battle.test.ts`.
+5. **UI:** nothing for the fallback list; the checklist (exercise #15, `AssessmentChecklist.tsx`) renders `label`,
+   `current` and `required` for any type.
+6. **Docs:** the requirement and template tables in [14 · Assessments](14-battles-and-research.md#assessments).
+
+**What can break:** changing a count in `ASSESSMENTS` changes what players already partway through a rank need (no
+migration, it is computed on read). A weather-like requirement that cannot be met while exercise #1 is open needs the
+same relaxing as `observeWeathers` (`relaxWeather` in `assessmentProgress`).
 
 ## Add a weather state or time-of-day band
 
@@ -232,7 +351,8 @@ For editor endpoints, use `apps/api/src/routes/editor.ts` (behind `requireEditor
 1. `apps/web/src/features/<name>/<Name>Page.tsx` → start with `<ScreenTitle title="…" />` inside
    `<div className="flex flex-1 flex-col gap-2.5 p-2.5">` like the other pages.
 2. `apps/web/src/router.tsx` → add `{ path: "<name>", element: <NamePage /> }` under `/play`.
-3. `GameLayout.tsx` → add a tab in `Tabs()` (the grid is `grid-cols-4`; change it to 5).
+3. `GameLayout.tsx` → add a tab in `Tabs()` (the grid is `grid-cols-5` since v0.3.0 added License; a sixth tab
+   needs `grid-cols-6` and a check that the labels still fit at 390 px).
 4. Data via a hook in `lib/queries.ts`.
 
 The page inherits the session guard, pause overlay and polling automatically.
@@ -306,7 +426,10 @@ If you change the thing in the left column, check everything in the right column
 |---|---|
 | A Zod schema in `shared` | API parsing (`parseOr400`), both clients' response parsing, DB mapping, seed JSON, tests |
 | `GAME_RULES` | Server checks, radar ring and accuracy hint, tests, charts |
-| `ITEMS` | Inventory endpoint, Satchel icons/filters, starter inventory |
+| `ITEMS` | Inventory endpoint, Satchel icons/filters, starter inventory, `CAPSULE_ITEM_IDS`, pickups and grants |
+| `EXP_RULES`, `BATTLE_RULES`, `RESEARCH_RULES` | `exp.test.ts`, `levels.test.ts`, battle and research tests, worked examples in 07 and 14, charts |
+| `MATCHUPS`, `APPROACHES`, `BODY_TRAITS` | Battle damage and field notes, matchup records, Registry field notes, manager section 9, AI assistant prompt, lore brief, assessment limits |
+| `ASSESSMENTS`, requirement types | License page, `achievableAssessmentLimits`, `requirementCounts`, `research.test.ts` |
 | `creatures.json` / `wildkin.json` (seed) | Registry total, tests counting species, seed art import, charts |
 | `WildkinEntryInputSchema` | Stored `content` of every entry (needs defaults), manager form, assistant `FIELD_GUIDE`/sanitizing, seed `wildkin.json` |
 | `listCreatures` deleted filter | Spawning, editor pickers, save integrity, Registry/Party history |

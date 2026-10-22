@@ -226,7 +226,7 @@ The creative canon lives in [`docs/`](./) as Word files, next to this documentat
 |---|---|
 | `WILDBOUND_Wildkin_Bible_v1.2.docx` | **Canonical species reference.** Appearance, behaviour, habitat, activity, rarity, art direction for each Wildkin; since v1.2 also categories and body traits (with the matchup table), individual variation, and a "Game data (PROPOSED)" block per species. Labels every fact `ESTABLISHED`, `PROPOSED` or `TBD` |
 | `WILDBOUND_The_First_Field_Survey_Source_of_Truth.docx` | The story of the opening, written as a book: Sam returns to Luntian settlement at the edge of Mabunyi Forest Reserve, receives a Field Registry assignment, and finds Wildkin appearing outside their recorded habitats. The appendix "The Field License (PROPOSED for v0.3.0)" covers the license, first aid, vets, the ranger's starter companion and friendly battles |
-| `WILDBOUND_Wildkin_Biology_and_Ecology_Reference_v1.1.docx` | Worldbuilding rules: Wildkin are a distinct biological lineage (shared genetic signature, an unresolved ancient origin), reproduction, ecology; since v1.1 also individual variation (4.3) and capture, care and bonding |
+| `WILDBOUND_Wildkin_Biology_and_Ecology_Reference_v1.1.docx` | Worldbuilding rules: Wildkin are a distinct biological lineage (shared genetic signature, an unresolved ancient origin), reproduction, ecology; since v1.1 also individual variation (4.3) and a new section 6 "Capture, Care, and Bonding" (the open questions are now section 16) |
 
 Authority order (from the Bible): the Bible for species canon, then the First Field Survey, then other references.
 

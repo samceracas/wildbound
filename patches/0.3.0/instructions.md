@@ -1,4 +1,4 @@
-# State: Not implemented
+# State: Implemented
 # Overview
 Version 0.3.0 adds the core of WILDBOUND's creature systems: **stats, genetics, levels and EXP, wild battles, capture through battle, healing, and Field Registry licenses**. It turns the Wildkin from Registry entries into individuals the player raises, battles with and studies.
 
