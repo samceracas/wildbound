@@ -45,6 +45,7 @@ import {
   nowOf,
   playerDayKey,
   randomOf,
+  rankFor,
   type Creatures,
   type GameDeps,
   type Licenses,
@@ -512,7 +513,14 @@ async function captureWildkin(
     meta: { creatureId: creature.id, battleId: args.battleId },
   });
   if (gain) gains.push(gain);
-  gains.push(...(await recordPhenotypes(tx, { playerId, creature, genome: genomeOf(spawn.genome), dayKey: args.day, now })));
+  gains.push(...(await recordPhenotypes(tx, {
+        playerId,
+        creature,
+        genome: genomeOf(spawn.genome),
+        rank: rankFor(args.licenses, creature.category),
+        dayKey: args.day,
+        now,
+      })));
 
   const expResults: WildkinExpResult[] = [];
   if (lead) {

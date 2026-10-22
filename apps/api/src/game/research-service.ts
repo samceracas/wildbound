@@ -11,6 +11,7 @@ import {
   RESEARCH_RULES,
   TEMPERAMENT_NAMES,
   assessmentFor,
+  scannerShows,
   obedienceCap,
   type AssessmentResponse,
   type AvailableWildkin,
@@ -62,7 +63,7 @@ import {
 import { grantItems } from "./care-service.ts";
 import { stationInRange } from "./pois.ts";
 import { loadActionableSpawn } from "./service.ts";
-import { registryView, spawnView } from "./views.ts";
+import { registryView, spawnView, type FieldKnowledge } from "./views.ts";
 import { countToday, grantWildkinExp, leadOf, loadWildkin } from "./wildkin.ts";
 
 /**
@@ -106,10 +107,25 @@ const PHENOTYPE_WORDS: Record<PhenotypeRecordTrait, string> = {
   marking: "Marked",
 };
 
-/** Records the visible phenotypes of an individual (observed or captured); first records give researcher EXP. */
+const TEMPERAMENT_TRAITS: readonly PhenotypeRecordTrait[] = ["bold", "wary"];
+
+/**
+ * How a phenotype record is named. Temperament is visible to any observer, so it
+ * is always recorded, but it is only named from the scanner depth that shows it.
+ */
+export function phenotypeWord(trait: PhenotypeRecordTrait, creature: CreatureDefinition, rank: number): string {
+  if (trait === "marking") return creature.genePool.marking?.name ?? "Marked";
+  if (TEMPERAMENT_TRAITS.includes(trait) && !scannerShows("temperament", rank)) return "Temperament variant of";
+  return PHENOTYPE_WORDS[trait];
+}
+
+/**
+ * Records the visible phenotypes of an individual (observed or captured); first records give researcher EXP.
+ * `rank` is the player's license rank in the species' category (it decides how the record is worded).
+ */
 export async function recordPhenotypes(
   tx: Tx,
-  args: { playerId: string; creature: CreatureDefinition; genome: Genome; dayKey: string; now: Date },
+  args: { playerId: string; creature: CreatureDefinition; genome: Genome; rank: number; dayKey: string; now: Date },
 ): Promise<ResearcherExpGain[]> {
   const gains: ResearcherExpGain[] = [];
   for (const trait of phenotypeRecordTraits(phenotype(args.genome))) {
@@ -120,7 +136,7 @@ export async function recordPhenotypes(
       }),
     );
     if (!fresh) continue;
-    const word = trait === "marking" ? `${args.creature.genePool.marking?.name ?? "Marked"}` : PHENOTYPE_WORDS[trait];
+    const word = phenotypeWord(trait, args.creature, args.rank);
     const gain = await grantResearcherExp(tx, {
       ...args,
       category: args.creature.category,
@@ -218,11 +234,20 @@ export async function observeSpawn(deps: GameDeps, playerId: string, spawnId: st
       }
     }
 
-    gains.push(...(await recordPhenotypes(tx, { playerId, creature, genome: updated.genome as Genome, dayKey: day, now })));
+    const licenses = await loadLicenses(tx, playerId);
+    gains.push(
+      ...(await recordPhenotypes(tx, {
+        playerId,
+        creature,
+        genome: updated.genome as Genome,
+        rank: rankFor(licenses, creature.category),
+        dayKey: day,
+        now,
+      })),
+    );
 
     // The lead's observation EXP: the first observation of each species per day, 5 per day.
     let leadExp: ObserveResponse["leadExp"] = null;
-    const licenses = await loadLicenses(tx, playerId);
     const lead = leadOf(await loadWildkin(tx, playerId, creatures, licenses, now));
     if (lead) {
       const speciesToday = await countToday(tx, playerId, "observation", day, perSpecies);
@@ -297,11 +322,12 @@ export async function recordHabitatVisit(
 
 // ------------------------------------------------------------------ registry knowledge
 
-export async function fieldKnowledge(tx: Tx, playerId: string) {
-  const [matchups, conditions, phenotypes] = await Promise.all([
+export async function fieldKnowledge(tx: Tx, playerId: string): Promise<FieldKnowledge> {
+  const [matchups, conditions, phenotypes, licenses] = await Promise.all([
     tx.matchupRecord.findMany({ where: { playerId } }),
     tx.conditionRecord.findMany({ where: { playerId } }),
     tx.phenotypeRecord.findMany({ where: { playerId } }),
+    loadLicenses(tx, playerId),
   ]);
   const add = (map: Map<string, Set<string>>, key: string, value: string) => map.set(key, (map.get(key) ?? new Set()).add(value));
   const k = {
@@ -309,6 +335,7 @@ export async function fieldKnowledge(tx: Tx, playerId: string) {
     timesOfDay: new Map<string, Set<string>>(),
     weathers: new Map<string, Set<string>>(),
     phenotypes: new Map<string, Set<string>>(),
+    licenses,
   };
   for (const m of matchups) k.matchups.set(m.bodyTrait, (k.matchups.get(m.bodyTrait) ?? new Map()).set(m.approach, m.effect as "weak" | "resist"));
   for (const c of conditions) add(c.kind === "time_of_day" ? k.timesOfDay : k.weathers, c.creatureId, c.value);

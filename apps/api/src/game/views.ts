@@ -18,6 +18,7 @@ import {
 } from "@wildbound/shared";
 import type { RegistryEntryModel, SpawnModel } from "@wildbound/db";
 import { distanceMeters, phenotype } from "@wildbound/world";
+import { rankFor, type Licenses } from "./common.ts";
 import { genomeOf, statShape } from "./wildkin.ts";
 
 /** What the player has learned about species, across the Registry tables. */
@@ -28,6 +29,8 @@ export interface FieldKnowledge {
   timesOfDay: Map<string, Set<string>>;
   weathers: Map<string, Set<string>>;
   phenotypes: Map<string, Set<string>>;
+  /** License ranks; Temperament records are only named from the rank that shows Temperament. */
+  licenses: Licenses | null;
 }
 
 const PHENOTYPE_LINES: Record<Exclude<PhenotypeRecordTrait, "marking">, string> = {
@@ -42,12 +45,14 @@ function fieldNotes(creature: CreatureDefinition, k: FieldKnowledge): FieldNotes
     const approach = MATCHUPS[trait][effect];
     return k.matchups.get(trait)?.get(approach) === effect ? approach : null;
   };
-  const phenotypes = [...(k.phenotypes.get(creature.id) ?? [])]
-    .sort()
-    .map((t) =>
-      t === "marking" ? `${creature.genePool.marking?.name ?? "Unusual"} markings seen` : PHENOTYPE_LINES[t as keyof typeof PHENOTYPE_LINES],
-    )
-    .filter(Boolean);
+  const namesTemperament = scannerShows("temperament", k.licenses ? rankFor(k.licenses, creature.category) : 1);
+  const lines = [...(k.phenotypes.get(creature.id) ?? [])].sort().map((t) => {
+    if (t === "marking") return `${creature.genePool.marking?.name ?? "Unusual"} markings seen`;
+    if ((t === "bold" || t === "wary") && !namesTemperament) return "Temperament variant seen";
+    return PHENOTYPE_LINES[t as keyof typeof PHENOTYPE_LINES];
+  });
+  // Bold and Wary both read "Temperament variant seen" below rank 2: list it once.
+  const phenotypes = [...new Set(lines)].filter(Boolean);
   return {
     category: creature.category,
     bodyTraits: creature.bodyTraits.map((trait) => ({ trait, weakTo: recorded(trait, "weak"), resists: recorded(trait, "resist") })),
@@ -57,7 +62,13 @@ function fieldNotes(creature: CreatureDefinition, k: FieldKnowledge): FieldNotes
   };
 }
 
-export const NO_KNOWLEDGE: FieldKnowledge = { matchups: new Map(), timesOfDay: new Map(), weathers: new Map(), phenotypes: new Map() };
+export const NO_KNOWLEDGE: FieldKnowledge = {
+  matchups: new Map(),
+  timesOfDay: new Map(),
+  weathers: new Map(),
+  phenotypes: new Map(),
+  licenses: null,
+};
 
 /**
  * Builds what a player may see about one species. Observe unlocks the basics

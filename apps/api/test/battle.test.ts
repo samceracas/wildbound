@@ -360,7 +360,8 @@ describe("battle turns", () => {
     const mimu = registry.entries.find((e) => e.creatureId === "mimu")!;
     expect(mimu.status).toBe("captured");
     expect(mimu.statShape).toHaveLength(4);
-    expect(mimu.fieldNotes?.phenotypes.sort()).toEqual(["Bold seen", "Large seen"]);
+    // Terrestrial rank 1 records Temperament without naming it (scanner depth).
+    expect(mimu.fieldNotes?.phenotypes.sort()).toEqual(["Large seen", "Temperament variant seen"]);
   });
 
   it("a capture above the license cap arrives restless", async () => {
@@ -524,6 +525,25 @@ describe("EXP and research", () => {
     expect(await handle.db.expEvent.count({ where: { playerId, source: "repeat-observation" } })).toBe(5);
     expect(await handle.db.expEvent.count({ where: { playerId, source: "observation" } })).toBe(1);
     expect(await handle.db.conditionRecord.count({ where: { playerId } })).toBe(2);
+  });
+
+  it("records Temperament below license rank 2 without naming it", async () => {
+    const { agent, playerId } = await fieldPlayer([{ creatureId: "kantar", level: 5 }]);
+    const wary = await spawnFor(playerId, { creatureId: "kawi", level: 3, genome: { build: ["S", "L"], temperament: ["W", "W"], marking: ["+", "+"] } });
+    const observed = ObserveResponseSchema.parse((await agent.post(`/api/game/spawns/${wary.id}/observe`)).body);
+    const reasons = observed.researcherExp.map((g) => g.reason);
+    expect(reasons).toContain("Temperament variant of Kawi recorded");
+    expect(reasons.some((r) => r.includes("Wary"))).toBe(false);
+    expect(observed.entry.fieldNotes?.phenotypes).toEqual(["Temperament variant seen"]);
+    expect(await handle.db.phenotypeRecord.count({ where: { playerId, creatureId: "kawi", trait: "wary" } })).toBe(1);
+
+    // From Aerial rank 2 the same records are named.
+    await handle.db.researcherLicense.update({ where: { playerId_category: { playerId, category: "aerial" } }, data: { rank: 2 } });
+    const bold = await spawnFor(playerId, { creatureId: "kawi", level: 3, genome: { build: ["S", "L"], temperament: ["B", "B"], marking: ["+", "+"] } });
+    const again = ObserveResponseSchema.parse((await agent.post(`/api/game/spawns/${bold.id}/observe`)).body);
+    expect(again.researcherExp.map((g) => g.reason)).toContain("Bold Kawi recorded");
+    const registry = RegistryResponseSchema.parse((await agent.get("/api/game/registry")).body);
+    expect(registry.entries.find((e) => e.creatureId === "kawi")?.fieldNotes?.phenotypes).toEqual(["Bold seen", "Wary seen"]);
   });
 
   it("records habitat visits once a day, splitting researcher EXP by category, with exploration EXP for the lead", async () => {
